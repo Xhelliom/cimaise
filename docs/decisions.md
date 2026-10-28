@@ -79,3 +79,15 @@ privilège ajouté plus tard doit venir avec la fonctionnalité qui l'exige.
 `APP_DIR=apps/tv/dist`) et `apps/tv/build/cimaise-unsigned.wgt` (zip non signé), puis affiche la taille
 (budget 1,5 Mo). Aucune dépendance ajoutée. Page vide de référence : 3,19 Ko au premier build.
 Icône `icon.png` : 117×117 uni, 230 octets.
+
+## Routeur à pile de panneaux et chargement différé (2026-10-28)
+
+**Décision.** `packages/tv-core/src/router` : pile de panneaux (`push`/`pop`/`replace`), un seul panneau dans le DOM
+(les recouverts sont retirés, `suspend`/`resume` ; les dépilés sont détruits et leurs `<img>` perdent leur `src`).
+Retour (`back`, 10009 normalisé) dépile ; à la racine il ouvre une confirmation de sortie, la sortie passe par
+`exitApp()` de l'adaptateur device. Zéro dépendance, ~1 Ko minifié estimé.
+
+**Chargement différé.** `lazy(loader)` à rappels (pas de `Promise` : cible ES5 sans polyfill), chargement unique partagé,
+nouvel essai après échec. Dans le bundle unique actuel, le chargeur appelle `done(init())` : on diffère l'initialisation,
+pas le réseau. Un chunk séparé (injection de `<script>`) ne se justifiera que si la mesure en M3 montre que le module Plex
+pèse sur le premier affichage ; esbuild en IIFE ne scinde pas, ce serait un second bundle ES5 chargé par `lazy`.
