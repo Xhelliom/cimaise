@@ -24,20 +24,40 @@ echo "Ouverture du Certificate Manager sur $DISPLAY… (fermer la fenêtre pour 
 run_in_container /home/tizen/tizen-studio/tools/certificate-manager/certificate-manager || \
   echo "avertissement : le Certificate Manager s'est terminé avec une erreur" >&2
 
-# Rangement dans .local/certs/ : on ne copie que ce qui manque, sans jamais écraser.
-# cert-add-on range author.p12 / distributor.p12 dans ~/SamsungCertificate/<profil>/ (monté sur .local/) ;
-# le keystore du SDK sert de repli.
+# Rangement dans .local/certs/.
+# cert-add-on range author.p12 / distributor.p12 dans ~/SamsungCertificate/<profil>/ (monté sur .local/).
+# Pour une TV Samsung, auteur et distributeur doivent venir du MÊME profil Samsung : si un profil
+# contient les deux, cette paire prime sur tout author.p12 déjà présent (typiquement l'auteur Tizen
+# de cert-author.sh, inutilisable avec un distributeur Samsung). L'ancien fichier, s'il diffère,
+# est sauvegardé en author.cli.p12 (distributor.old.p12 pour le distributeur), jamais écrasé en silence.
 SC="$LOCAL_DIR/SamsungCertificate"
 KS="$LOCAL_DIR/tizen-studio-data/keystore"
-copy_new() { # $1 = fichier source, $2 = nom cible
-  [ -f "$1" ] && [ ! -e "$LOCAL_DIR/certs/$2" ] || return 0
-  cp "$1" "$LOCAL_DIR/certs/$2" && chmod 600 "$LOCAL_DIR/certs/$2" && echo "copié : .local/certs/$2" >&2
+CERTS="$LOCAL_DIR/certs"
+install_cert() { # $1 = source, $2 = nom cible, $3 = nom de sauvegarde si la cible diffère
+  if [ -e "$CERTS/$2" ]; then
+    cmp -s "$1" "$CERTS/$2" && return 0
+    local bak="$CERTS/$3"; [ -e "$bak" ] && bak="$bak.$(date +%s)"
+    mv "$CERTS/$2" "$bak" && chmod 600 "$bak" && echo "sauvegardé : .local/certs/$2 → ${bak#"$LOCAL_DIR/"} (ne va pas avec le profil Samsung)" >&2
+  fi
+  cp "$1" "$CERTS/$2" && chmod 600 "$CERTS/$2" && echo "copié : .local/certs/$2" >&2
 }
-if [ -d "$SC" ] || [ -d "$KS" ]; then
-  dist="$(find "$SC" "$KS" -name '*distributor*.p12' -print 2>/dev/null | head -n1 || true)"
-  auth="$(find "$SC" "$KS" -name '*.p12' ! -name '*distributor*' -print 2>/dev/null | head -n1 || true)"
-  [ -n "$auth" ] && copy_new "$auth" author.p12
-  [ -n "$dist" ] && copy_new "$dist" distributor.p12
+pair=""
+if [ -d "$SC" ]; then
+  while IFS= read -r d; do
+    if [ -f "$d/author.p12" ] && [ -f "$d/distributor.p12" ]; then pair="$d"; break; fi
+  done < <(find "$SC" -mindepth 1 -maxdepth 2 -type d -print 2>/dev/null | sort)
+fi
+if [ -n "$pair" ]; then
+  install_cert "$pair/author.p12" author.p12 author.cli.p12
+  install_cert "$pair/distributor.p12" distributor.p12 distributor.old.p12
+elif [ -d "$KS" ] && ! find "$SC" -name '*distributor*.p12' 2>/dev/null | grep -q .; then
+  # Pas de profil Samsung : repli sur le keystore du SDK, en ne copiant que ce qui manque.
+  for name in author distributor; do
+    src="$(find "$KS" -name "*$name*.p12" -print 2>/dev/null | head -n1 || true)"
+    [ -n "$src" ] && [ ! -e "$CERTS/$name.p12" ] && install_cert "$src" "$name.p12" "$name.old.p12"
+  done
+elif [ -d "$SC" ]; then
+  echo "avertissement : aucun profil Samsung complet (author.p12 + distributor.p12 dans le même dossier) sous .local/SamsungCertificate/ ; rien copié" >&2
 fi
 for f in author.p12 distributor.p12; do
   [ -f "$LOCAL_DIR/certs/$f" ] || echo "à faire : .local/certs/$f absent (le créer dans le Certificate Manager ; cert-add-on range par défaut dans ~/SamsungCertificate/<profil>/, monté sur .local/SamsungCertificate)" >&2
