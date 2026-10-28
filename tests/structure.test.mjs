@@ -14,7 +14,7 @@ test('chaque workspace a package.json et src/index.ts (sauf scripts)', () => {
 
 test('racine déclare les workspaces', () => {
   const root = JSON.parse(readFileSync('package.json', 'utf8'));
-  for (const w of workspaces) assert.ok(root.workspaces.includes(w), w);
+  for (const w of workspaces) assert.ok(root.workspaces.includes(w) || root.workspaces.includes(w.replace(/[^/]+$/, '*')), w);
 });
 
 test('aucune dépendance runtime', () => {
