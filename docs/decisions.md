@@ -37,8 +37,9 @@ Linux classique. Une image épinglée est reproductible et ne touche pas au syst
 
 **Secrets.** Tout ce qui est secret ou propre à la TV (IP, DUID, certificats, mots de passe,
 profils, IDs d'apps) vit dans `.local/` (ignoré par git). Les scripts lisent
-`.local/tizen.env` ; les mots de passe passent au conteneur par `--env-file`, jamais en
-argument de commande ni dans les logs. Les profils de signature sont dans
+`.local/tizen.env` ; les mots de passe passent au conteneur par `--env-file`, jamais
+sur la ligne de commande de l'hôte, dans l'historique du shell ni dans les logs
+(dans le conteneur, `tizen` reçoit le mot de passe via `-p`). Les profils de signature sont dans
 `.local/tizen-studio-data/`.
 
 **Coût.** Image ~ 8,7 Go sur disque (`cimaise-tizen:5.6`), construite une fois (`scripts/tizen/build-image.sh`). Aucun
