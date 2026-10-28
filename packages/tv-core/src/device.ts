@@ -29,3 +29,8 @@ export function registerKeys(names: string[]): void {
   var tizen = getTizen();
   for (var i = 0; i < names.length; i++) tizen.tvinputdevice.registerKey(names[i]);
 }
+
+// Quitte l'app (confirmation de sortie à la racine du routeur).
+export function exitApp(): void {
+  getTizen().application.getCurrentApplication().exit();
+}
