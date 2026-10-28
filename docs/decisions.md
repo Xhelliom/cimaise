@@ -107,3 +107,29 @@ directe, où `<img>`/AVPlay ne peuvent pas poser d'en-tête. Identifiant client 
 **Connexion.** Locales d'abord, puis directes distantes, puis relais ; première qui répond à `/identity`.
 
 **Statut.** Fixtures `tests/fixtures/plex/` écrites à la main, **non vérifiées contre un vrai serveur** ; aucune dépendance ajoutée.
+
+## Wrapper AVPlay `tv-core/src/player` (2026-10-28)
+
+**Décision.** `packages/tv-core/src/player/avplay.ts` : `createPlayer()` est le seul point d'appel à `webapis.avplay`
+(via `getWebapis()` de l'adaptateur device). Rappels `(err)`, pas de `Promise`. Cycle `open` → `setListener` →
+`setDisplayRect` → `prepareAsync` → (`seekTo` de reprise) → `play` ; `pause`, `seekTo`, `forward`/`rewind` (±10 s bornés à la durée),
+`stop`, `close` ; pistes via `getTotalTrackInfo` (audio et texte) et `setSelectTrack`, `setSilentSubtitle` pour masquer les sous-titres ;
+événements buffering, temps courant, fin, erreur, sous-titre.
+
+**visibilitychange.** Quand le document devient masqué avec un flux ouvert : `onSuspend(positionMs, url)` est appelé (pour
+sauvegarder la reprise), puis `stop` et `close`. Pas de reprise automatique : c'est à l'appelant de rouvrir avec `startMs`.
+
+**Hors TV.** `getWebapis()` lève `NO_WEBAPIS` ; le mock d'aperçu lève aussi. Aucune lecture n'est jamais simulée.
+Tests : fausse API injectée par `opts.api`, uniquement dans `tests/player.test.mjs`.
+
+**Inclusion de `webapis.js` (à faire avec le premier écran qui lit).** Dans `apps/tv/index.html`, avant `app.js` :
+`<script src="$WEBAPIS/webapis/webapis.js"></script>`. Le chemin `$WEBAPIS` n'est résolu que sur la TV ; dans l'aperçu navigateur
+il renvoie une 404, que le mock `webapis` (qui signale l'absence) couvre. Non ajouté ici : aucun écran n'appelle encore le lecteur.
+
+**Privilèges `config.xml` (à ajouter avec cet écran).** Selon la doc Samsung (guide AVPlay / API Product) :
+`http://developer.samsung.com/privilege/avplay` (obligatoire pour `webapis.avplay`) et `http://tizen.org/privilege/internet`
+(flux réseau, déjà exigé pour les appels Plex). `tv.inputdevice` (touches média) est déjà déclaré. **À vérifier sur la TV** :
+non testé, je n'ai pas pu confirmer la liste exacte pour Tizen 5.0 depuis la doc hors ligne ; si l'installation est refusée,
+lire le message de `sdb`/`vd_appinstall` et ajuster.
+
+**Coût.** ~2 Ko minifié estimé, zéro dépendance.
