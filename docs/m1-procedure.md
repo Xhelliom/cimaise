@@ -41,9 +41,18 @@ Consigner dans `docs/tv-status.md` (sans IP ni DUID) : plateforme Tizen, résult
 ## M1 — Chaîne « hello world »
 
 ### 5. Certificats Samsung (auteur + distributeur)
-Il faut le **DUID** de la TV (sortie de `sdb capability`, champ `duid`), un compte Samsung, et le certificat se crée avec l'outil Samsung. Dans le conteneur il n'y a pas d'interface graphique : deux voies.
+Il faut le **DUID** de la TV (sortie de `sdb capability`, champ `duid`), un compte Samsung, et le certificat se crée avec l'outil Samsung. Deux voies.
 - **Voie CLI** (essayer d'abord) : `scripts/tizen/cert-author.sh` (lance `tizen certificate -a cimaise -f author` avec `AUTHOR_PASSWORD` lu dans `.local/tizen.env` : le mot de passe n'apparaît jamais sur la ligne de commande de l'hôte, dans l'historique du shell ni dans les logs ; dans le conteneur, `tizen` le reçoit via `-p`) génère le certificat **auteur** puis le copie dans `.local/certs/author.p12`, le chemin attendu par `AUTHOR_CERT`. Le certificat **distributeur** exige ton compte Samsung : la CLI ne sait pas le demander.
-- **Voie Certificate Manager** (Tizen Studio sur une autre machine, ou VM) : Tools → Certificate Manager → créer un profil Samsung, type TV, « Author » puis « Distributor » ; se connecter à ton compte Samsung ; renseigner le **DUID** ; privilèges « Public ». Copier les `.p12` obtenus dans `.local/certs/` (`author.p12`, `distributor.p12`).
+- **Voie Certificate Manager** (`scripts/tizen/cert-manager.sh`, depuis une session graphique de l'hôte) : le Certificate Manager et l'extension Samsung sont déjà dans l'image (reconstruire avec `scripts/tizen/build-image.sh` si l'image date d'avant : elle ajoute GTK3). Le script affiche la fenêtre via X11, ou XWayland sous Wayland (`DISPLAY` doit être défini ; sur NixOS, `programs.xwayland.enable = true`). Pas à pas, **tu fais tout toi-même** (l'agent ne saisit jamais ton mot de passe Samsung) :
+  1. `scripts/tizen/cert-manager.sh`. **Tu verras** : une fenêtre « Certificate Manager » (onglet App Signing, « There is no generated certificate profile »). Le script reste bloqué jusqu'à la fermeture de la fenêtre.
+  2. Cliquer sur **+** (Certificate Profile). **Tu verras** : « Select the type of certificate profile », deux choix, Tizen et **Samsung**. Choisir **Samsung**.
+  3. Étape 1 « Device Type » : **TV** → Next.
+  4. Étape 2 « Certificate Profile » : nom `cimaise` → Next.
+  5. Étape 3 « Author Certificate » : créer un nouveau certificat auteur (nom, mot de passe = `AUTHOR_PASSWORD`). Quand le dossier est demandé, mettre **`/work/.local/certs`** (= `.local/certs/` de l'hôte). **Garder ce certificat pour toujours.**
+  6. Étape 4 « Distributor Certificate » : se connecter au **compte Samsung** (dans la fenêtre de connexion qui s'ouvre, c'est toi qui saisis tes identifiants), choisir privilège **Public**, saisir le **DUID** de la TV (`sdb-tv.sh capability`), mot de passe = `DISTRIBUTOR_PASSWORD` → Finish.
+  7. Fermer la fenêtre. Le script copie alors dans `.local/certs/` les `.p12` qui s'y trouvent déjà ailleurs (`author.p12`, `distributor.p12`) sans rien écraser, et signale ce qui manque. Si les fichiers portent un autre nom, les renommer à la main en `author.p12` et `distributor.p12`.
+  - Si la connexion Samsung n'affiche pas de page (navigateur intégré absent) ou si la fenêtre ne s'ouvre pas, dis-moi le message exact.
+  - Vérifié sans TV ni compte : fenêtre, choix Samsung et étape « Device Type : TV » s'affichent (sous Xvfb). **Non testé** : connexion Samsung, création des certificats, affichage sur ton écran Wayland réel.
 Dans `.local/tizen.env` : renseigner `AUTHOR_PASSWORD`, `DISTRIBUTOR_PASSWORD`. **Garder ce certificat auteur pour toujours** : le changer casse les mises à jour sur place.
 
 > Cette étape n'est pas testée : la création du certificat distributeur dépend de ton compte Samsung. Si tu bloques, dis-moi où.

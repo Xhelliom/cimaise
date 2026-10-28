@@ -140,6 +140,21 @@ grep "^DOCKER" "$TMP/docker.log" | grep -q "$SECRET" && fail "mot de passe absen
 [[ "$all" == *"$SECRET"* ]] && fail "mot de passe absent des sorties" || ok "mot de passe absent des sorties"
 grep -q -- "^DOCKER .*--env-file" "$TMP/docker.log" && ok "secrets passés par env-file" || fail "secrets passés par env-file"
 
+# 8 bis. cert-manager : ouvre le Certificate Manager sur l'affichage de l'hôte (X11/XWayland)
+check "cert-manager.sh exécutable + syntaxe" bash -c "[ -x '$HERE/cert-manager.sh' ] && bash -n '$HERE/cert-manager.sh'"
+out="$(env -u DISPLAY -u WAYLAND_DISPLAY "$HERE/cert-manager.sh" 2>&1)"; rc=$?
+[ $rc -ne 0 ] && [[ "$out" == *"DISPLAY"* ]] && ok "cert-manager sans affichage → erreur claire" || fail "cert-manager sans affichage → erreur claire"
+: > "$TMP/docker.log"
+mkdir -p "$TMP/local/tizen-studio-data/keystore/author"
+echo fake > "$TMP/local/tizen-studio-data/keystore/author/cimaise.p12"
+echo fake > "$TMP/local/tizen-studio-data/keystore/author/tizen-distributor-signer.p12"
+touch "$TMP/xauth"
+DISPLAY=:0 XAUTHORITY="$TMP/xauth" "$HERE/cert-manager.sh" >/dev/null 2>&1 && ok "cert-manager (affichage X11)" || fail "cert-manager (affichage X11)"
+grep -q -- "^DOCKER run .*/tmp/.X11-unix" "$TMP/docker.log" && ok "cert-manager monte le socket X11" || fail "cert-manager monte le socket X11"
+grep -q -- "^DOCKER run .*DISPLAY=:0" "$TMP/docker.log" && ok "cert-manager transmet DISPLAY" || fail "cert-manager transmet DISPLAY"
+grep -q -- "^DOCKER run .*XAUTHORITY" "$TMP/docker.log" && ok "cert-manager transmet l'autorisation X" || fail "cert-manager transmet l'autorisation X"
+[ -f "$TMP/local/certs/author.p12" ] && [ -f "$TMP/local/certs/distributor.p12" ] && ok "cert-manager range author.p12 et distributor.p12 dans .local/certs" || fail "cert-manager range author.p12 et distributor.p12 dans .local/certs"
+
 # 9. rien de secret versionné
 cd "$REPO" && ! git ls-files | grep -Eq '\.(p12|pfx|key|pem)$|(^|/)\.local/' && ok "aucun secret suivi par git" || fail "aucun secret suivi par git"
 

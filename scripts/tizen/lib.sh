@@ -7,6 +7,8 @@ LOCAL_DIR="${CIMAISE_LOCAL_DIR:-$REPO_ROOT/.local}"
 ENV_FILE="$LOCAL_DIR/tizen.env"
 IMAGE="${CIMAISE_TIZEN_IMAGE:-cimaise-tizen:5.6}"
 DOCKER="${DOCKER:-docker}"
+# Options `docker run` supplémentaires (ex. affichage X11) ; un script les remplit avant run_in_container.
+DOCKER_RUN_EXTRA=()
 
 die() { echo "erreur : $*" >&2; exit 1; }
 
@@ -44,6 +46,7 @@ run_in_container() {
   [ -f "$ENV_FILE" ] && envopt=(--env-file "$ENV_FILE")
   "$DOCKER" run --rm -i --network host \
     "${envopt[@]}" \
+    "${DOCKER_RUN_EXTRA[@]}" \
     -v "$REPO_ROOT:/work" \
     -v "$LOCAL_DIR/tizen-studio-data:/home/tizen/tizen-studio-data" \
     -w /work "$IMAGE" "$@"
