@@ -1,7 +1,7 @@
 // Aperçu navigateur : sert apps/tv avec les mocks injectés (jamais écrits dans dist/ ni dans le .wgt).
 // Chaque requête recompile depuis les sources : recharger la page suffit.
 import { createServer } from 'node:http';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 
@@ -34,9 +34,22 @@ const routes = {
   '/app/app.css': async () => [await bundle('apps/tv/src/style.css'), 'text/css'],
 };
 
+// Maquettes statiques de packages/launcher/mockups (aperçu seulement, jamais dans le .wgt).
+const MIME = { html: 'text/html', css: 'text/css', woff2: 'font/woff2' };
+const mockupRoute = (url) => {
+  const m = /^\/mockups\/([\w-]*(?:\.(html|css|woff2))?)$/.exec(url);
+  if (!m) return null;
+  const name = m[1] || 'index.html';
+  const file = `${root}packages/launcher/mockups/${name}`;
+  if (!existsSync(file)) return null;
+  const ext = name.split('.').pop();
+  return async () => [readFileSync(file, ext === 'woff2' ? undefined : 'utf8'), MIME[ext]];
+};
+
 export function startDevServer({ port = 5173 } = {}) {
   const srv = createServer(async (req, res) => {
-    const route = routes[(req.url ?? '/').split('?')[0]];
+    const url = (req.url ?? '/').split('?')[0];
+    const route = routes[url] ?? mockupRoute(url);
     if (!route) { res.writeHead(404).end('introuvable'); return; }
     try {
       const [body, type] = await route();
