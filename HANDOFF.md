@@ -1,8 +1,8 @@
-# HANDOFF — Frame Hub : launcher custom + client Plex optimisé pour Samsung The Frame 2019
+# HANDOFF — Cimaise : launcher custom + client Plex optimisé pour Samsung The Frame 2019
 
 > Document de démarrage pour un agent de code (Claude Code ou équivalent) et pour Stéphane.
 > À placer à la racine du nouveau repo. À relire avant chaque session.
-> Nom de travail : **frame-hub** (à renommer librement).
+> Nom du projet : **cimaise** (la cimaise est le rail où l'on accroche les tableaux dans une galerie).
 
 ---
 
@@ -66,7 +66,7 @@ Source : https://github.com/nthnclrk/CleanFrame (MIT). Testé **uniquement** sur
 ## 4. Architecture cible
 
 ```
-frame-hub/
+cimaise/
 ├─ apps/
 │  └─ tv/                    # App Web Tizen : config.xml, index.html, build vers .wgt
 ├─ packages/
@@ -162,7 +162,7 @@ Hors MVP : recherche, playlists, musique (Plexamp existe), multi-utilisateurs g�
 - Raccourcis cibles (IDs à relire sur notre TV) : **Plex intégré** (module interne), Plex officiel en secours, Netflix, YouTube, Disney+, Canal+, etc., selon ce qui est installé.
 - Un raccourci « Smart Hub Samsung », pour garder une sortie vers l'accueil d'origine.
 - Garder les points forts de CleanFrame : mises en page List et Dock, fonds d'écran, horloge, réglages.
-- Migrer les préférences vers une nouvelle clé (`framehub.v1`), avec un schéma versionné.
+- Migrer les préférences vers une nouvelle clé (`cimaise.v1`), avec un schéma versionné.
 
 ---
 
@@ -252,7 +252,7 @@ Pour notre Tizen 5 :
 3. AVPlay sous Tizen 5 : codecs, HDR, pistes et sous-titres réellement gérés.
 4. HTTPS auto-signé accepté par la TV ou non (phase 2).
 5. L'autorun de la dernière app rouvre-t-il bien notre app après le mode Art et après une coupure de courant ?
-6. Nom définitif du projet.
+6. ~~Nom définitif du projet.~~ Tranché : **cimaise**.
 7. Écart réel entre une page vide et CleanFrame sur la Frame 2019 : c'est cette mesure qui dira jusqu'où pousser l'allègement.
 8. La TV garde-t-elle l'app en mémoire en arrière-plan, et combien de temps ?
 
