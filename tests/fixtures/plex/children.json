@@ -1,0 +1,3 @@
+{ "MediaContainer": { "size": 2, "Metadata": [
+  { "ratingKey": "501", "title": "Saison 1", "type": "season", "index": 1, "leafCount": 8, "viewedLeafCount": 3 },
+  { "ratingKey": "502", "title": "Saison 2", "type": "season", "index": 2, "leafCount": 8, "viewedLeafCount": 0 } ] } }

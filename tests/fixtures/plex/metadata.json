@@ -1,0 +1,4 @@
+{ "MediaContainer": { "size": 1, "Metadata": [
+  { "ratingKey": "101", "title": "Film A", "type": "movie", "summary": "Résumé.", "duration": 7200000, "viewOffset": 1000,
+    "Media": [ { "id": 1, "container": "mkv", "videoCodec": "h264", "audioCodec": "ac3",
+      "Part": [ { "id": 11, "key": "/library/parts/11/1700000000/file.mkv", "duration": 7200000 } ] } ] } ] } }

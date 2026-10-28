@@ -1,0 +1,10 @@
+[
+  { "name": "Lecteur", "provides": "player", "accessToken": "FAKE-PLAYER", "connections": [] },
+  { "name": "Serveur test", "provides": "server,client", "accessToken": "FAKE-SERVER-TOKEN",
+    "connections": [
+      { "protocol": "https", "address": "203.0.113.5", "port": 32400, "uri": "https://203.0.113.5:32400", "local": false, "relay": false },
+      { "protocol": "https", "address": "203.0.113.9", "port": 8443, "uri": "https://relay.example.invalid:8443", "local": false, "relay": true },
+      { "protocol": "http", "address": "192.0.2.11", "port": 32400, "uri": "http://192.0.2.11:32400", "local": true, "relay": false },
+      { "protocol": "http", "address": "192.0.2.10", "port": 32400, "uri": "http://192.0.2.10:32400", "local": true, "relay": false }
+    ] }
+]

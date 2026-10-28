@@ -91,3 +91,19 @@ Retour (`back`, 10009 normalisé) dépile ; à la racine il ouvre une confirmati
 nouvel essai après échec. Dans le bundle unique actuel, le chargeur appelle `done(init())` : on diffère l'initialisation,
 pas le réseau. Un chunk séparé (injection de `<script>`) ne se justifiera que si la mesure en M3 montre que le module Plex
 pèse sur le premier affichage ; esbuild en IIFE ne scinde pas, ce serait un second bundle ES5 chargé par `lazy`.
+
+## Client API Plex : XMLHttpRequest, rappels, transport injectable (2026-10-28)
+
+**Décision.** `packages/plex/src/api` : fonctions typées à rappels `(err, valeur)` (pas de `Promise` : cible ES5 sans polyfill),
+transport `Http` injectable. Implémentation réelle : **XMLHttpRequest** (`xhr.ts`), pas `fetch`.
+
+**Pourquoi XHR.** Le moteur web de Tizen 5 est un Chromium ancien : `fetch` y existe mais sans `AbortController` ni délai d'expiration ;
+l'annulation du flux PIN et les délais exigent `abort()` et `timeout`, que XHR fournit sans polyfill. Non testé sur la TV
+(à confirmer en M3 ; remplaçable en ne changeant que `xhr.ts`).
+
+**Jeton.** En-tête `X-Plex-Token` pour les appels API ; dans l'URL seulement pour les images (transcodeur photo) et la lecture
+directe, où `<img>`/AVPlay ne peuvent pas poser d'en-tête. Identifiant client : UUID v4 dans `cimaise.v1` (`prefs.plexClientId`).
+
+**Connexion.** Locales d'abord, puis directes distantes, puis relais ; première qui répond à `/identity`.
+
+**Statut.** Fixtures `tests/fixtures/plex/` écrites à la main, **non vérifiées contre un vrai serveur** ; aucune dépendance ajoutée.
