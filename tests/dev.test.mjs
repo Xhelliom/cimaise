@@ -133,3 +133,27 @@ test('Échap pressée dans l’iframe = un seul keydown, keyCode 10009 ; les aut
   assert.deepEqual(h.received, [10009]); // synthétique pour Échap uniquement
   assert.deepEqual(appSees, [37]);       // Échap native (27) supprimée, flèche native conservée
 });
+
+test('aperçu : le bundle servi avec les mocks remplit #clock et #marks et pose l’écouteur Entrée', async () => {
+  const mocks = (await get('/__mocks/mocks.js')).text;
+  const app = (await get('/app/app.js')).text;
+  const made = [];
+  const el = () => ({ style: {}, textContent: '', setAttribute() {}, appendChild(c) { made.push(c); }, parentNode: null });
+  const clock = el(), marks = el(), listeners = {};
+  const document = {
+    createElement: el, body: el(), documentElement: el(), readyState: 'complete',
+    getElementById: (id) => ({ clock, marks }[id]),
+    addEventListener: (t, f) => { listeners[t] = f; },
+  };
+  const logs = [];
+  const window = { document, console: { error: (...a) => logs.push(a.join(' ')), log() {}, warn() {} } };
+  window.window = window;
+  const ctx = vm.createContext({ ...window, window, setTimeout() {}, Date, console: window.console });
+  vm.runInContext(mocks, ctx);
+  vm.runInContext(app, ctx);
+  assert.match(clock.textContent, /^\d\d:\d\d$/);
+  assert.match(marks.textContent, /scriptLoaded/);
+  assert.match(marks.textContent, /interactive/);
+  assert.equal(typeof listeners.keydown, 'function');
+  assert.ok(logs.some((l) => /registerKey/.test(l)), 'le mock doit rester bruyant : ' + logs.join('|'));
+});

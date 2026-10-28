@@ -15,8 +15,6 @@ function tick(): void {
 
 tick();
 mark('firstPaint');
-if (hasTizen()) registerKeys(REGISTER_KEYS);
-
 document.addEventListener('keydown', function (e) {
   var k = normalizeKey(e);
   if (k === 'enter') toggleDiag(); // écran de diagnostic caché : Entrée
@@ -24,3 +22,8 @@ document.addEventListener('keydown', function (e) {
 
 mark('interactive');
 marks.textContent = report();
+
+// En dernier : sans TV (aperçu), l'appel lève en signalant l'absence de TV ; la page reste fonctionnelle.
+if (hasTizen()) {
+  try { registerKeys(REGISTER_KEYS); } catch (e) { /* l'erreur est déjà signalée (console + bandeau) */ }
+}
