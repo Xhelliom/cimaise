@@ -1,0 +1,14 @@
+{
+  "name": "cimaise",
+  "version": "0.0.0",
+  "private": true,
+  "workspaces": ["apps/tv", "packages/*", "mocks", "scripts"],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run build -- --noEmit",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  }
+}
