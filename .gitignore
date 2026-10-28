@@ -2,3 +2,5 @@
 node_modules/
 dist/
 *.wgt
+*.p12
+*.pfx
