@@ -52,19 +52,17 @@ function grid(extra = {}) {
   return { g, log, container, layer: container.children[0], pages };
 }
 
-test('grille de 5000 éléments : DOM borné (≤ 25 tuiles, ≤ 76 nœuds) pendant tout le parcours', () => {
+test('grille de 5000 éléments : DOM borné (≤ 30 tuiles, ≤ 92 nœuds) pendant tout le parcours', () => {
   const { g, container } = grid();
-  // 3 lignes pleines (1080/320) + 2 de marge = 5 lignes × 5 colonnes
-  const max = (1 + 2 * 1 + 3) * 5;
+  // 4 lignes visibles dont 1 partielle (ceil(1080/320)) + 1 de marge de chaque côté = 6 lignes × 5 colonnes
   let worst = 0;
   for (let k = 0; k < 900; k++) {
     g.handleKey('down');
     worst = Math.max(worst, container.children[0].children.length);
   }
   for (let k = 0; k < 4; k++) g.handleKey('right');
-  assert.ok(worst <= 25, 'tuiles max ' + worst);
-  assert.ok(count(container) <= 2 + 25 * 3, 'nœuds ' + count(container));
-  assert.equal(max, 30); // garde-fou de l'arithmétique ci-dessus
+  assert.ok(worst <= 30, 'tuiles max ' + worst);
+  assert.ok(count(container) <= 2 + 30 * 3, 'nœuds ' + count(container));
 });
 
 test('rangée de 5000 éléments : DOM borné', () => {
@@ -105,10 +103,27 @@ test('focus cohérent : une seule tuile focus, dans la fenêtre visible', () => 
 test('images : seulement lignes visibles + la suivante ; libérées au recyclage', () => {
   const { g, layer } = grid();
   const withSrc = () => layer.children.filter((t) => t.children[0].getAttribute('src'));
-  assert.equal(withSrc().length, 4 * 5); // 3 visibles + 1 préchargée ; la marge n'a pas d'image
+  assert.equal(withSrc().length, 5 * 5); // 4 visibles (dont 1 partielle) + la suivante, entièrement cachée
+  const hidden = layer.children.filter((t) => xy(t)[1] >= 1080); // première ligne sous le viewport (y = 1280)
+  assert.equal(hidden.length, 5);
+  assert.ok(hidden.every((t) => t.children[0].getAttribute('src')));
   for (let k = 0; k < 100; k++) g.handleKey('down');
-  assert.ok(withSrc().length <= 5 * 5);
+  assert.ok(withSrc().length <= 6 * 5);
   assert.ok(layer.children.every((t) => !t.children[0].getAttribute('src') || t.children[0].getAttribute('src') === 'img/' + [...Array(5000).keys()].find((i) => 't' + i === t.children[1].textContent)));
+});
+
+test('refresh() ne retouche pas src quand l’URL est inchangée, le remplace quand elle change', () => {
+  const urls = {};
+  const { g, log, layer } = grid({ render: (i) => ({ title: 't' + i, image: urls[i] || 'img/' + i }) });
+  log.length = 0;
+  g.refresh();
+  assert.deepEqual(log.filter((l) => l === 'attr:src'), []);
+  assert.equal(layer.children.filter((t) => t.children[0].getAttribute('src')).length, 25);
+  urls[0] = 'img/new0';
+  g.refresh();
+  const t0 = layer.children.find((t) => t.children[1].textContent === 't0');
+  assert.equal(t0.children[0].getAttribute('src'), 'img/new0');
+  assert.equal(log.filter((l) => l === 'attr:src').length, 2); // retrait + pose, pour cette seule tuile
 });
 
 test('pagination : page demandée avant que le focus n’atteigne sa première ligne', () => {

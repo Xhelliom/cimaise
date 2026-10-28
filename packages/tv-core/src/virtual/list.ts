@@ -24,7 +24,7 @@ export interface VirtualOptions {
 
 interface Tile { el: HTMLElement; img: HTMLImageElement; label: HTMLElement; index: number; src: boolean; }
 
-// Liste/grille virtualisée : au plus (lignes visibles + 2 × marge) × colonnes nœuds, tous
+// Liste/grille virtualisée : au plus (lignes visibles, partielles comprises, + 2 × marge) × colonnes nœuds, tous
 // préalloués et recyclés. Le défilement est un seul transform sur la couche ; chaque tuile
 // n'est repositionnée (transform) que lorsqu'elle change d'index.
 export class VirtualList {
@@ -35,7 +35,8 @@ export class VirtualList {
   private layer: HTMLElement;
   private cross: number;
   private lineSize: number;
-  private fullLines: number;
+  private fullLines: number;   // lignes entièrement visibles (suivi du focus)
+  private visLines: number;    // lignes visibles, partielles comprises (plage DOM, images, pool)
   private margin: number;
   private active: { [i: number]: Tile } = {};
   private free: Tile[] = [];
@@ -49,6 +50,7 @@ export class VirtualList {
     this.lineSize = (o.horizontal ? o.itemW : o.itemH) + o.gap;
     var axis = o.horizontal ? o.viewportW : o.viewportH;
     this.fullLines = Math.max(1, Math.floor((axis + o.gap) / this.lineSize));
+    this.visLines = Math.max(this.fullLines, Math.ceil(axis / this.lineSize));
     this.focus = new Focus(o.count, o.horizontal ? Math.max(1, o.count) : this.cross);
     this.layer = this.doc.createElement('div');
     this.layer.className = 'vlayer';
@@ -56,7 +58,7 @@ export class VirtualList {
     this.layer.style.left = '0px';
     this.layer.style.top = '0px';
     o.container.appendChild(this.layer);
-    var n = (this.fullLines + 2 * this.margin) * this.cross;
+    var n = (this.visLines + 2 * this.margin) * this.cross;
     for (var k = 0; k < n; k++) this.free.push(this.makeTile());
   }
 
@@ -87,7 +89,7 @@ export class VirtualList {
 
   // Les données d'une page sont arrivées : relie les tuiles actives.
   refresh(): void {
-    for (var k in this.active) this.bind(this.active[k], true);
+    for (var k in this.active) this.bind(this.active[k]);
     this.update();
   }
 
@@ -121,12 +123,13 @@ export class VirtualList {
     this.top = Math.max(0, Math.min(t, this.totalLines() - this.fullLines));
   }
 
-  private bind(t: Tile, force: boolean): void {
+  private bind(t: Tile): void {
     var info = this.o.render(t.index);
     t.label.textContent = info && info.title ? info.title : '';
     var url = info && info.image ? info.image : null;
+    // src n'est retiré que si l'URL change : une page qui arrive ne redécode pas les affiches inchangées.
+    if (t.src && url !== t.img.getAttribute('data-src')) { t.img.removeAttribute('src'); t.src = false; }
     t.img.setAttribute('data-src', url || '');
-    if (t.src && (force || !url)) { t.img.removeAttribute('src'); t.src = false; }
   }
 
   private place(t: Tile, i: number): void {
@@ -139,7 +142,7 @@ export class VirtualList {
   update(): void {
     var o = this.o, cross = this.cross, total = this.totalLines();
     var first = Math.max(0, this.top - this.margin);
-    var last = Math.min(total - 1, this.top + this.fullLines - 1 + this.margin);
+    var last = Math.min(total - 1, this.top + this.visLines - 1 + this.margin);
     var lo = first * cross, hi = Math.min(o.count - 1, (last + 1) * cross - 1);
     var k: any, t: Tile;
     for (k in this.active) {
@@ -152,8 +155,8 @@ export class VirtualList {
         this.free.push(t);
       }
     }
-    // Images : lignes visibles + la suivante (préchargement) ; les lignes de marge restent vides.
-    var loadHi = (this.top + this.fullLines + 1) * cross - 1;
+    // Images : lignes visibles (partielles comprises) + la suivante entière ; la marge du haut reste vide.
+    var loadHi = (this.top + this.visLines + 1) * cross - 1;
     for (var i = lo; i <= hi; i++) {
       t = this.active[i];
       if (!t) {
@@ -161,7 +164,7 @@ export class VirtualList {
         t.index = i;
         this.active[i] = t;
         this.place(t, i);
-        this.bind(t, false);
+        this.bind(t);
         this.layer.appendChild(t.el);
       }
       if (!t.src && i <= loadHi && i >= this.top * cross) {
