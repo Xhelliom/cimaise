@@ -1,0 +1,65 @@
+import { test, before } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync, existsSync, statSync } from 'node:fs';
+import { inflateRawSync } from 'node:zlib';
+import { spawnSync } from 'node:child_process';
+
+const WGT = 'apps/tv/build/cimaise-unsigned.wgt';
+let build;
+before(() => {
+  build = spawnSync('npm', ['run', 'build'], { encoding: 'utf8' });
+  assert.equal(build.status, 0, build.stdout + build.stderr);
+});
+
+function zip(buf) {
+  const eocd = buf.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
+  const n = buf.readUInt16LE(eocd + 10);
+  let p = buf.readUInt32LE(eocd + 16);
+  const out = {};
+  for (let i = 0; i < n; i++) {
+    const method = buf.readUInt16LE(p + 10), csize = buf.readUInt32LE(p + 20);
+    const nl = buf.readUInt16LE(p + 28), xl = buf.readUInt16LE(p + 30), cl = buf.readUInt16LE(p + 32);
+    const off = buf.readUInt32LE(p + 42);
+    const name = buf.toString('utf8', p + 46, p + 46 + nl);
+    const lh = off + 30 + buf.readUInt16LE(off + 26) + buf.readUInt16LE(off + 28);
+    const body = buf.subarray(lh, lh + csize);
+    out[name] = method === 8 ? inflateRawSync(body) : body;
+    p += 46 + nl + xl + cl;
+  }
+  return out;
+}
+
+test('build produit un .wgt non signé avec les fichiers de l’app', () => {
+  assert.ok(existsSync(WGT));
+  const f = zip(readFileSync(WGT));
+  for (const n of ['config.xml', 'index.html', 'app.js', 'app.css']) assert.ok(n in f, n);
+  assert.ok(!Object.keys(f).some((n) => /signature/i.test(n)), 'signature présente');
+  assert.ok(!Object.keys(f).some((n) => n.endsWith('.wgt')));
+  assert.ok(!f['app.js'].includes('CIMAISE_MOCK'), 'mock dans le .wgt');
+});
+
+test('config.xml : identité stable, required_version, privilèges minimaux, documenté', () => {
+  const cfg = readFileSync('apps/tv/config.xml', 'utf8');
+  assert.match(cfg, /<tizen:application id="cimaise00\.Cimaise" package="cimaise00" required_version="5\.0"/);
+  assert.match(cfg, /<tizen:profile name="tv-samsung"/);
+  const privs = [...cfg.matchAll(/<tizen:privilege name="([^"]+)"/g)].map((m) => m[1]);
+  assert.deepEqual(privs, ['http://tizen.org/privilege/tv.inputdevice']);
+  assert.match(cfg, /<!--[\s\S]*required_version[\s\S]*-->/);
+  assert.match(readFileSync('docs/decisions.md', 'utf8'), /required_version[\s\S]*cimaise00\.Cimaise|cimaise00\.Cimaise[\s\S]*required_version/);
+  assert.equal(zip(readFileSync(WGT))['config.xml'].toString(), cfg);
+});
+
+test('la taille du .wgt est rapportée', () => {
+  const size = statSync(WGT).size;
+  assert.match(build.stdout, /\.wgt/);
+  assert.ok(build.stdout.includes(String(size)), 'taille en octets absente : ' + size);
+  assert.match(build.stdout, /Ko/);
+});
+
+test('la page vide : fond uni, heure, horodatages', () => {
+  const f = zip(readFileSync(WGT));
+  const html = f['index.html'].toString();
+  assert.match(html, /id="clock"/);
+  assert.match(html, /id="marks"/);
+  assert.match(f['app.css'].toString(), /background:#/);
+});

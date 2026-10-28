@@ -2,6 +2,7 @@
 // esbuild ne fait que le bundling/minification (il ne sait pas abaisser vers l'ES5).
 import { execFileSync } from 'node:child_process';
 import { rmSync, mkdirSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { build } from 'esbuild';
 
 // CIMAISE_APP : dossier de l'app (tsconfig.json, src/index.ts) ; CIMAISE_OUT : dossier de sortie.
@@ -15,8 +16,10 @@ mkdirSync(outDir, { recursive: true });
 
 execFileSync('node_modules/.bin/tsc', ['-p', `${app}/tsconfig.json`, '--outDir', es5Dir], { stdio: 'inherit' });
 
+// rootDir à la racine (code partagé de packages/) : l'entrée suit alors l'arborescence du dépôt.
+const entry = existsSync(`${es5Dir}/index.js`) ? `${es5Dir}/index.js` : join(es5Dir, app, 'src/index.js');
 await build({
-  entryPoints: { app: `${es5Dir}/index.js` },
+  entryPoints: { app: entry },
   bundle: true,
   format: 'iife',
   target: 'es5',

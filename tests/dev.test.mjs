@@ -70,7 +70,7 @@ test('les mocks n’entrent pas dans le build .wgt', () => {
   const r = spawnSync('npm', ['run', 'build'], { encoding: 'utf8' });
   assert.equal(r.status, 0, r.stdout + r.stderr);
   for (const f of readdirSync('apps/tv/dist')) {
-    assert.doesNotMatch(readFileSync(`apps/tv/dist/${f}`, 'utf8'), /CIMAISE_MOCK|pas de TV/i, f);
+    assert.doesNotMatch(readFileSync(`apps/tv/dist/${f}`, 'utf8'), /CIMAISE_MOCK|appel sans effet dans l’aperçu/i, f);
   }
   assert.doesNotMatch(readFileSync('apps/tv/index.html', 'utf8'), /mock/i);
   assert.doesNotMatch(readFileSync('apps/tv/src/index.ts', 'utf8'), /mock/i);
