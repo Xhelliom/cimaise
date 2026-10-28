@@ -1,6 +1,7 @@
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, writeFileSync, mkdtempSync, readFileSync } from 'node:fs';
+import vm from 'node:vm';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -42,4 +43,18 @@ test('le rapport de taille s’affiche et signale un dépassement', () => {
 
 test('la sortie ne contient pas de syntaxe ES2015+ après minification', () => {
   assert.doesNotMatch(readFileSync('apps/tv/dist/app.js', 'utf8'), /=>|\bconst\b|\blet\b/);
+});
+
+test('la chaîne tsc → esbuild abaisse une fixture ES2015+ en ES5 qui s’exécute correctement', () => {
+  const out = join(mkdtempSync(join(tmpdir(), 'fixture-')), 'dist');
+  const b = run('node', ['scripts/build/build.mjs'], { CIMAISE_APP: 'tests/fixtures/es5-app', CIMAISE_OUT: out });
+  assert.equal(b.status, 0, b.stdout + b.stderr);
+  const bundle = join(out, 'app.js');
+  const code = readFileSync(bundle, 'utf8');
+  assert.doesNotMatch(code, /=>|\bconst\b|\blet\b|\bclass\b|`/);
+  const es5 = run('node', ['scripts/build/check-es5.mjs', bundle]);
+  assert.equal(es5.status, 0, es5.stdout + es5.stderr);
+  const sandbox = { __out: {} };
+  vm.runInNewContext(code, sandbox);
+  assert.equal(sandbox.__out.value, 'total=26'); // 10 + 4 + (2+4+6)
 });
