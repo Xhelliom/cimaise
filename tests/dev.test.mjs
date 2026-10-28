@@ -75,3 +75,61 @@ test('les mocks n’entrent pas dans le build .wgt', () => {
   assert.doesNotMatch(readFileSync('apps/tv/index.html', 'utf8'), /mock/i);
   assert.doesNotMatch(readFileSync('apps/tv/src/index.ts', 'utf8'), /mock/i);
 });
+
+// Fausse coquille : un document dont dispatchEvent déclenche les écouteurs capture de la fenêtre,
+// puis ceux de l'app (comme un vrai iframe). Chaque keydown reçu par l'app est compté.
+const remoteHarness = async () => {
+  const { build } = await import('esbuild');
+  const out = await build({ entryPoints: ['mocks/src/remote.ts'], bundle: true, write: false, format: 'iife', globalName: 'R', logLevel: 'silent' });
+  const R = vm.runInNewContext(out.outputFiles[0].text + ';R');
+  const received = [];
+  const winL = [];
+  const appL = [];
+  let dispatches = 0;
+  const doc = {
+    createEvent: () => ({ initEvent() {} }),
+    dispatchEvent(ev) {
+      if (++dispatches > 50) throw new Error('boucle de ré-émission');
+      ev.preventDefault = ev.preventDefault ?? (() => {});
+      ev.stopImmediatePropagation = () => { ev.stopped = true; };
+      for (const l of winL) { l(ev); if (ev.stopped) return; }
+      for (const l of appL) l(ev);
+      received.push(ev.keyCode);
+    },
+  };
+  let onLoad;
+  const frame = {
+    contentDocument: doc,
+    contentWindow: { addEventListener: (_t, l) => winL.push(l), focus() {} },
+    addEventListener: (_t, l) => { onLoad = l; },
+  };
+  const top = { l: null, addEventListener(_t, l) { this.l = l; } };
+  const hud = [];
+  R.attach(top, frame, { hud: (n) => hud.push(n), reload() {}, toggleSize() {} });
+  onLoad();
+  const ev = (key, keyCode) => ({ key, keyCode, preventDefault() {}, stopImmediatePropagation() { this.stopped = true; } });
+  return { received, hud, doc, winL, top, ev };
+};
+
+test('une touche pressée dans la coquille = exactement un keydown reçu par l’app', async () => {
+  const h = await remoteHarness();
+  h.top.l(h.ev('ArrowDown', 40));
+  h.top.l(h.ev('Enter', 13));
+  h.top.l(h.ev('Escape', 27));
+  assert.deepEqual(h.received, [40, 13, 10009]);
+});
+
+test('Échap pressée dans l’iframe = un seul keydown, keyCode 10009 ; les autres touches natives passent telles quelles', async () => {
+  const h = await remoteHarness();
+  const appSees = [];
+  h.winL; // l'écouteur capture de la fenêtre de l'iframe est h.winL[0]
+  const native = (key, keyCode) => {
+    const e = h.ev(key, keyCode);
+    h.winL[0](e);
+    if (!e.stopped) appSees.push(e.keyCode); // l'événement natif atteint l'app sauf s'il est remplacé
+  };
+  native('Escape', 27);
+  native('ArrowLeft', 37);
+  assert.deepEqual(h.received, [10009]); // synthétique pour Échap uniquement
+  assert.deepEqual(appSees, [37]);       // Échap native (27) supprimée, flèche native conservée
+});
