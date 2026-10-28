@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+    "target": "ES5",
+    "module": "ES2015",
+    "moduleResolution": "node",
+    "lib": ["ES5", "DOM"],
+    "strict": true,
+    "noEmit": false,
+    "skipLibCheck": true
+  }
+}
