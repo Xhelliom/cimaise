@@ -232,3 +232,39 @@ test('aucun secret ni hôte réel dans les sources et fixtures', () => {
   const out = spawnSync('grep', ['-rIEn', '--exclude=*.test.mjs', '-e', 'X-Plex-Token=[A-Za-z0-9]{15,}', '-e', '\\b(10|192\\.168)\\.[0-9]+\\.[0-9]+', 'packages/plex', 'tests/fixtures/plex'], { encoding: 'utf8' });
   assert.equal(out.stdout, '');
 });
+
+test('un rappel qui lève n\'est appelé qu\'une fois (pas de second appel « JSON invalide »)', async () => {
+  const http = fakeHttp([[/sections$/, { body: fx('sections') }]]);
+  const seen = [];
+  const prev = process.listeners('uncaughtException');
+  process.removeAllListeners('uncaughtException');
+  const thrown = new Promise((resolve) => process.once('uncaughtException', resolve));
+  api.getSections(http, ID, SERVER, (err, v) => { seen.push([err, v]); throw new Error('boum'); });
+  const e = await thrown;
+  await new Promise((r) => setImmediate(r));
+  prev.forEach((l) => process.on('uncaughtException', l));
+  assert.equal(e.message, 'boum');
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0][0], null);
+});
+
+test('JSON invalide → une seule erreur', async () => {
+  const http = fakeHttp([[/sections$/, { body: '{pas du json' }]]);
+  const seen = [];
+  api.getSections(http, ID, SERVER, (err) => seen.push(err));
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(seen.length, 1);
+  assert.match(seen[0].message, /JSON invalide/);
+});
+
+test('ressources : corps non tableau ou ressource sans connections → pas d\'exception', async () => {
+  for (const body of ['null', '{"a":1}', '']) {
+    const http = fakeHttp([[/plex\.tv/, { body }]]);
+    const [err, s] = await sync((cb) => api.getServers(http, ID, 'T', cb));
+    assert.ok(err || (Array.isArray(s) && s.length === 0), 'corps ' + body);
+  }
+  const http = fakeHttp([[/plex\.tv/, { body: '[{"name":"X","provides":"server","accessToken":"T"}]' }]]);
+  const [err, s] = await sync((cb) => api.getServers(http, ID, 'T', cb));
+  assert.equal(err, null);
+  assert.deepEqual(s.map((x) => x.connections.length), [0]);
+});

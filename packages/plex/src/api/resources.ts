@@ -4,13 +4,16 @@ import { requestJson } from './request';
 export function getServers(http: Http, id: Identity, accountToken: string, cb: Callback<Server[]>) {
   return requestJson(http, id, 'GET', 'https://plex.tv/api/v2/resources?includeHttps=1&includeRelay=1', accountToken, null, function (err, j) {
     if (err) return cb(err);
+    if (!(j instanceof Array)) return cb(new Error('réponse des ressources invalide'));
     var out: Server[] = [];
     for (var i = 0; i < j.length; i++) {
       var r = j[i];
+      if (!r) continue;
       if (String(r.provides).split(',').indexOf('server') < 0) continue;
       var cs: Connection[] = [];
-      for (var k = 0; k < r.connections.length; k++) {
-        var c = r.connections[k];
+      var rc = r.connections instanceof Array ? r.connections : [];
+      for (var k = 0; k < rc.length; k++) {
+        var c = rc[k];
         cs.push({ uri: c.uri, local: !!c.local, relay: !!c.relay });
       }
       out.push({ name: r.name, accessToken: r.accessToken, connections: cs });

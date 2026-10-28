@@ -16,7 +16,9 @@ export function requestJson(http: Http, id: Identity, method: string, url: strin
     if (err || !res) return cb(fail(err ? err.message : 'pas de réponse'));
     if (res.status < 200 || res.status >= 300) return cb(fail('HTTP ' + res.status, res.status));
     if (!res.body) return cb(null, null);
-    try { cb(null, JSON.parse(res.body)); } catch (e) { cb(fail('JSON invalide')); }
+    var data: any;
+    try { data = JSON.parse(res.body); } catch (e) { return cb(fail('JSON invalide')); }
+    cb(null, data);
   });
 }
 
