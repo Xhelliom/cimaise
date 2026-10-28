@@ -70,7 +70,7 @@ test('les mocks n’entrent pas dans le build .wgt', () => {
   const r = spawnSync('npm', ['run', 'build'], { encoding: 'utf8' });
   assert.equal(r.status, 0, r.stdout + r.stderr);
   for (const f of readdirSync('apps/tv/dist')) {
-    assert.doesNotMatch(readFileSync(`apps/tv/dist/${f}`, 'utf8'), /CIMAISE_MOCK|pas de TV/i, f);
+    assert.doesNotMatch(readFileSync(`apps/tv/dist/${f}`, 'utf8'), /CIMAISE_MOCK|appel sans effet dans l’aperçu/i, f);
   }
   assert.doesNotMatch(readFileSync('apps/tv/index.html', 'utf8'), /mock/i);
   assert.doesNotMatch(readFileSync('apps/tv/src/index.ts', 'utf8'), /mock/i);
@@ -132,4 +132,28 @@ test('Échap pressée dans l’iframe = un seul keydown, keyCode 10009 ; les aut
   native('ArrowLeft', 37);
   assert.deepEqual(h.received, [10009]); // synthétique pour Échap uniquement
   assert.deepEqual(appSees, [37]);       // Échap native (27) supprimée, flèche native conservée
+});
+
+test('aperçu : le bundle servi avec les mocks remplit #clock et #marks et pose l’écouteur Entrée', async () => {
+  const mocks = (await get('/__mocks/mocks.js')).text;
+  const app = (await get('/app/app.js')).text;
+  const made = [];
+  const el = () => ({ style: {}, textContent: '', setAttribute() {}, appendChild(c) { made.push(c); }, parentNode: null });
+  const clock = el(), marks = el(), listeners = {};
+  const document = {
+    createElement: el, body: el(), documentElement: el(), readyState: 'complete',
+    getElementById: (id) => ({ clock, marks }[id]),
+    addEventListener: (t, f) => { listeners[t] = f; },
+  };
+  const logs = [];
+  const window = { document, console: { error: (...a) => logs.push(a.join(' ')), log() {}, warn() {} } };
+  window.window = window;
+  const ctx = vm.createContext({ ...window, window, setTimeout() {}, Date, console: window.console });
+  vm.runInContext(mocks, ctx);
+  vm.runInContext(app, ctx);
+  assert.match(clock.textContent, /^\d\d:\d\d$/);
+  assert.match(marks.textContent, /scriptLoaded/);
+  assert.match(marks.textContent, /interactive/);
+  assert.equal(typeof listeners.keydown, 'function');
+  assert.ok(logs.some((l) => /registerKey/.test(l)), 'le mock doit rester bruyant : ' + logs.join('|'));
 });

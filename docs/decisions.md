@@ -60,3 +60,22 @@ Scripts : `build`, `typecheck`, `check:es5`, `check` (tout + tests).
 
 **Limite.** Seule la syntaxe est vérifiée : les API ES2015+ (Promise, Map…) ne sont pas détectées
 par es-check ; polyfills ciblés à ajouter au besoin, avec leur poids ici.
+
+## Identité et `config.xml` de l'app (2026-10-28)
+
+**Décision.** `apps/tv/config.xml` : application `cimaise00.Cimaise`, package `cimaise00`,
+widget id `https://local.cimaise/app`, profil `tv-samsung`, `required_version="5.0"`.
+L'identité est **définitive** (un changement casse les mises à jour sur place).
+
+**`required_version`.** Tizen refuse une app dont la version requise dépasse celle de la TV ;
+la Frame 2019 est en 5.0, donc 5.0 est la valeur minimale plausible couvrant `tvinputdevice`
+et AVPlay (CleanFrame amont : 6.5). Non testé sur la TV : si l'installation est refusée
+(« version not supported »), essayer 4.0 puis 3.0 et le noter dans `docs/tv-status.md`.
+
+**Privilèges.** Seulement `http://tizen.org/privilege/tv.inputdevice` (touches média). Chaque
+privilège ajouté plus tard doit venir avec la fonctionnalité qui l'exige.
+
+**Empaquetage.** `npm run build` écrit `apps/tv/dist/` (dossier à signer par `scripts/tizen/package.sh`,
+`APP_DIR=apps/tv/dist`) et `apps/tv/build/cimaise-unsigned.wgt` (zip non signé), puis affiche la taille
+(budget 1,5 Mo). Aucune dépendance ajoutée. Page vide de référence : 3,19 Ko au premier build.
+Icône `icon.png` : 117×117 uni, 230 octets.

@@ -9,7 +9,7 @@
     "scripts"
   ],
   "scripts": {
-    "build": "node scripts/build/build.mjs && node scripts/build/size-report.mjs",
+    "build": "node scripts/build/build.mjs && node scripts/build/wgt.mjs && node scripts/build/size-report.mjs",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "check:es5": "node scripts/build/check-es5.mjs",
     "check": "npm run typecheck && npm run build && npm run check:es5 && npm test",
