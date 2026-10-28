@@ -4,3 +4,4 @@ dist/
 *.wgt
 *.p12
 *.pfx
+apps/*/build/
