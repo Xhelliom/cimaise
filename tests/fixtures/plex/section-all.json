@@ -1,0 +1,3 @@
+{ "MediaContainer": { "size": 2, "totalSize": 57, "offset": 20, "Metadata": [
+  { "ratingKey": "101", "title": "Film A", "type": "movie", "thumb": "/library/metadata/101/thumb/1" },
+  { "ratingKey": "102", "title": "Film B", "type": "movie", "thumb": "/library/metadata/102/thumb/1" } ] } }
