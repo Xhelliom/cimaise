@@ -1,0 +1,36 @@
+/* Langage commun des 3 maquettes : tonal M3 Expressive, couleur source violette, aplats unis. */
+@font-face{font-family:RF;src:url(roboto-flex-latin.woff2) format("woff2");font-weight:400 700}
+:root{--bg:#141218;--s:#211f26;--sh:#2b2930;--p:#d0bcff;--onp:#381e72;--t:#e6e0e9;--tv:#cac4d0}
+*{box-sizing:border-box}
+html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:var(--bg);color:var(--t);font:400 36px/1 RF,sans-serif}
+a{color:inherit;text-decoration:none}
+.t{font-weight:700;letter-spacing:-.02em}
+.d{color:var(--tv);font-size:40px}
+.i{display:flex;align-items:center;justify-content:center;font-weight:700;background:var(--sh);color:var(--p)}
+.focus{background:var(--p)!important;color:var(--onp)!important;transform:scale(1.06);opacity:1!important}
+.focus .i{background:var(--onp);color:var(--p)}
+
+/* 1. List */
+.list main{display:flex;height:100%;padding:72px 96px;gap:120px}
+.list header{flex:0 0 640px;display:flex;flex-direction:column;justify-content:flex-end;gap:16px}
+.list .t{font-size:240px;line-height:.9}
+.list nav{flex:1;display:flex;flex-direction:column;gap:12px;justify-content:center}
+.list nav a{display:flex;align-items:center;gap:32px;height:96px;padding:0 24px;border-radius:48px;background:var(--s);font-size:44px;font-weight:500}
+.list .i{width:64px;height:64px;border-radius:32px;font-size:32px}
+
+/* 2. Dock en bas */
+.dock main{height:100%;padding:96px 120px}
+.dock .t{font-size:360px;line-height:.85}
+.dock .d{margin-top:24px}
+.dock nav{position:absolute;left:120px;right:120px;bottom:72px;display:flex;justify-content:space-between;align-items:flex-end}
+.dock nav a{width:176px;height:176px;border-radius:56px;background:var(--s);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;font-size:28px;font-weight:500}
+.dock .i{width:72px;height:72px;border-radius:36px;font-size:36px}
+.dock .focus{border-radius:88px}
+
+/* 3. Art discret : presque rien, la place reste à l'œuvre */
+.art{background:#0c0b0f}
+.art main{height:100%;padding:72px 96px}
+.art .t{font-size:96px;font-weight:400;color:var(--tv)}
+.art nav{position:absolute;left:96px;right:96px;bottom:72px;display:flex;gap:16px}
+.art nav a{height:72px;padding:0 32px;border-radius:36px;background:var(--s);display:flex;align-items:center;font-size:28px;opacity:.55}
+.art .i{display:none}
