@@ -6,7 +6,7 @@ une réponse du SDK ne prouve rien.
 
 ## 0. Préparer la machine
 
-1. `scripts/tizen/build-image.sh` (une fois, plusieurs minutes, ~ 2–3 Go).
+1. `scripts/tizen/build-image.sh` (une fois, plusieurs minutes, ~ 8,7 Go sur disque).
 2. Vérifier : `scripts/tizen/tizen version` → `Tizen CLI 2.5.25` ; `scripts/tizen/sdb version` → `Smart Development Bridge version 4.2.x`.
 3. `mkdir -p .local/certs && cp scripts/tizen/tizen.env.example .local/tizen.env`, puis éditer `.local/tizen.env` (IP de la TV, `APP_ID`, mots de passe plus tard). Pas de guillemets autour des valeurs.
 
@@ -42,7 +42,7 @@ Consigner dans `docs/tv-status.md` (sans IP ni DUID) : plateforme Tizen, résult
 
 ### 5. Certificats Samsung (auteur + distributeur)
 Il faut le **DUID** de la TV (sortie de `sdb capability`, champ `duid`), un compte Samsung, et le certificat se crée avec l'outil Samsung. Dans le conteneur il n'y a pas d'interface graphique : deux voies.
-- **Voie CLI** (essayer d'abord) : `scripts/tizen/tizen certificate -a cimaise -p <mot_de_passe> -f author` génère le certificat **auteur** dans `~/tizen-studio-data/keystore` du conteneur, soit `.local/tizen-studio-data/keystore/author/`. Le certificat **distributeur** exige ton compte Samsung : la CLI ne sait pas le demander.
+- **Voie CLI** (essayer d'abord) : `scripts/tizen/cert-author.sh` (lance `tizen certificate -a cimaise -f author` avec `AUTHOR_PASSWORD` lu dans `.local/tizen.env` : le mot de passe ne passe jamais par la ligne de commande ni l'historique du shell) génère le certificat **auteur** dans `~/tizen-studio-data/keystore` du conteneur, soit `.local/tizen-studio-data/keystore/author/`. Le certificat **distributeur** exige ton compte Samsung : la CLI ne sait pas le demander.
 - **Voie Certificate Manager** (Tizen Studio sur une autre machine, ou VM) : Tools → Certificate Manager → créer un profil Samsung, type TV, « Author » puis « Distributor » ; se connecter à ton compte Samsung ; renseigner le **DUID** ; privilèges « Public ». Copier les `.p12` obtenus dans `.local/certs/` (`author.p12`, `distributor.p12`).
 Dans `.local/tizen.env` : renseigner `AUTHOR_PASSWORD`, `DISTRIBUTOR_PASSWORD`. **Garder ce certificat auteur pour toujours** : le changer casse les mises à jour sur place.
 

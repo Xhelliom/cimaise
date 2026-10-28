@@ -1,6 +1,5 @@
 # Journal des décisions
 
-<<<<<<< HEAD
 Toute dépendance runtime ajoutée doit être justifiée ici, avec son poids.
 
 ## Décisions initiales (HANDOFF §2)
@@ -14,7 +13,7 @@ Toute dépendance runtime ajoutée doit être justifiée ici, avec son poids.
 - **Bouton Home : hors périmètre** au départ (opérations natives non documentées, testées sur Tizen 9 uniquement).
 - **Démarrage : autorun de la dernière app** (réglage officiel) ; le retour Home ramène au Smart Hub.
 - **Boîtier externe écarté** : solution logicielle sur la TV elle-même.
-=======
+
 ## SDK Tizen via Docker (2026-10-28)
 
 **Décision.** Sur la machine de dev (NixOS, pas de Tizen Studio), la CLI `tizen` et `sdb`
@@ -42,6 +41,5 @@ profils, IDs d'apps) vit dans `.local/` (ignoré par git). Les scripts lisent
 argument de commande ni dans les logs. Les profils de signature sont dans
 `.local/tizen-studio-data/`.
 
-**Coût.** Image ~ 2–3 Go, construite une fois (`scripts/tizen/build-image.sh`). Aucun
+**Coût.** Image ~ 8,7 Go sur disque (`cimaise-tizen:5.6`), construite une fois (`scripts/tizen/build-image.sh`). Aucun
 impact sur l'app (outillage de dev uniquement).
->>>>>>> 9f45c70 (Add Dockerized Tizen SDK wrappers, scripts and M0/M1 procedure)
