@@ -44,3 +44,19 @@ sur la ligne de commande de l'hôte, dans l'historique du shell ni dans les logs
 
 **Coût.** Image ~ 8,7 Go sur disque (`cimaise-tizen:5.6`), construite une fois (`scripts/tizen/build-image.sh`). Aucun
 impact sur l'app (outillage de dev uniquement).
+
+## Chaîne de build TypeScript → ES5 (2026-10-28)
+
+**Décision.** `tsc` (cible ES5 réelle, modules ES conservés) abaisse la syntaxe ; `esbuild` ne sert
+qu'à bundler et minifier (format IIFE) ; `es-check es5` vérifie la sortie. Résultat : `apps/tv/dist/app.js`
++ `app.css`, un seul de chaque. `npm run build` enchaîne le build et le rapport de taille (échec si
+`app.js` > 100 Ko, budget HANDOFF §6 bis ; surchargeable par `CIMAISE_JS_BUDGET_BYTES`).
+Scripts : `build`, `typecheck`, `check:es5`, `check` (tout + tests).
+
+**devDependencies (aucune dépendance runtime).**
+- `typescript` : déjà présent ; passage ES5.
+- `esbuild` 0.28 : bundling/minification, ~12 Mo sur disque (binaire natif), hors `.wgt`.
+- `es-check` 9.x : vérifie qu'aucune syntaxe ES2015+ ne reste, ~0,4 Mo, hors `.wgt`.
+
+**Limite.** Seule la syntaxe est vérifiée : les API ES2015+ (Promise, Map…) ne sont pas détectées
+par es-check ; polyfills ciblés à ajouter au besoin, avec leur poids ici.
