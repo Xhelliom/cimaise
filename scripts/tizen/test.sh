@@ -140,6 +140,38 @@ grep "^DOCKER" "$TMP/docker.log" | grep -q "$SECRET" && fail "mot de passe absen
 [[ "$all" == *"$SECRET"* ]] && fail "mot de passe absent des sorties" || ok "mot de passe absent des sorties"
 grep -q -- "^DOCKER .*--env-file" "$TMP/docker.log" && ok "secrets passés par env-file" || fail "secrets passés par env-file"
 
+# 8 bis. cert-manager : ouvre le Certificate Manager sur l'affichage de l'hôte (X11/XWayland)
+check "cert-manager.sh exécutable + syntaxe" bash -c "[ -x '$HERE/cert-manager.sh' ] && bash -n '$HERE/cert-manager.sh'"
+out="$(env -u DISPLAY -u WAYLAND_DISPLAY "$HERE/cert-manager.sh" 2>&1)"; rc=$?
+[ $rc -ne 0 ] && [[ "$out" == *"DISPLAY"* ]] && ok "cert-manager sans affichage → erreur claire" || fail "cert-manager sans affichage → erreur claire"
+: > "$TMP/docker.log"
+mkdir -p "$TMP/local/SamsungCertificate/cimaise"
+echo fake > "$TMP/local/SamsungCertificate/cimaise/author.p12"
+echo fake > "$TMP/local/SamsungCertificate/cimaise/distributor.p12"
+touch "$TMP/xauth"
+DISPLAY=:0 XAUTHORITY="$TMP/xauth" "$HERE/cert-manager.sh" >/dev/null 2>&1 && ok "cert-manager (affichage X11)" || fail "cert-manager (affichage X11)"
+grep -q -- "^DOCKER run .*/tmp/.X11-unix" "$TMP/docker.log" && ok "cert-manager monte le socket X11" || fail "cert-manager monte le socket X11"
+grep -q -- "^DOCKER run .*SamsungCertificate:/home/tizen/SamsungCertificate" "$TMP/docker.log" && ok "cert-manager monte ~/SamsungCertificate (persistant)" || fail "cert-manager monte ~/SamsungCertificate (persistant)"
+grep -q -- "^DOCKER run .*DISPLAY=:0" "$TMP/docker.log" && ok "cert-manager transmet DISPLAY" || fail "cert-manager transmet DISPLAY"
+grep -q -- "^DOCKER run .*XAUTHORITY" "$TMP/docker.log" && ok "cert-manager transmet l'autorisation X" || fail "cert-manager transmet l'autorisation X"
+[ -f "$TMP/local/certs/author.p12" ] && [ -f "$TMP/local/certs/distributor.p12" ] && ok "cert-manager range author.p12 et distributor.p12 dans .local/certs" || fail "cert-manager range author.p12 et distributor.p12 dans .local/certs"
+
+# 8 ter. L'auteur Tizen de la voie CLI déjà en place ne doit pas supplanter la paire Samsung
+rm -rf "$TMP/local/certs"; mkdir -p "$TMP/local/certs" "$TMP/local/tizen-studio-data/keystore/author"
+echo cli-author > "$TMP/local/certs/author.p12"
+echo cli-author > "$TMP/local/tizen-studio-data/keystore/author/author.p12"
+echo samsung-author > "$TMP/local/SamsungCertificate/cimaise/author.p12"
+echo samsung-dist > "$TMP/local/SamsungCertificate/cimaise/distributor.p12"
+DISPLAY=:0 XAUTHORITY="$TMP/xauth" "$HERE/cert-manager.sh" >/dev/null 2>&1
+[ "$(cat "$TMP/local/certs/author.p12")" = samsung-author ] && [ "$(cat "$TMP/local/certs/distributor.p12")" = samsung-dist ] \
+  && ok "cert-manager : la paire Samsung remplace l'auteur CLI" || fail "cert-manager : la paire Samsung remplace l'auteur CLI"
+[ "$(cat "$TMP/local/certs/author.cli.p12" 2>/dev/null)" = cli-author ] && ok "cert-manager : auteur CLI sauvegardé en author.cli.p12" || fail "cert-manager : auteur CLI sauvegardé en author.cli.p12"
+# distributeur Samsung sans auteur Samsung : l'auteur du keystore (CLI) n'est jamais pris
+rm -rf "$TMP/local/certs" "$TMP/local/SamsungCertificate/cimaise"; mkdir -p "$TMP/local/certs"
+mkdir -p "$TMP/local/SamsungCertificate/cimaise"; echo samsung-dist > "$TMP/local/SamsungCertificate/cimaise/distributor.p12"
+DISPLAY=:0 XAUTHORITY="$TMP/xauth" "$HERE/cert-manager.sh" >/dev/null 2>&1
+[ ! -e "$TMP/local/certs/author.p12" ] && ok "cert-manager : pas d'auteur du keystore quand un distributeur Samsung est présent" || fail "cert-manager : pas d'auteur du keystore sans paire Samsung"
+
 # 9. rien de secret versionné
 cd "$REPO" && ! git ls-files | grep -Eq '\.(p12|pfx|key|pem)$|(^|/)\.local/' && ok "aucun secret suivi par git" || fail "aucun secret suivi par git"
 

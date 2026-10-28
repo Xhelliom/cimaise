@@ -37,3 +37,13 @@ RUN /home/tizen/tizen-studio/package-manager/package-manager-cli.bin install \
       --accept-license --no-java-check ${TIZEN_PACKAGES}
 
 LABEL org.cimaise.tizen-studio="${TIZEN_STUDIO_VERSION}"
+
+# Certificate Manager (SWT/GTK3) : bibliothèques graphiques pour l'afficher sur l'hôte
+# via X11/XWayland (scripts/tizen/cert-manager.sh). Pas utilisées par la CLI.
+USER root
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      libgtk-3-0 libwebkit2gtk-4.0-37 libcanberra-gtk3-module libxtst6 libgl1 \
+      xauth adwaita-icon-theme fonts-dejavu-core \
+ && rm -rf /var/lib/apt/lists/*
+USER tizen

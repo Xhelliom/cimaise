@@ -6,6 +6,7 @@ Réglages et secrets lus dans `.local/` (modèle : `tizen.env.example`).
 - `build-image.sh` : construit l'image `cimaise-tizen` (`docker/Dockerfile`).
 - `tizen`, `sdb` : wrappers de la CLI dans le conteneur (`--network host`).
 - `cert-author.sh` : génère le certificat auteur (mot de passe lu dans `.local/`).
+- `cert-manager.sh` : ouvre le Certificate Manager Samsung (graphique, X11/XWayland) ; range les `.p12` dans `.local/certs/`.
 - `setup-profile.sh` : crée le profil de signature à partir de `.local/`.
 - `package.sh` : package + signature du `.wgt`.
 - `install.sh` : `sdb install`, puis `vd_appinstall` si besoin, vérification dans la liste.
