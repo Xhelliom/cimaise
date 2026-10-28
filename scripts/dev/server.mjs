@@ -31,6 +31,8 @@ const routes = {
     'text/html',
   ],
   '/app/app.js': async () => [await bundle('apps/tv/src/index.ts'), 'text/javascript'],
+  '/demo/virtual': async () => [readFileSync(`${root}packages/tv-core/demo/virtual.html`, 'utf8'), 'text/html'],
+  '/demo/virtual.js': async () => [await bundle('packages/tv-core/demo/virtual.ts'), 'text/javascript'],
   '/app/app.css': async () => [await bundle('apps/tv/src/style.css'), 'text/css'],
 };
 

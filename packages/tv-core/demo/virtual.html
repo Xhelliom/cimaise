@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><title>démo virtualisation</title>
+<style>
+html,body{margin:0;background:#111;color:#eee;font:20px sans-serif;overflow:hidden}
+#row,#grid{position:absolute;left:40px;overflow:hidden;opacity:.55}
+#row{top:60px;width:1840px;height:170px}
+#grid{top:260px;width:1840px;height:700px}
+.on{opacity:1!important}
+.vtile{background:#333;border-radius:6px;overflow:hidden;opacity:.85}
+.vtile.focus{opacity:1;outline:4px solid #fff;z-index:1}
+.vimg{width:100%;height:100%;display:block}
+.vlabel{position:absolute;left:8px;bottom:6px;text-shadow:0 0 4px #000}
+#hud{position:absolute;left:40px;top:14px;color:#9f9;font:16px monospace}
+</style></head><body>
+<div id="hud"></div><div id="row"></div><div id="grid"></div>
+<script src="/demo/virtual.js"></script>
+</body></html>
