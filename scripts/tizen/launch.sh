@@ -6,6 +6,5 @@ load_env
 require_vars TV_IP
 ID="${1:-${APP_ID:-}}"
 [ -n "$ID" ] || die "APP_ID absent"
-sdb_connect >/dev/null
-run_in_container sdb -s "$(tv_target)" shell 0 was_execute "$ID"
+sdb_session 'sdb -s "$T" shell 0 was_execute "$1"' "$ID"
 echo "Commande envoyée. Regarder la TV : le SDK ne prouve pas que l'app s'affiche."

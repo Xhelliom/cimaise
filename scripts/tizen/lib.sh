@@ -49,9 +49,16 @@ run_in_container() {
     -w /work "$IMAGE" "$@"
 }
 
-# Cible sdb « IP:port » de la TV.
-tv_target() { echo "${TV_IP}:${TV_PORT:-26101}"; }
-
-sdb_connect() {
-  run_in_container sdb connect "$(tv_target)"
+# Le serveur sdb (port 26099) meurt avec le conteneur, et avec lui la connexion
+# `sdb connect`. Toute séquence qui parle à la TV doit donc tenir dans UN SEUL
+# conteneur : sdb_session lance `sdb connect` puis le script, dans le même `docker run`.
+# TV_IP, TV_PORT et APP_ID viennent de l'env-file ; les arguments arrivent en $1, $2…
+# Dans le script, `$T` désigne la cible « IP:port » et `sdb -s "$T"` la TV.
+sdb_session() {
+  local script="$1"; shift
+  run_in_container bash -c '
+    set -uo pipefail
+    T="${TV_IP}:${TV_PORT:-26101}"
+    sdb connect "$T" >&2
+    '"$script" _ "$@"
 }

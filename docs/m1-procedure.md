@@ -25,16 +25,17 @@ Paramètres → Assistance → À propos de ce téléviseur. **Regarder** : nom 
 ### 3. Connexion sdb (port 26101)
 Mettre l'IP de la TV dans `.local/tizen.env` (`TV_IP`), puis :
 ```
-scripts/tizen/sdb connect <IP_TV>:26101     # attendu : « connected to <IP>:26101 »
-scripts/tizen/sdb devices                   # la TV doit être listée, état « device »
+scripts/tizen/sdb-tv.sh devices             # attendu : « connected to <IP>:26101 », puis la TV listée, état « device »
 ```
+Pourquoi pas `scripts/tizen/sdb connect` puis `sdb devices` séparément : chaque appel du wrapper est un conteneur Docker éphémère, et le serveur sdb (port 26099) meurt avec lui, la connexion aussi. `sdb-tv.sh` (comme `install.sh`, `launch.sh`, `list-apps.sh`) fait `sdb connect` puis la commande **dans le même conteneur**.
 Si « failed to connect » : IP de l'ordinateur mal saisie dans le mode développeur, ou TV non redémarrée.
 
 ### 4. Capacités, DUID, apps
 ```
-scripts/tizen/sdb capability                # noter : version de plateforme, DUID (secret → .local/)
+scripts/tizen/sdb-tv.sh capability          # noter : version de plateforme, DUID (secret → .local/)
 scripts/tizen/list-apps.sh                  # IDs des apps installées → à sauver dans .local/, pas dans git
 ```
+
 Consigner dans `docs/tv-status.md` (sans IP ni DUID) : plateforme Tizen, résultat des commandes, en séparant « observé » / « réponse du SDK » / « non testé ». Le user agent du moteur web se relèvera plus tard depuis une page de test.
 
 ## M1 — Chaîne « hello world »
