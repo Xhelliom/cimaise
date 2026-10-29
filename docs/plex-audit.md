@@ -115,9 +115,19 @@ Film MKV H.264 + DTS (dca) à 8,8 Mb/s.
 - **Flux.** `start.m3u8` : liste de variantes (`application/vnd.apple.mpegurl`) pointant `session/<id>/base/index.m3u8`, segments MPEG-TS de 1 s.
 - **À observer sur la Frame** : lecture, avance/recul, reprise, progression et arrêt de la session à la sortie.
 
-### Essai sur la Frame (2026-10-29) : installé, lecture NON observée
+### Essai sur la Frame (2026-10-29) : Bohemian Rhapsody (MKV H.264 + DTS, transcodé audio seul)
 
-Observé par le SDK uniquement : `.wgt` signé (411 Ko), `install completed`, app présente dans la liste, lancement envoyé. Rien n'a été vu à l'écran
-et Stéphane n'a pas encore lu de film : le relevé serveur (`scripts/plex/watch-transcode.mjs`) ne montre aucune session Cimaise
-(seules des sessions d'autres appareils, dont une avec vidéo ré-encodée, sans rapport). Les critères « lecture vue », « avance/recul, reprise,
-progression » et « session disparue après la sortie » restent à valider ; à consigner ici avec les lignes du script une fois l'essai fait.
+**Observé physiquement par Stéphane :**
+- le film se lance et se lit, le son est bon (DTS → AAC, vidéo copiée) ;
+- avancer et reculer de 10 s fonctionnent ;
+- quitter puis rouvrir le film : la reprise fonctionne ;
+- **défaut : l'image est étirée sur tout l'écran** au lieu d'avoir des bandes noires en haut et en bas.
+
+**Non testé :** la progression vue depuis un autre appareil Plex ; l'arrêt de la session à la sortie (le relevé `watch-transcode.mjs` n'a montré aucune
+session Cimaise : il tournait sur un cycle expiré ou n'a pas capté l'essai, à refaire) ; le saut long ; la lecture directe d'un film 2.39.
+
+**Correctif (non encore revu sur la TV) :** AVPlay étire l'image au rectangle de `setDisplayRect`. Le lecteur appelle maintenant
+`setDisplayMethod('PLAYER_DISPLAY_MODE_LETTER_BOX')` après `setDisplayRect` et avant `prepareAsync`, pour la lecture directe comme pour le HLS
+(non fatal si absent). Le nom de la constante vient de la doc Samsung, de mémoire : à confirmer par l'effet à l'écran.
+Rapport d'aspect du flux : la liste de variantes du transcodeur annonce `RESOLUTION=1920x808`, identique au fichier source (pas de SAR/DAR modifié
+côté serveur). Paquet refait depuis `apps/tv/dist` (148 Ko, contenu vérifié) et réinstallé ; à revoir : Bohemian Rhapsody et un film 2.39 en lecture directe.

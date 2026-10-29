@@ -27,6 +27,7 @@ function fakeApi(over = {}) {
     open: (u) => calls.push('open:' + u),
     setListener: (l) => { api.listener = l; calls.push('setListener'); },
     setDisplayRect: (...r) => calls.push('rect:' + r.join(',')),
+    setDisplayMethod: (m) => calls.push('display:' + m),
     prepareAsync: (ok) => { calls.push('prepareAsync'); ok(); },
     play: () => calls.push('play'),
     pause: () => calls.push('pause'),
@@ -68,7 +69,19 @@ test('cycle : open → setListener → setDisplayRect → prepareAsync → play'
   let res = 'pending';
   p.open('http://x/a.mkv', { rect: { x: 0, y: 0, w: 1280, h: 720 } }, (e) => { res = e; });
   assert.equal(res, null);
-  assert.deepEqual(api.calls, ['open:http://x/a.mkv', 'setListener', 'rect:0,0,1280,720', 'prepareAsync', 'play']);
+  assert.deepEqual(api.calls, ['open:http://x/a.mkv', 'setListener', 'rect:0,0,1280,720', 'display:PLAYER_DISPLAY_MODE_LETTER_BOX', 'prepareAsync', 'play']);
+});
+
+test('affichage : letterbox (bandes noires, pas d’étirement) après setDisplayRect et avant prepareAsync ; absent de l’API = non fatal', () => {
+  const api = fakeApi();
+  core.createPlayer({ api, doc: fakeDoc() }).open('u', {}, () => {});
+  const i = api.calls.indexOf('display:PLAYER_DISPLAY_MODE_LETTER_BOX');
+  assert.ok(i > api.calls.findIndex((c) => c.startsWith('rect:')) && i < api.calls.indexOf('prepareAsync'));
+  const bare = fakeApi({ setDisplayMethod: () => { throw new Error('absent'); } });
+  let res = 'pending';
+  core.createPlayer({ api: bare, doc: fakeDoc() }).open('u', {}, (e) => { res = e; });
+  assert.equal(res, null);
+  assert.ok(bare.calls.includes('play'));
 });
 
 test('reprise : seekTo avant play', () => {
