@@ -32,6 +32,8 @@ export interface Item {
   year?: number;
   // Épisodes (onDeck, children) : série et saison parentes.
   grandparentTitle?: string; grandparentRatingKey?: string; grandparentThumb?: string; parentTitle?: string; parentIndex?: number;
+  // Saisons (recentlyAdded) : série parente.
+  parentRatingKey?: string; parentThumb?: string;
   Media?: Media[];
 }
 // Rayon de /hubs ; Metadata n'est présent que pour /hubs/sections/{id}.

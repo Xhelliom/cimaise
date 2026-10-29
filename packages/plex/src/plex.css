@@ -1,0 +1,47 @@
+/* Module Plex (docs/plex-design.md) : scène 1920×1080, jetons du Dock v2. On n'anime que transform et opacity ;
+   l'anneau de focus est un box-shadow à rayon de flou 0, sur la seule affiche focalisée. */
+.plex-panel{position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;background:#0b0b0d;color:#fff;font:300 30px/1.2 Outfit,sans-serif}
+.plex-status{position:absolute;left:120px;top:480px;font-size:34px;color:rgba(255,255,255,.6)}
+.plex-hubs{position:absolute;left:0;top:0;width:1920px;height:1080px;transition:transform .2s ease}
+.plex-hub{position:absolute;left:0;top:0;width:1920px;height:560px}
+.plex-hub-title{position:absolute;left:120px;top:200px;font-size:40px;font-weight:500;letter-spacing:-.01em}
+/* Cadre de rangée : marge de 30/24 px autour des affiches pour que l'anneau et l'échelle du focus ne soient pas rognés. */
+.plex-row,.plex-grid{position:absolute;overflow:hidden}
+.plex-row{left:96px;top:240px;width:1824px;height:492px}
+.plex-grid{left:96px;top:170px;width:1824px;height:910px}
+.plex-row .vlayer,.plex-grid .vlayer{margin:30px 0 0 24px}
+.vtile .vimg{display:block;width:240px;height:360px;border-radius:12px;background:#2b2b2e;transition:transform .2s ease}
+.vtile .vlabel{position:absolute;left:0;top:392px;width:240px;font-size:28px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:rgba(255,255,255,.9)}
+.plex-row .vtile.focus .vimg,.plex-grid .vtile.focus .vimg,.plex-episodes.on .vtile.focus .vimg{transform:scale(1.1);box-shadow:0 0 0 6px rgba(255,255,255,.92);position:relative;z-index:1}
+.plex-row:not(.on) .vtile.focus .vimg{transform:none;box-shadow:none}
+/* Bibliothèques : aplat avec le titre dans la tuile (aucune image) */
+.plex-hub:last-child .vimg{display:none}
+.plex-hub:last-child .vtile{height:360px;border-radius:12px;background:#2b2b2e}
+.plex-hub:last-child .vlabel{top:150px;left:16px;width:208px;font-size:34px;text-align:center}
+.plex-hub:last-child .vtile.focus{box-shadow:0 0 0 6px rgba(255,255,255,.92)}
+.plex-lib-title{position:absolute;left:120px;top:72px;font-size:40px;font-weight:500}
+.plex-lib-count{position:absolute;left:120px;top:130px;font-size:28px;color:rgba(255,255,255,.6)}
+/* Fiche */
+.plex-dposter{position:absolute;left:120px;top:140px;width:360px;height:540px;border-radius:12px;background:#2b2b2e}
+.plex-dtitle,.plex-dmeta,.plex-prog,.plex-play,.plex-dsummary{position:absolute;left:520px}
+.plex-dtitle{top:140px;width:1280px;font-size:72px;font-weight:500;letter-spacing:-.02em;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.plex-dmeta{top:244px;font-size:28px;color:rgba(255,255,255,.6)}
+.plex-prog{top:296px;width:480px;height:8px;border-radius:4px;background:rgba(255,255,255,.14);overflow:hidden}
+.plex-prog-bar{width:480px;height:8px;background:#e5a00d;transform-origin:0 0}
+.plex-play{top:330px;height:72px;padding:0 48px;border-radius:36px;display:flex;align-items:center;font-size:32px;font-weight:500;background:#e5a00d;color:#1f1f1f}
+.plex-play.focus{background:rgba(255,255,255,.9);color:#111}
+.plex-dsummary{top:440px;width:960px;max-height:120px;overflow:hidden;font-size:30px;line-height:40px;color:rgba(255,255,255,.85)}
+.plex-msg{position:absolute;left:520px;top:590px;font-size:28px;color:#e5a00d}
+.plex-seasons{position:absolute;left:496px;top:620px;width:1424px;height:130px;overflow:hidden}
+.plex-seasons .vlayer{margin:12px 0 0 24px}
+.plex-seasons .vimg{display:none}
+.plex-seasons .vtile{height:84px;border-radius:42px;background:rgba(255,255,255,.08);box-shadow:inset 0 0 0 2px rgba(255,255,255,.14)}
+.plex-seasons .vlabel{left:0;top:0;width:240px;height:84px;line-height:84px;text-align:center;font-size:30px}
+.plex-seasons.on .vtile.focus{background:rgba(255,255,255,.9);box-shadow:none}
+.plex-seasons.on .vtile.focus .vlabel{color:#111}
+.plex-ep-title{position:absolute;left:120px;top:700px;font-size:28px;color:rgba(255,255,255,.6)}
+.plex-episodes{position:absolute;left:96px;top:716px;width:1824px;height:364px;overflow:hidden}
+.plex-episodes .vlayer{margin:30px 0 0 24px}
+.plex-episodes .vimg{width:360px;height:203px}
+.plex-episodes .vlabel{top:215px;width:360px}
+.plex-episodes:not(.on) .vtile.focus .vimg{transform:none;box-shadow:none}

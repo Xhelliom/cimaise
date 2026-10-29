@@ -41,6 +41,7 @@ export class VirtualList {
   private active: { [i: number]: Tile } = {};
   private free: Tile[] = [];
   private requested: { [page: number]: boolean } = {};
+  private held = false;      // écran quitté : aucune image tant que restore() n'a pas été appelé
 
   constructor(o: VirtualOptions) {
     this.o = o;
@@ -96,6 +97,21 @@ export class VirtualList {
   // Page échouée : elle pourra être redemandée.
   pageFailed(start: number): void {
     if (this.o.pageSize) delete this.requested[Math.floor(start / this.o.pageSize)];
+  }
+
+  // Écran recouvert ou quitté : retire les images décodées des tuiles actives (les nœuds restent, sans src).
+  release(): void {
+    this.held = true;
+    for (var k in this.active) {
+      var t = this.active[k];
+      if (t.src) { t.img.removeAttribute('src'); t.src = false; }
+    }
+  }
+
+  // L'écran redevient visible : les images des lignes visibles reviennent.
+  restore(): void {
+    this.held = false;
+    this.update();
   }
 
   setFocus(index: number): void {
@@ -167,7 +183,7 @@ export class VirtualList {
         this.bind(t);
         this.layer.appendChild(t.el);
       }
-      if (!t.src && i <= loadHi && i >= this.top * cross) {
+      if (!t.src && !this.held && i <= loadHi && i >= this.top * cross) {
         var url = t.img.getAttribute('data-src');
         if (url) { t.img.setAttribute('src', url); t.src = true; }
       }
