@@ -54,7 +54,10 @@ export var MEASURE_LABELS: { [kind: string]: string } = {
   'biblio-cache': 'bibliothèque (cache)',
   'biblio-reseau': 'bibliothèque (réseau)',
   'fiche': 'fiche',
-  'lecture': 'lecture (Entrée → 1re image)'
+  'lecture': 'lecture (Entrée → 1re image)',
+  'frappe': 'recherche : frappe → caractère',
+  'recherche': 'recherche : frappe → 1ers résultats',
+  'recherche-serveur': 'recherche : frappe → complément serveur'
 };
 var measures: { [kind: string]: number[] } = {};
 export function resetMeasures(): void { measures = {}; }

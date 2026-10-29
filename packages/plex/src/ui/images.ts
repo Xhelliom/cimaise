@@ -17,3 +17,10 @@ export function detailPosterUrl(s: ServerRef, item: Item): string | null {
 export function episodeThumbUrl(s: ServerRef, item: Item): string | null {
   return item.thumb ? photoUrl(s, item.thumb, EPISODE.w, EPISODE.h) : null;
 }
+
+// Recherche : rangées étroites à droite du clavier.
+export var SEARCH_POSTER = { w: 104, h: 156 };
+export function searchPosterUrl(s: ServerRef, item: Item): string | null {
+  var path = item.type === 'episode' && item.grandparentThumb ? item.grandparentThumb : item.thumb;
+  return path ? photoUrl(s, path, SEARCH_POSTER.w, SEARCH_POSTER.h) : null;
+}

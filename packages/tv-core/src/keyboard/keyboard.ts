@@ -13,6 +13,7 @@ export interface KeyboardOptions {
 
 export interface Keyboard {
   handleKey(key: Key): boolean;         // true si la touche est consommée
+  canMove(key: Key): boolean;           // une flèche déplacerait-elle le focus ? (false au bord : l'écran peut passer la main)
   handleKeyCode(code: number): boolean; // touches de couleur et chiffres de la télécommande
   press(action: 'delete' | 'clear' | 'space' | 'submit'): void;
   getValue(): string;
@@ -155,11 +156,20 @@ export function createKeyboard(o: KeyboardOptions): Keyboard {
     return false;
   }
 
+  function canMove(key: Key): boolean {
+    if (key === 'left') return col > 0;
+    if (key === 'right') return col < cells[row].length - 1;
+    if (key === 'up') return row > 0;
+    if (key === 'down') return row < cells.length - 1;
+    return false;
+  }
+
   paintField();
   paintFocus();
 
   return {
     handleKey: handleKey,
+    canMove: canMove,
     handleKeyCode: function (code: number): boolean {
       var a = CODE_ACTION[code];
       if (a) { press(a, a === 'space' ? ' ' : undefined); return true; }

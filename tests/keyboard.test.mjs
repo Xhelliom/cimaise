@@ -159,3 +159,15 @@ test('handleKey rend true quand la touche est consommée', () => {
   assert.equal(k.handleKey('left'), true);   // bord : consommée quand même
   assert.equal(k.handleKey('play'), false);
 });
+
+test('canMove : faux au bord, pour que l’écran puisse passer la main aux résultats', () => {
+  const { k } = kb();
+  assert.equal(k.canMove('left'), false);
+  assert.equal(k.canMove('up'), false);
+  assert.equal(k.canMove('right'), true);
+  assert.equal(k.canMove('down'), true);
+  press(k, ...Array(9).fill('right'));
+  assert.equal(label(k), 'j');
+  assert.equal(k.canMove('right'), false);
+  assert.equal(k.canMove('enter'), false);
+});

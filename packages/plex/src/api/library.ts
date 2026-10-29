@@ -45,3 +45,10 @@ export function getMetadata(http: Http, id: Identity, s: ServerRef, ratingKey: s
 export function getChildren(http: Http, id: Identity, s: ServerRef, ratingKey: string, cb: Callback<Item[]>) {
   return serverGet(http, id, s, '/library/metadata/' + encodeURIComponent(ratingKey) + '/children', null, function (err, j) { err ? cb(err) : cb(null, items(j)); });
 }
+
+// Recherche serveur : rayons (/hubs/search) filtrés sur les bibliothèques données (sectionId=1,2). Les rayons « actor » portent des
+// étiquettes (Directory), pas des fiches : ils sont ignorés par l'appelant.
+export function searchHubs(http: Http, id: Identity, s: ServerRef, text: string, sectionKeys: string[] | null, limit: number, cb: Callback<Hub[]>) {
+  var q = 'query=' + encodeURIComponent(text) + '&limit=' + limit + (sectionKeys && sectionKeys.length ? '&sectionId=' + sectionKeys.join(',') : '');
+  return serverGet(http, id, s, '/hubs/search?' + q, null, function (err, j) { err ? cb(err) : cb(null, container(j).Hub || []); });
+}

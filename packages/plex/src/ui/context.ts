@@ -4,10 +4,11 @@ import { getClientId } from '../api/identity';
 import { loadStored } from '../../../tv-core/src/storage';
 import { Panel } from '../../../tv-core/src/router/router';
 import { TileInfo } from '../../../tv-core/src/virtual/list';
-import { createCache } from './cache';
+import { Cache, createCache } from './cache';
 import { createData, Data } from './data';
 import { posterUrl } from './images';
 import { Player, PlayerOptions } from '../../../tv-core/src/player';
+import { SearchIndex } from './search-index';
 
 // Pile d'écrans : celle du routeur de l'app (Retour dépile).
 export interface Nav { push(p: Panel): void; pop(): void; }
@@ -30,6 +31,8 @@ export interface PlexArg {
   createPlayer?: (o: PlayerOptions) => Player;   // défaut : wrapper AVPlay de tv-core
   // App Plex officielle de la TV, cherchée par nom dans le catalogue (jamais un ID en dur) ; null = introuvable.
   officialApp?: () => OfficialApp | null;
+  // Index des titres pour la recherche : posé par le premier écran qui en a besoin, puis partagé (ne pas fournir sauf test).
+  search?: SearchIndex;
 }
 
 export interface OfficialApp { open(done: (err: Error | null) => void): void; }
@@ -37,7 +40,10 @@ export interface OfficialApp { open(done: (err: Error | null) => void): void; }
 // Intention « reprendre » : le lecteur lit la position à jour sur le serveur (la fiche peut être en cache).
 export const RESUME = -1;
 
-export interface Ctx { doc: Document; data: Data; session: ServerRef; nav: Nav; play(item: Item, startMs?: number): void; }
+export interface Ctx {
+  doc: Document; data: Data; session: ServerRef; nav: Nav; play(item: Item, startMs?: number): void;
+  http: Http; id: Identity; cache: Cache;
+}
 
 export function storedSession(store?: Storage): ServerRef | null {
   var s = loadStored(store).prefs.plexSession;
@@ -62,8 +68,9 @@ export function resolve(arg: PlexArg): Ctx | null {
   var doc = arg.doc || document;
   var id = identityOf(arg);
   var cache = createCache({ store: arg.store, ns: session.uri, now: arg.now });
-  var data = createData(arg.http || xhrHttp, id, session, cache);
-  return { doc: doc, data: data, session: session, nav: arg.nav, play: arg.onPlay || function () { /* message de la fiche */ } };
+  var http = arg.http || xhrHttp;
+  var data = createData(http, id, session, cache);
+  return { doc: doc, data: data, session: session, nav: arg.nav, play: arg.onPlay || function () { /* message de la fiche */ }, http: http, id: id, cache: cache };
 }
 
 export function el(doc: Document, cls: string, text?: string): HTMLElement {
