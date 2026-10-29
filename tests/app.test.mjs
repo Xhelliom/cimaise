@@ -48,6 +48,7 @@ function boot({ failChunk, stored, launched } = {}) {
   const timers = [];
   const exits = [];
   const store = {};
+  let reads = 0;
   if (stored) store['cimaise.v1'] = JSON.stringify(stored);
   const document = {
     body, head, createElement: el,
@@ -59,15 +60,16 @@ function boot({ failChunk, stored, launched } = {}) {
     XMLHttpRequest: function () { this.open = () => {}; this.setRequestHeader = () => {}; this.send = () => {}; this.abort = () => {}; }, // ne répond jamais
     setTimeout: (f, ms) => { timers.push({ f, ms }); return timers.length; },
     clearTimeout: () => {},
-    localStorage: { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = v; } },
+    localStorage: { getItem: (k) => { reads++; return k in store ? store[k] : null; }, setItem: (k, v) => { store[k] = v; } },
     tizen: { tvinputdevice: { registerKey() {} }, application: { launch: (id) => launched && launched.push(id), getCurrentApplication: () => ({ exit: () => exits.push(1) }) } },
   });
   ctx.window = ctx;
   vm.runInContext(code.app, ctx);
   const key = (keyCode) => listeners.forEach((f) => f({ keyCode }));
+  const keyOn = (keyCode, target) => listeners.forEach((f) => f({ keyCode, target }));
   const tick = () => new Promise((r) => setImmediate(r));
   const flush = () => { const t = timers.splice(0).filter((x) => x.ms === 0); t.forEach((x) => x.f()); }; // minuteries différées (0 ms)
-  return { root, body, loaded, key, tick, flush, exits, store };
+  return { root, body, loaded, key, keyOn, tick, flush, exits, store, reads: () => reads };
 }
 const LEFT = 37, UP = 38, RIGHT = 39, DOWN = 40, OK = 13, BACK = 10009;
 
@@ -148,13 +150,13 @@ async function openSettings(a) {
   a.flush(); a.key(UP); a.key(OK); await a.tick();
 }
 
-test('Réglages → accueil : une couleur changée est persistée (la tuile d’une app à logo garde le fond de son logo)', async () => {
+test('Réglages → accueil : une couleur changée est persistée (la tuile d’une app connue garde sa couleur de marque)', async () => {
   const a = boot();
   await openSettings(a);
   a.key(DOWN); a.key(OK); // 1re app, puce « Couleur » : teinte suivante de la palette
   a.key(BACK);
   assert.equal(find(a.root, 'reglages').length, 0);
-  assert.equal(find(a.root, 'tuile')[0].style.background, '#000000', 'Plex : fond de son logo, la couleur teinte le fond d’écran');
+  assert.equal(find(a.root, 'tuile')[0].style.background, '#e5a00d', 'Plex intégré : jaune Plex de la bibliothèque, la couleur teinte le fond d’écran');
   const saved = JSON.parse(a.store['cimaise.v1']).prefs.catalog.entries;
   assert.equal(saved[0].color, '#e50914');
   assert.equal(saved[0].type, 'interne', 'le type interne survit à l’aller-retour des réglages');
@@ -252,4 +254,45 @@ test('Réglages → accueil : « Tuiles à l’écran » appliqué tout de suite
   a.key(UP); a.key(LEFT); a.key(LEFT); a.key(BACK);
   assert.equal(JSON.parse(a.store['cimaise.v1']).prefs.homeTiles, 4);
   assert.ok(!find(a.root, 'home')[0].className.split(' ').some((c) => /^n\d$/.test(c)));
+});
+
+// --- premier affichage (HANDOFF §6 bis) : marques intermédiaires, rendu minimal, le reste différé ---
+const imgs = (n, out = []) => { if (n.tag === 'img') out.push(n); n.children.forEach((c) => imgs(c, out)); return out; };
+
+test('premier affichage : le stockage n’est lu qu’une fois, aucun logo ni teinte avant la 1re peinture', () => {
+  const a = boot();
+  assert.equal(a.reads(), 1, 'une seule lecture de localStorage au démarrage');
+  assert.equal(imgs(a.root).length, 0, 'logos différés');
+  for (const f of find(a.root, 'fond')) assert.equal(f.style.background, undefined, 'teinte différée');
+  assert.ok(find(a.root, 'tuile').every((t) => t.textContent), 'chaque tuile porte son nom');
+});
+
+test('premier affichage : marques intermédiaires dans le diagnostic, dans l’ordre', () => {
+  const a = boot();
+  a.key(48);
+  const txt = a.body.children.find((c) => c.tag === 'pre').textContent;
+  assert.match(txt, /storageRead: \+\d+ ms\ncatalogLoaded: \+\d+ ms\nhomeBuilt: \+\d+ ms\nfirstPaint: \+\d+ ms\ninteractive: \+\d+ ms/);
+  assert.doesNotMatch(txt, /enriched/, 'rien de différé avant la peinture');
+});
+
+test('après la peinture : marques painted puis enriched, teinte posée', () => {
+  const a = boot();
+  a.flush();
+  assert.equal(a.body.className, 'late');
+  assert.ok(find(a.root, 'fond').some((f) => f.style.background), 'teinte posée');
+  a.key(48);
+  assert.match(a.body.children.find((c) => c.tag === 'pre').textContent, /interactive: [^\n]*\npainted: [^\n]*\nenriched: /);
+});
+
+test('0 ou 1 tapé dans un champ de saisie : ni diagnostic ni sonde', () => {
+  const a = boot();
+  a.flush();
+  const pressIn = (keyCode) => a.keyOn(keyCode, { tagName: 'INPUT' });
+  pressIn(48); pressIn(96);
+  assert.equal(a.body.children.find((c) => c.tag === 'pre'), undefined, 'diagnostic fermé');
+  a.key(48); // hors champ : le diagnostic s'ouvre toujours
+  assert.ok(a.body.children.find((c) => c.tag === 'pre'));
+  pressIn(49); pressIn(97);
+  assert.equal(find(a.root, 'plex-panel').length, 0);
+  assert.ok(a.body.children.find((c) => c.tag === 'pre'), 'diagnostic toujours ouvert, sonde non lancée');
 });

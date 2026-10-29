@@ -9,7 +9,12 @@ APP_DIR="${1:-${APP_DIR:-}}"
 [ -n "$APP_DIR" ] || die "APP_DIR absent (argument ou .local/tizen.env)"
 [ -f "$REPO_ROOT/$APP_DIR/config.xml" ] || die "$APP_DIR/config.xml introuvable"
 mkdir -p "$REPO_ROOT/dist"
-run_in_container tizen package -t wgt -s "$SIGN_PROFILE" -o /work/dist -- "/work/$APP_DIR"
+# Copie à empaqueter : si .local/ha.env existe, elle reçoit local-config.js (URL + jeton Home Assistant pré-remplis).
+# Le jeton ne vit que dans cette copie et dans le .wgt (dist/, ignoré par git) ; la copie est supprimée à la sortie.
+STAGE="$REPO_ROOT/dist/.stage-app"
+trap 'rm -rf "$STAGE"' EXIT
+node "$REPO_ROOT/scripts/build/local-config.mjs" "$REPO_ROOT/$APP_DIR" "$STAGE" "$LOCAL_DIR/ha.env"
+run_in_container tizen package -t wgt -s "$SIGN_PROFILE" -o /work/dist -- "/work/dist/.stage-app"
 # Le packager nomme la sortie d'après <name> : la TV relit la ligne vd_appinstall dans son shell, donc
 # espaces et parenthèses sont interdits. Espaces → « - », tout caractère hors [A-Za-z0-9._-] supprimé.
 for f in "$REPO_ROOT"/dist/*.wgt; do

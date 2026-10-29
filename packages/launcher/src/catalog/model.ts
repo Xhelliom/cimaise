@@ -1,5 +1,6 @@
 // Catalogue d'apps du launcher : fonctions pures, jamais de mutation de l'entrée.
 // Distinct de settings/model.ts (AppEntry, teinte) : le branchement de l'écran Réglages sur ce modèle est une autre carte.
+import { sameApp } from './known-apps';
 export interface CatalogEntry {
   id: string;                  // ID d'app Tizen ; vide tant qu'il n'est pas relevé sur la TV
   name: string;
@@ -40,10 +41,9 @@ export function addApp(c: CatalogEntry[], app: DiscoveredApp): CatalogEntry[] {
 // Noms que la TV donne à certaines apps par défaut quand ils diffèrent du nôtre (noms seulement, jamais d'ID).
 export var NAME_ALIASES: { [name: string]: string[] } = { 'Plex officiel': ['Plex'] };
 
-function norm(s: string): string {
-  var t = s.toLowerCase();
-  if ((t as any).normalize) t = (t as any).normalize('NFD').replace(/[̀-ͯ]/g, '');
-  return t.replace(/\s+/g, ' ').replace(/^\s|\s$/g, '');
+function matches(names: string[], installed: string): boolean {
+  for (var i = 0; i < names.length; i++) if (sameApp(names[i], installed)) return true;
+  return false;
 }
 
 // Complète l'ID des entrées sans ID dont le nom (ou un alias) correspond à une app découverte.
@@ -55,11 +55,10 @@ export function fillIds<T extends { id: string; name: string; todo?: string }>(c
   for (var j = 0; j < c.length; j++) {
     var e = c[j];
     if (e.id) { out.push(e); continue; }
-    var names = [norm(e.name)], al = NAME_ALIASES[e.name] || [];
-    for (var a = 0; a < al.length; a++) names.push(norm(al[a]));
+    var names = [e.name].concat(NAME_ALIASES[e.name] || []);
     var hit: DiscoveredApp | null = null;
     for (var k = 0; k < apps.length && !hit; k++) {
-      if (!used[apps[k].id] && apps[k].id && names.indexOf(norm(apps[k].name)) >= 0) hit = apps[k];
+      if (!used[apps[k].id] && apps[k].id && matches(names, apps[k].name)) hit = apps[k];
     }
     if (!hit) { out.push(e); continue; }
     used[hit.id] = true;

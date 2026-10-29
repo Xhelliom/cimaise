@@ -4,6 +4,7 @@ import { AppEntry, DiscoveredApp } from '../../../../packages/launcher/src/setti
 import { loadLangPrefs, saveLangPrefs } from '../../../../packages/tv-core/src/langprefs';
 import { HomeMode } from '../../../../packages/launcher/src/home/model';
 import { CatalogEntry } from '../../../../packages/launcher/src/catalog/model';
+import { HaSettings } from '../../../../packages/launcher/src/settings/scenes';
 
 // Les Réglages travaillent sur AppEntry (teinte) ; le catalogue persisté est un CatalogEntry (couleur, type, rappel).
 // Au retour, on retrouve l'entrée d'origine (id + nom) pour ne pas perdre `type` ni `todo` (plusieurs entrées peuvent avoir un id vide).
@@ -15,6 +16,7 @@ export interface SettingsArg {
   tiles?: number;
   onTiles?: (n: number) => void;
   onChange: (catalog: CatalogEntry[]) => void;
+  ha?: HaSettings;
   onClose: () => void;
 }
 
@@ -48,6 +50,7 @@ function createPanel(arg: SettingsArg): Panel {
       current = next;
       arg.onChange(next);
     },
+    ha: arg.ha,
     mode: arg.mode,
     onMode: arg.onMode,
     tiles: arg.tiles,

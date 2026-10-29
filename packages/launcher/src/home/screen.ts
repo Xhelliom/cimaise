@@ -1,3 +1,4 @@
+import { noteEvent } from '../../../tv-core/src/diag';
 import { applyIcon } from '../../../tv-core/src/icon';
 import { Key } from '../../../tv-core/src/keys';
 import { Focus } from '../../../tv-core/src/focus';
@@ -5,7 +6,9 @@ import { Panel } from '../../../tv-core/src/router/router';
 import { launchApp as deviceLaunch, watchNetwork as deviceWatchNetwork } from '../../../tv-core/src/device';
 import { CatalogEntry } from '../catalog/model';
 import { knownApp } from '../catalog/known-apps';
-import { greeting, formatClock, formatDate, tintGradient, tileInk, railOffset, pageShift, rowOffset, HomeMode, DEFAULT_MODE, normalizeTiles } from './model';
+import { greeting, formatClock, formatDate, tintGradient, tileInk, railOffset, pageShift, rowOffset, tileH, rowTileLeft, rowTileW, BAC_TOP, PAD, GAP, BAC_W, SCREEN_H, HomeMode, DEFAULT_MODE, normalizeTiles } from './model';
+
+export interface SceneItem { id: string; name: string; }
 
 export type PastilleName = 'reglages' | 'smarthub';
 
@@ -19,22 +22,30 @@ export interface HomeOptions {
   // (lève hors TV : l'indicateur reste alors caché).
   watchNetwork?: (cb: (online: boolean) => void) => () => void;
   onPastille: (name: PastilleName) => void;
+  // Activation d'une scène (rangée au-dessus du Dock) ; done(null) = réussi, done(err) = message d'erreur discret. Sans elle, la rangée reste inerte.
+  onScene?: (id: string, done: (err: Error | null) => void) => void;
   onError?: (err: Error) => void;
   now?: () => Date;
   timer?: { set: (fn: () => void, ms: number) => any; clear: (h: any) => void };
   mode?: HomeMode;   // défaut : grille
   tiles?: number;    // tuiles à l'écran : 4 (défaut), 5 ou 6
   doc?: Document;
+  // Premier rendu minimal : tuiles avec leur nom, sans logo ni teinte ni description ; enrich() ajoute le reste après la 1re peinture.
+  deferRich?: boolean;
 }
 
 export interface HomePanel extends Panel {
   setCatalog(catalog: CatalogEntry[]): void;
   setMode(mode: HomeMode): void;
   setTiles(n: number): void;
+  setScenes(list: SceneItem[]): void;   // rangée de pastilles scène (au plus 6) ; liste vide = rangée retirée
   notify(text: string): void;   // petit message à l'écran (disparaît seul)
+  enrich(): void;               // après la 1re peinture : teinte, description et logos (chargés hors DOM, posés une fois prêts)
 }
 
 var MESSAGE_MS = 4000;
+var SCENES_MAX = 6;
+var SCENE_MARK_MS = 1500; // « ✓ » (et la pastille allumée) restent ce temps après la réponse
 var TINT_DELAY_MS = 150; // la teinte ne suit qu'après cet arrêt du focus ; le focus, lui, bouge tout de suite
 
 var PASTILLES: Array<{ name: PastilleName; label: string }> = [
@@ -97,10 +108,16 @@ export function createHome(opts: HomeOptions): HomePanel {
   el.appendChild(reseau);
 
   var tiles: HTMLElement[] = [];
+  // Logos posés dont la 1re peinture n'a pas encore eu lieu (ni par le pré-décodage, ni à l'écran).
+  var unpainted: Array<{ tile: HTMLElement; file: string; pre: boolean }> = [];
   var grid = new Focus(0, per);
   var chips = new Focus(PASTILLES.length, PASTILLES.length);
-  var zone: 'tiles' | 'pastilles' = 'tiles';
+  var zone: 'tiles' | 'scenes' | 'pastilles' = 'tiles';
+  // Rangée de scènes : construite par setScenes seulement (aucun nœud tant que Home Assistant n'a rien donné).
+  var sceneList: SceneItem[] = [], sceneEls: HTMLElement[] = [], sceneLit: boolean[] = [], sceneTimers: any[] = [], sceneIdx = 0;
+  var sceneWrap: HTMLElement | null = null;
   var shownKey = '';
+  var rich = !opts.deferRich;
 
   // --- teinte : écrite sur le calque caché, puis fondu d'opacity (CSS) ; jamais de couleur animée ---
   var cur = 0, fadeTimer: any = null, tintHex = '', tintTimer: any = null;
@@ -114,6 +131,7 @@ export function createHome(opts: HomeOptions): HomePanel {
     if (hex === tintHex) return;
     if (tintHex === '') { tintHex = hex; layers[0].style.background = tintGradient(hex); return; } // état initial : rien à fondre
     tintHex = hex;
+    noteEvent('fondu');
     if (fadeTimer !== null) timer.clear(fadeTimer);
     var nx = layers[1 - cur], old = layers[cur];
     nx.style.transition = 'none';
@@ -145,6 +163,26 @@ export function createHome(opts: HomeOptions): HomePanel {
   }
   function stopClock(): void { if (clockTimer !== null) { timer.clear(clockTimer); clockTimer = null; } }
 
+  // Tuile à l'écran avec la page et le rail dans leur état courant (mêmes formules que le CSS).
+  function onScreen(i: number): boolean {
+    var idx = zone === 'tiles' && tiles.length ? grid.index : 0;
+    if (mode === 'grille') {
+      var cur = Math.floor(idx / per), th = tileH(per);
+      var top = BAC_TOP - pageShift(cur) + PAD + Math.floor(i / per) * (th + GAP) - railOffset(cur, per);
+      return top + th > 0 && top < SCREEN_H;
+    }
+    var left = rowTileLeft(i, per) - rowOffset(idx, tiles.length, per);
+    return left + rowTileW(per) > 0 && left < BAC_W;
+  }
+  // Un logo n'est décodé qu'à sa 1re peinture (Chromium 63) : si un appui l'amène à l'écran, le diagnostic le dit.
+  function notePaintedLogos(): void {
+    for (var u = unpainted.length - 1; u >= 0; u--) {
+      var i = tiles.indexOf(unpainted[u].tile);
+      if (i < 0) { unpainted.splice(u, 1); continue; }
+      if (onScreen(i)) { noteEvent('1re peinture logo ' + unpainted[u].file + (unpainted[u].pre ? ' (pré-décodé)' : '')); unpainted.splice(u, 1); }
+    }
+  }
+
   // --- peinture : n'écrit que ce qui change ---
   function paint(): void {
     for (var i = 0; i < tiles.length; i++) {
@@ -169,16 +207,21 @@ export function createHome(opts: HomeOptions): HomePanel {
         ? 'translateY(' + -railOffset(row, per) + 'px)'
         : 'translateX(' + -rowOffset(idx, tiles.length, per) + 'px)';
     }
-    var known = zone === 'tiles' && catalog[grid.index] ? knownApp(catalog[grid.index].name) : null;
+    for (var s = 0; s < sceneEls.length; s++) {
+      var scls = 'scene' + (zone === 'scenes' && s === sceneIdx ? ' focus' : '') + (sceneLit[s] ? ' allume' : '');
+      if (sceneEls[s].className !== scls) sceneEls[s].className = scls;
+    }
+    if (unpainted.length) notePaintedLogos();
+    var known = rich && zone === 'tiles' && catalog[grid.index] ? knownApp(catalog[grid.index].name) : null;
     if (desc.textContent !== (known ? known.desc : '')) desc.textContent = known ? known.desc : '';
     if (zone === 'tiles' && catalog[grid.index]) {
       titre.textContent = catalog[grid.index].name;
-      tintLater(catalog[grid.index].color);
+      if (rich) tintLater(catalog[grid.index].color);
     } else if (zone === 'pastilles') titre.textContent = PASTILLES[chips.index].label;
     else titre.textContent = '';
   }
 
-  // La tuile EST la marque : logo large de la bibliothèque (par nom) sur son fond naturel ; sans logo, le nom sur la couleur
+  // La tuile EST la marque : logo large de la bibliothèque (par nom) sur la couleur de la marque ; sans logo, le nom sur la couleur
   // de l'app ; l'icône de la TV n'est qu'un dernier recours. Le logo ne se charge qu'à l'affichage.
 
   function cols(): number { return mode === 'grille' ? per : Math.max(1, catalog.length); }
@@ -189,13 +232,17 @@ export function createHome(opts: HomeOptions): HomePanel {
   function buildTiles(): void {
     while (rail.firstChild) rail.removeChild(rail.firstChild);
     tiles = [];
+    unpainted = [];
     for (var i = 0; i < catalog.length; i++) {
       var t = div('tuile');
-      var k = knownApp(catalog[i].name), bg = k && k.logoUrl ? k.bg : catalog[i].color;
+      var k = knownApp(catalog[i].name), bg = k ? k.bg : catalog[i].color;
       t.style.background = bg;
       t.style.color = tileInk(bg);
       // Sans logo large : le nom, jamais l'icône carrée de la TV (sauf app sans nom).
-      if (k && k.logoUrl) applyIcon(doc, t, catalog[i].icon || '', catalog[i].name, catalog[i].name, k.logoUrl);
+      if (k && k.logoUrl && rich) {
+        applyIcon(doc, t, catalog[i].icon || '', catalog[i].name, catalog[i].name, k.logoUrl);
+        if (k.tag && t.firstChild) { (t.firstChild as HTMLElement).className = 'avec-mention'; t.appendChild(div('mention', k.tag)); }
+      }
       else if (catalog[i].name) t.textContent = catalog[i].name;
       else applyIcon(doc, t, catalog[i].icon || '', '', '?');
       tiles.push(t);
@@ -205,6 +252,40 @@ export function createHome(opts: HomeOptions): HomePanel {
     if (!catalog.length) zone = 'pastilles';
     grid.cols = cols();
     shownKey = '';
+  }
+
+  // Chromium 63 (Tizen 5) n'a pas img.decode() et décode une image à sa première peinture : un logo hors écran serait donc décodé
+  // sur l'appui qui l'amène à l'écran. Chaque logo prêt est peint une fois dans une couche cachée (1 px, quasi transparente) juste
+  // après sa pose, puis la copie est retirée après deux peintures : le premier appui ne décode plus rien.
+  function predecode(src: string, t: HTMLElement): void {
+    var c: any = doc.createElement('img');
+    c.className = 'predecode';
+    c.setAttribute('src', src);
+    el.appendChild(c);
+    var drop = function () { if (c.parentNode) c.parentNode.removeChild(c); };
+    if (typeof requestAnimationFrame === 'undefined') drop();
+    else requestAnimationFrame(function () {
+      // Copie peinte, mais rien ne prouve le décodage sur Chromium 63 : l'entrée reste, marquée, et c'est l'appui qui amène
+      // la tuile à l'écran qui consigne « (pré-décodé) ».
+      for (var u = 0; u < unpainted.length; u++) if (unpainted[u].tile === t) { unpainted[u].pre = true; break; }
+      requestAnimationFrame(drop);
+    });
+  }
+
+  // Logo d'une tuile : l'image est chargée hors DOM, puis posée à la place du nom une fois prête ; en cas d'échec le nom reste.
+  function addLogo(t: HTMLElement, e: CatalogEntry): void {
+    var k = knownApp(e.name);
+    if (!k || !k.logoUrl || !e.name) return;
+    var holder = div('');
+    applyIcon(doc, holder, e.icon || '', e.name, e.name, k.logoUrl, function (img) {
+      if (t.textContent) t.textContent = '';
+      t.appendChild(img);
+      if (k!.tag) { img.className = 'avec-mention'; t.appendChild(div('mention', k!.tag)); }
+      var src: string = (img as any).src || '';
+      unpainted.push({ tile: t, file: src.replace(/^.*\//, ''), pre: false });
+      notePaintedLogos(); // déjà à l'écran : la 1re peinture est celle de la pose
+      predecode(src, t);
+    });
   }
 
   // Message transitoire : un seul élément, masqué par la classe, retiré par une minuterie ponctuelle.
@@ -234,14 +315,81 @@ export function createHome(opts: HomeOptions): HomePanel {
     }
   }
 
+  function clearSceneTimers(): void {
+    for (var i = 0; i < sceneTimers.length; i++) if (sceneTimers[i] !== null && sceneTimers[i] !== undefined) timer.clear(sceneTimers[i]);
+    sceneTimers = [];
+  }
+
+  function setScenes(list: SceneItem[]): void {
+    clearSceneTimers();
+    list = list.slice(0, SCENES_MAX);
+    if (sceneWrap && sceneWrap.parentNode) sceneWrap.parentNode.removeChild(sceneWrap);
+    sceneWrap = null;
+    sceneList = list;
+    sceneEls = [];
+    sceneLit = [];
+    if (list.length) {
+      sceneWrap = div('scenes');
+      for (var i = 0; i < list.length; i++) {
+        var pill = div('scene');
+        pill.appendChild(div('pt'));
+        pill.appendChild(div('sn', list[i].name));
+        pill.appendChild(div('sm'));
+        sceneEls.push(pill);
+        sceneLit.push(false);
+        sceneWrap.appendChild(pill);
+      }
+      el.appendChild(sceneWrap);
+    }
+    if (sceneIdx >= list.length) sceneIdx = Math.max(0, list.length - 1);
+    if (zone === 'scenes' && !list.length) zone = catalog.length ? 'tiles' : 'pastilles';
+    paint();
+  }
+
+  function activateScene(): void {
+    var i = sceneIdx, item = sceneList[i];
+    if (sceneLit[i]) return; // déjà en cours (ou « ✓ » encore affiché)
+    var fail = function (err: Error) {
+      sceneLit[i] = false;
+      notify(item.name + ' : ' + (err && err.message ? err.message : 'échec'));
+      paint();
+    };
+    if (!opts.onScene) { notify(item.name + ' : activation indisponible'); return; }
+    sceneLit[i] = true; // retour visuel immédiat, avant la réponse
+    try {
+      opts.onScene(item.id, function (err) {
+        if (sceneList[i] !== item) return; // la liste a changé entre-temps
+        if (err) { fail(err); return; }
+        sceneEls[i].children[2].textContent = '✓';
+        sceneTimers[i] = timer.set(function () {
+          sceneTimers[i] = null;
+          sceneLit[i] = false;
+          sceneEls[i].children[2].textContent = '';
+          paint();
+        }, SCENE_MARK_MS);
+        paint();
+      });
+    } catch (e) { fail(e as Error); return; }
+    paint();
+  }
+
   function press(k: Key): boolean {
+    if (zone === 'scenes') {
+      if (k === 'left' || k === 'right') sceneIdx = Math.max(0, Math.min(sceneList.length - 1, sceneIdx + (k === 'left' ? -1 : 1)));
+      else if (k === 'up') zone = 'pastilles';
+      else if (k === 'down') { if (catalog.length) zone = 'tiles'; }
+      else if (k === 'enter') { activateScene(); return true; }
+      else return false;
+      paint();
+      return true;
+    }
     if (zone === 'tiles') {
-      if (k === 'up') { if (!grid.move('up')) zone = 'pastilles'; }
+      if (k === 'up') { if (!grid.move('up')) zone = sceneEls.length ? 'scenes' : 'pastilles'; }
       else if (k === 'left' || k === 'right' || k === 'down') grid.move(k);
       else if (k === 'enter') { if (catalog.length) activate(); return true; }
       else return false;
     } else {
-      if (k === 'down' && catalog.length) zone = 'tiles';
+      if (k === 'down' && (sceneEls.length || catalog.length)) zone = sceneEls.length ? 'scenes' : 'tiles';
       else if (k === 'left' || k === 'right') chips.move(k);
       else if (k === 'enter') { opts.onPastille(PASTILLES[chips.index].name); return true; }
       else if (k !== 'down' && k !== 'up') return false;
@@ -257,6 +405,7 @@ export function createHome(opts: HomeOptions): HomePanel {
 
   el.className = homeClass(0);
   buildTiles();
+  var enriched = false;
   refresh();
   paint();
   tick();
@@ -265,6 +414,15 @@ export function createHome(opts: HomeOptions): HomePanel {
     el: el,
     onKey: press,
     notify: notify,
+    enrich: function () {
+      if (enriched) return;
+      enriched = true;
+      if (rich) return;
+      rich = true;
+      for (var i = 0; i < tiles.length; i++) addLogo(tiles[i], catalog[i]);
+      shownKey = '';
+      paint();
+    },
     setCatalog: function (c: CatalogEntry[]) {
       catalog = c.slice(0);
       buildTiles();
@@ -278,6 +436,7 @@ export function createHome(opts: HomeOptions): HomePanel {
       shownKey = '';
       paint();
     },
+    setScenes: setScenes,
     setTiles: function (n: number) {
       n = normalizeTiles(n);
       if (n === per) return;
@@ -294,6 +453,7 @@ export function createHome(opts: HomeOptions): HomePanel {
       if (fadeTimer !== null) { timer.clear(fadeTimer); fadeTimer = null; }
       if (tintTimer !== null) { timer.clear(tintTimer); tintTimer = null; }
       if (msgTimer !== null) { timer.clear(msgTimer); msgTimer = null; }
+      clearSceneTimers();
     }
   };
 }

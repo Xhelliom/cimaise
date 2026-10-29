@@ -310,3 +310,10 @@ test('Langues par défaut : audio (français) et sous-titres (aucun) en tête de
   press('left', 'left');
   assert.deepEqual(s, ['fra', ''], 'borne basse : Aucun');
 });
+
+test('fillIds : « Plex - Free Movies ＆ TV » (nom réel de la Frame) rattaché à Plex officiel, pas à Plex intégré ni à YouTube', () => {
+  const c = [{ id: '', name: 'Plex officiel' }, { id: '', name: 'YouTube' }];
+  const r = S.fillIds(c, [{ id: 'a', name: 'Plex - Free Movies ＆ TV' }, { id: 'b', name: 'YouTube' }]);
+  assert.deepEqual(r.map((x) => x.id), ['a', 'b']);
+  assert.equal(S.fillIds([{ id: '', name: 'Plex officiel' }], [{ id: 'z', name: 'Plexus' }])[0].id, '');
+});

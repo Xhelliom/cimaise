@@ -2,7 +2,7 @@ import { loadStored, saveStored } from '../../../tv-core/src/storage';
 import { HomeMode, normalizeMode, normalizeTiles } from './model';
 
 // Préférence dans cimaise.v1 (prefs.homeMode) ; toute valeur inconnue retombe sur la grille.
-export function loadHomeMode(store?: Storage): HomeMode { return normalizeMode(loadStored(store).prefs.homeMode); }
+export function loadHomeMode(store?: Storage, startup?: boolean): HomeMode { return normalizeMode(loadStored(store, startup).prefs.homeMode); }
 
 export function saveHomeMode(mode: HomeMode, store?: Storage): void {
   var s = loadStored(store);
@@ -11,7 +11,7 @@ export function saveHomeMode(mode: HomeMode, store?: Storage): void {
 }
 
 // Préférence dans cimaise.v1 (prefs.homeTiles) : 4, 5 ou 6 ; toute autre valeur retombe sur 4.
-export function loadHomeTiles(store?: Storage): number { return normalizeTiles(loadStored(store).prefs.homeTiles); }
+export function loadHomeTiles(store?: Storage, startup?: boolean): number { return normalizeTiles(loadStored(store, startup).prefs.homeTiles); }
 
 export function saveHomeTiles(n: number, store?: Storage): void {
   var s = loadStored(store);

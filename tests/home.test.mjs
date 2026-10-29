@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { build } from 'esbuild';
+import { writeFileSync } from 'node:fs';
 
 let H, TV, dir;
 async function bundle(es5Dir, rel, name) {
@@ -18,7 +19,9 @@ before(async () => {
   const es5Dir = join(dir, 'es5');
   const t = spawnSync('node_modules/.bin/tsc', ['-p', 'packages/launcher/tsconfig.json', '--outDir', es5Dir], { encoding: 'utf8' });
   assert.equal(t.status, 0, t.stdout + t.stderr);
-  H = await bundle(es5Dir, 'launcher/src/home/index.js', 'home');
+  // Même bundle que l'accueil pour le diagnostic : les événements (noteEvent) sont lus dans le module qui les écrit.
+  writeFileSync(join(es5Dir, 'home-diag.js'), "export * from './launcher/src/home/index.js';\nexport { keyLatency, resetLatency, resetEvents, latencyStats } from './tv-core/src/diag.js';\n");
+  H = await bundle(es5Dir, 'home-diag.js', 'home');
   TV = await bundle(es5Dir, 'tv-core/src/index.js', 'tv');
 });
 
@@ -40,6 +43,7 @@ function fakeDoc(log) {
       },
     });
     Object.defineProperty(el, 'firstChild', { get: () => el.children[0] || null });
+    Object.defineProperty(el, 'parentNode', { get: () => el.parent });
     return el;
   };
   return { createElement: mk, head: mk('head') };
@@ -491,14 +495,15 @@ test('Dock : app inconnue avec icône TV → son nom, aucune <img> (l’icône c
   assert.equal(x.style.background, '#8a3ffc');
 });
 
-test('Dock : la tuile prend le fond naturel du logo ; sans logo, la couleur de l’app', () => {
+test('Dock : la tuile prend la couleur de marque de la bibliothèque ; app inconnue, la couleur de l’app', () => {
   const { p } = mount({ catalog: [...kcat, { id: 'h', name: 'Smart Hub', color: '#5a5a5f', type: 'tv' }] });
   const [n, d, c, h] = byClass(p.el, 'tuile');
-  assert.equal(n.style.background, '#ffffff', 'Netflix : blanc');
+  assert.equal(n.style.background, '#e50914', 'Netflix : rouge de la marque');
   assert.match(d.style.background, /^#[0-9a-f]{6}$/i);
-  assert.notEqual(d.style.background, '#113ccf', 'Disney+ : fond du logo, pas la couleur de l’app');
+  assert.equal(d.style.background, '#0e1a3d', 'Disney+ : bleu nuit de la bibliothèque, pas la couleur de l’app');
   assert.equal(c.style.background, '#5a5a5f', 'app inconnue : sa couleur');
-  assert.equal(h.style.background, '#5a5a5f', 'Smart Hub sans logo : sa couleur');
+  assert.equal(h.style.background, '#1428a0', 'Smart Hub sans logo : bleu Samsung de la bibliothèque');
+  assert.equal(h.style.color, '#fff');
   assert.equal(h.textContent, 'Smart Hub');
   assert.equal(h.children.length, 0);
 });
@@ -700,4 +705,129 @@ test('Préférence Smart Hub : ID configurable, vide par défaut', () => {
   assert.equal(H.loadSmartHubTarget(store), '');
   H.saveSmartHubTarget('x.y', store);
   assert.equal(H.loadSmartHubTarget(store), 'x.y');
+});
+
+// --- rendu minimal puis enrichi (premier affichage) ---
+function imgDoc() {
+  const base = fakeDoc(), made = [];
+  return { made, doc: { ...base, createElement: (t) => { const e = base.createElement(t); if (t === 'img') made.push(e); return e; } } };
+}
+const NETFLIX = { id: 'n', name: 'Netflix', color: '#e50914', type: 'tv' };
+
+test('rendu minimal : tuiles avec nom seulement, ni logo ni teinte tant qu’enrich() n’a pas tourné', () => {
+  const { doc, made } = imgDoc();
+  const { p } = mount({ catalog: [NETFLIX, { id: 'x', name: 'Inconnue', color: '#113ccf', type: 'tv' }], deferRich: true, doc });
+  const tuiles = byClass(p.el, 'tuile');
+  assert.deepEqual(tuiles.map((t) => t.textContent), ['Netflix', 'Inconnue']);
+  assert.equal(made.length, 0, 'aucune image créée');
+  assert.equal(byClass(p.el, 'fond').every((f) => f.style.background === undefined), true, 'aucune teinte');
+  p.enrich();
+  assert.ok(byClass(p.el, 'fond').some((f) => f.style.background), 'teinte posée par enrich');
+  assert.equal(made.length, 1, 'un logo demandé (Netflix), pas pour l’app inconnue');
+  assert.equal(tuiles[0].children.length, 0, 'le logo n’est posé qu’une fois chargé');
+  assert.equal(tuiles[0].textContent, 'Netflix');
+  made[0].onload();
+  assert.equal(tuiles[0].children.length, 1);
+  assert.equal(tuiles[0].textContent, '', 'le nom cède la place au logo');
+});
+
+test('enrich : un logo qui échoue laisse le nom ; deux appels ne doublent rien', () => {
+  const { doc, made } = imgDoc();
+  const { p } = mount({ catalog: [NETFLIX], deferRich: true, doc });
+  p.enrich(); p.enrich();
+  assert.equal(made.length, 1);
+  made[0].onerror();
+  assert.equal(byClass(p.el, 'tuile')[0].textContent, 'Netflix');
+  assert.equal(byClass(p.el, 'tuile')[0].children.length, 0);
+});
+
+test('sans deferRich : comportement d’origine (teinte et logos tout de suite)', () => {
+  const { p } = mount({}, 3);
+  assert.ok(byClass(p.el, 'fond').some((f) => f.style.background));
+});
+
+test('logo prêt : peint une fois dans une couche cachée (pré-décodage), copie retirée après deux peintures', () => {
+  const queue = []; globalThis.requestAnimationFrame = (f) => queue.push(f);
+  try {
+    const { doc, made } = imgDoc();
+    const { p } = mount({ catalog: [NETFLIX], deferRich: true, doc });
+    p.enrich();
+    made[0].src = 'logos/netflix.png'; made[0].onload();
+    const copies = () => byClass(p.el, 'predecode');
+    assert.equal(copies().length, 1, 'copie cachée posée dès le logo prêt');
+    assert.equal(copies()[0].attrs.src, 'logos/netflix.png');
+    queue.shift()(); assert.equal(copies().length, 1, 'encore là après une peinture');
+    queue.shift()(); assert.equal(copies().length, 0, 'retirée après la seconde');
+  } finally { delete globalThis.requestAnimationFrame; }
+});
+
+test('logo hors écran : l’appui qui l’amène à l’écran a pour cause « 1re peinture logo <fichier> (pré-décodé) »', () => {
+  const rafs = []; globalThis.requestAnimationFrame = (f) => rafs.push(f);
+  try {
+  const { doc, made } = imgDoc();
+  const filler = Array.from({ length: 8 }, (_, i) => ({ id: 'f' + i, name: 'Inconnue' + i, color: '#113ccf', type: 'tv' }));
+  H.resetEvents();
+  const { p, press } = mount({ catalog: [...filler, NETFLIX], deferRich: true, doc });
+  p.enrich();
+  made[0].src = 'logos/netflix.png'; made[0].onload();
+  while (rafs.length) rafs.shift()(); // pré-décodage flushé avant l'appui
+  // Un appui mesuré : keyLatency (horloge et rAF factices) rattache à l'appui les événements survenus pendant sa fenêtre.
+  const cause = (...ks) => {
+    H.resetLatency(); H.resetEvents();
+    let t = 1000; const q = [];
+    H.keyLatency(() => t++, (f) => q.push(f));
+    press(...ks);
+    while (q.length) q.shift()();
+    return H.latencyStats().maxCause;
+  };
+  assert.equal(cause('right'), 'inconnue', 'tuile hors écran : rien consigné');
+  assert.equal(cause('left', 'down', 'down'), '1re peinture logo netflix.png (pré-décodé)');
+  assert.equal(cause('up', 'down'), 'inconnue', 'une seule fois');
+  } finally { delete globalThis.requestAnimationFrame; }
+});
+
+test('logo hors écran sans pré-décodage (pas de rAF) : cause « 1re peinture logo <fichier> » sans mention', () => {
+  const { doc, made } = imgDoc();
+  const filler = Array.from({ length: 8 }, (_, i) => ({ id: 'f' + i, name: 'Inconnue' + i, color: '#113ccf', type: 'tv' }));
+  H.resetEvents();
+  const { p, press } = mount({ catalog: [...filler, NETFLIX], deferRich: true, doc });
+  p.enrich();
+  made[0].src = 'logos/netflix.png'; made[0].onload();
+  H.resetLatency(); H.resetEvents();
+  let t = 1000; const q = [];
+  H.keyLatency(() => t++, (f) => q.push(f));
+  press('left', 'down', 'down');
+  while (q.length) q.shift()();
+  assert.equal(H.latencyStats().maxCause, '1re peinture logo netflix.png');
+});
+
+test('Dock : Plex officiel porte la mention « officiel » sous le logo, Plex intégré non', () => {
+  const { p } = mount({ catalog: [
+    { id: 'plex', name: 'Plex intégré', color: '#e5a00d', type: 'interne' },
+    { id: 'o', name: 'Plex officiel', color: '#3a3d42', type: 'tv' },
+  ] });
+  const [i, o] = byClass(p.el, 'tuile');
+  assert.equal(i.style.background, '#e5a00d');
+  assert.equal(o.style.background, '#000000');
+  assert.equal(i.children[0].attrs.src, 'logos/plex-integre.png');
+  assert.equal(o.children[0].attrs.src, 'logos/plex.png');
+  assert.equal(i.children.length, 1);
+  assert.equal(o.children.length, 2);
+  assert.equal(o.children[1].textContent, 'officiel');
+  assert.match(o.children[0].className, /avec-mention/, 'le logo remonte pour laisser la place');
+  assert.equal(o.children[1].className, 'mention');
+  assert.doesNotMatch(i.children[0].className || '', /avec-mention/);
+});
+
+test('rendu différé : la mention « officiel » arrive avec le logo de Plex officiel', () => {
+  const { doc, made } = imgDoc();
+  const { p } = mount({ catalog: [{ id: 'o', name: 'Plex officiel', color: '#3a3d42', type: 'tv' }], deferRich: true, doc });
+  const [o] = byClass(p.el, 'tuile');
+  assert.equal(o.textContent, 'Plex officiel');
+  p.enrich();
+  made[0].onload();
+  assert.equal(o.children.length, 2);
+  assert.match(o.children[0].className, /avec-mention/);
+  assert.equal(o.children[1].className, 'mention');
+  assert.equal(o.children[1].textContent, 'officiel');
 });
