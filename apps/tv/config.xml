@@ -3,25 +3,27 @@
   Identité et cible de l'app cimaise. DÉFINITIF : ne plus modifier id, package ni certificat
   auteur, sinon les mises à jour sur place échouent (HANDOFF §10).
 
-  - application id "cimaise00.Cimaise" / package "cimaise00" : 10 caractères alphanumériques
+  - application id "cimaise001.Cimaise" / package "cimaise001" : 10 caractères alphanumériques
     pour le package, id = package + "." + nom. Doit rester égal à APP_ID de .local/tizen.env.
   - widget id : URI stable, jamais résolue.
   - required_version "5.0" : la Frame 2019 (LS03R) est en Tizen 5.0 ; la TV refuse une valeur
     supérieure à sa plateforme (CleanFrame amont : 6.5). 5.0 est la valeur minimale plausible
     qui couvre tvinputdevice et AVPlay. Si la TV refuse quand même (« version not supported »),
     essayer 4.0 puis 3.0 et le consigner dans docs/tv-status.md ; non testé sur la TV.
-  - privilèges : uniquement tv.inputdevice (enregistrement des touches média de la télécommande).
-    Ajouter un privilège seulement avec la fonctionnalité qui l'exige (lancement d'apps,
-    AVPlay, etc. : cartes ultérieures).
+  - privilèges : tv.inputdevice (touches média), application.launch (device.launchApp) et
+    application.info (inventaire getAppsInfo, Réglages).
+    Ajouter un privilège seulement avec la fonctionnalité qui l'exige (AVPlay, etc.).
 -->
 <widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets"
         id="https://local.cimaise/app" version="0.0.1" viewmodes="maximized">
-  <tizen:application id="cimaise00.Cimaise" package="cimaise00" required_version="5.0"/>
+  <tizen:application id="cimaise001.Cimaise" package="cimaise001" required_version="5.0"/>
   <content src="index.html"/>
   <feature name="http://tizen.org/feature/screen.size.all"/>
   <icon src="icon.png"/>
   <name>cimaise</name>
   <tizen:profile name="tv-samsung"/>
   <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
+  <tizen:privilege name="http://tizen.org/privilege/application.launch"/>
+  <tizen:privilege name="http://tizen.org/privilege/application.info"/>
   <tizen:setting screen-orientation="landscape" context-menu="disable" background-support="disable" encryption="disable" install-location="auto"/>
 </widget>

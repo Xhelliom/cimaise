@@ -26,7 +26,7 @@ case "$*" in
   *version*)         echo "Smart Development Bridge version 4.2.25";;
   *"install /work/dist/"*) echo "${FAKE_INSTALL_OUT:-install completed}";;
   *vd_appinstall*)   echo "${FAKE_VD_OUT:-install completed}";;
-  *applist*)         echo "${FAKE_APPLIST:-'Cimaise'  'cimaise00.Cimaise'}";;
+  *applist*)         echo "${FAKE_APPLIST:-'Cimaise'  'cimaise001.Cimaise'}";;
 esac
 exit 0
 FAKE
@@ -34,6 +34,8 @@ cat > "$TMP/fake/tizen" <<'FAKE'
 #!/usr/bin/env bash
 echo "TIZEN $FAKE_N $*" >> "$FAKE_LOG"
 case "$1" in version) echo "Tizen CLI 2.5.25";; esac
+# Comme le vrai packager : la sortie est nommée d'après <name> (ici avec espaces).
+case "$1" in package) [ -n "${FAKE_WGT_DIR:-}" ] && touch "$FAKE_WGT_DIR/CleanFrame (bench).wgt";; esac
 exit 0
 FAKE
 chmod +x "$TMP/fake/sdb" "$TMP/fake/tizen"
@@ -64,7 +66,7 @@ export CIMAISE_LOCAL_DIR="$TMP/local"
 SECRET=s3cr3t-pw-1234
 cat > "$TMP/local/tizen.env" <<ENV
 TV_IP=10.9.8.7
-APP_ID=cimaise00.Cimaise
+APP_ID=cimaise001.Cimaise
 APP_DIR=apps/tv
 SIGN_PROFILE=cimaise
 AUTHOR_CERT=/work/.local/certs/author.p12
@@ -88,12 +90,12 @@ out="$(CIMAISE_LOCAL_DIR="$TMP/vide" "$HERE/list-apps.sh" 2>&1)"; rc=$?
 [ $rc -ne 0 ] && [[ "$out" == *"tizen.env"* ]] && ok "env absent → erreur claire" || fail "env absent → erreur claire"
 
 # 4. list-apps lit l'ID depuis la TV configurée
-out="$("$HERE/list-apps.sh" 2>&1)"; [[ "$out" == *"cimaise00.Cimaise"* ]] && ok "list-apps" || fail "list-apps"
+out="$("$HERE/list-apps.sh" 2>&1)"; [[ "$out" == *"cimaise001.Cimaise"* ]] && ok "list-apps" || fail "list-apps"
 grep -q "10.9.8.7:26101" "$TMP/docker.log" && ok "IP/port lus depuis .local" || fail "IP/port lus depuis .local"
 
 # 5. launch
 : > "$TMP/docker.log"; "$HERE/launch.sh" >/dev/null 2>&1
-grep -q "^SDB .* shell 0 was_execute cimaise00.Cimaise" "$TMP/docker.log" && ok "launch" || fail "launch"
+grep -q "^SDB .* shell 0 was_execute cimaise001.Cimaise" "$TMP/docker.log" && ok "launch" || fail "launch"
 
 # 6. install : succès, puis échec si « install completed » absent, puis repli vd_appinstall
 mkdir -p "$REPO/dist"; touch "$REPO/dist/zz-test.wgt"; trap 'rm -rf "$TMP" "$REPO/dist/zz-test.wgt"' EXIT
@@ -102,7 +104,7 @@ FAKE_INSTALL_OUT="transfer only" FAKE_VD_OUT="failed" "$HERE/install.sh" "$REPO/
   && fail "install sans « install completed » doit échouer" || ok "install sans « install completed » échoue"
 : > "$TMP/docker.log"
 FAKE_INSTALL_OUT="transfer only" "$HERE/install.sh" "$REPO/dist/zz-test.wgt" >/dev/null 2>&1
-grep -q "vd_appinstall cimaise00" "$TMP/docker.log" && ok "repli vd_appinstall" || fail "repli vd_appinstall"
+grep -q "vd_appinstall cimaise001" "$TMP/docker.log" && ok "repli vd_appinstall" || fail "repli vd_appinstall"
 FAKE_APPLIST="rien" "$HERE/install.sh" "$REPO/dist/zz-test.wgt" >/dev/null 2>&1 \
   && fail "install app absente de la liste doit échouer" || ok "install app absente de la liste échoue"
 
@@ -132,6 +134,18 @@ mkdir -p "$REPO/apps/_t"; trap 'rm -rf "$TMP" "$REPO/dist/zz-test.wgt" "$REPO/ap
 touch "$REPO/apps/_t/config.xml"
 "$HERE/package.sh" apps/_t >/dev/null 2>&1   # échoue faute de .wgt produit par le faux docker : normal
 grep -q "^TIZEN .* package -t wgt -s cimaise" "$TMP/docker.log" && ok "package appelle tizen package -s profil" || fail "package appelle tizen package -s profil"
+
+# 7 bis. <name> avec espaces : package.sh nomme la sortie sans espace, install.sh l'installe
+rm -f "$REPO"/dist/*.wgt; : > "$TMP/docker.log"; FAKE_WGT_DIR="$REPO/dist" "$HERE/package.sh" apps/_t >/dev/null 2>&1
+[ -f "$REPO/dist/CleanFrame-(bench).wgt" ] && ! ls "$REPO"/dist/*\ *.wgt >/dev/null 2>&1 && ok "package : sortie sans espace" || fail "package : sortie sans espace"
+: > "$TMP/docker.log"; "$HERE/install.sh" >/dev/null 2>&1 && ok "install du .wgt produit" || fail "install du .wgt produit"
+grep -q "^SDB .* install /work/dist/CleanFrame-(bench).wgt" "$TMP/docker.log" && ok "install : sdb install du .wgt produit" || fail "install : sdb install du .wgt produit"
+grep -q "^SDB .* vd_appinstall" "$TMP/docker.log" && fail "install : pas de repli vd_appinstall" || ok "install : pas de repli vd_appinstall"
+rm -f "$REPO/dist/CleanFrame-(bench).wgt"
+: > "$TMP/docker.log"; touch "$REPO/dist/Clean Frame (bench).wgt"
+"$HERE/install.sh" "$REPO/dist/Clean Frame (bench).wgt" >/dev/null 2>&1 && ok "install : .wgt existant avec espaces" || fail "install : .wgt existant avec espaces"
+grep -q "^SDB .* install /work/dist/Clean Frame (bench).wgt" "$TMP/docker.log" && ok "install : chemin avec espaces cité" || fail "install : chemin avec espaces cité"
+rm -f "$REPO/dist/Clean Frame (bench).wgt"
 
 # 8. aucun secret dans les logs/arguments Docker ni dans la sortie
 : > "$TMP/docker.log"

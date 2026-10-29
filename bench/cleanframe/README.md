@@ -14,7 +14,7 @@ puis à cimaise sur la Frame 2019. Rien n'est optimisé. Hors `packages/launcher
 | Champ | Amont | Bench | Pourquoi |
 |---|---|---|---|
 | `required_version` | `6.5` | `5.0` | La Frame 2019 est en Tizen 5.0 ; sinon l'installation est probablement refusée (HANDOFF §3). |
-| `application id` / `package` | `nClrkHome1.FrameHome` / `nClrkHome1` | `cmbnchcf01.CleanFrameBench` / `cmbnchcf01` | Identité distincte de cimaise (`cimaise00.Cimaise`) et de l'amont ; 10 caractères alphanumériques. |
+| `application id` / `package` | `nClrkHome1.FrameHome` / `nClrkHome1` | `cmbnchcf01.CleanFrameBench` / `cmbnchcf01` | Identité distincte de cimaise (`cimaise0011.Cimaise`) et de l'amont ; 10 caractères alphanumériques. |
 | `widget id` | `https://local.frame-home/app` | `https://local.cimaise-bench/cleanframe` | Idem. |
 | `<name>` | `CleanFrame` | `CleanFrame (bench)` | Repérable dans la liste d'apps. |
 

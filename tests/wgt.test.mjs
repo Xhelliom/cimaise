@@ -41,14 +41,14 @@ test('build produit le .wgt cimaise (accueil Dock) non signé avec les fichiers 
   assert.match(f['app.css'].toString(), /outfit-latin\.woff2/);
 });
 
-test('config.xml : identité stable, required_version, privilèges minimaux, documenté', () => {
+test('config.xml : identité stable, required_version, privilèges, documenté', () => {
   const cfg = readFileSync('apps/tv/config.xml', 'utf8');
-  assert.match(cfg, /<tizen:application id="cimaise00\.Cimaise" package="cimaise00" required_version="5\.0"/);
+  assert.match(cfg, /<tizen:application id="cimaise001\.Cimaise" package="cimaise001" required_version="5\.0"/);
   assert.match(cfg, /<tizen:profile name="tv-samsung"/);
   const privs = [...cfg.matchAll(/<tizen:privilege name="([^"]+)"/g)].map((m) => m[1]);
-  assert.deepEqual(privs, ['http://tizen.org/privilege/tv.inputdevice']);
+  assert.deepEqual(privs, ['http://tizen.org/privilege/tv.inputdevice', 'http://tizen.org/privilege/application.launch', 'http://tizen.org/privilege/application.info']);
   assert.match(cfg, /<!--[\s\S]*required_version[\s\S]*-->/);
-  assert.match(readFileSync('docs/decisions.md', 'utf8'), /required_version[\s\S]*cimaise00\.Cimaise|cimaise00\.Cimaise[\s\S]*required_version/);
+  assert.match(readFileSync('docs/decisions.md', 'utf8'), /required_version[\s\S]*cimaise001\.Cimaise|cimaise001\.Cimaise[\s\S]*required_version/);
   assert.equal(zip(readFileSync(WGT))['config.xml'].toString(), cfg);
 });
 
@@ -69,7 +69,25 @@ test('la page vide de référence : .wgt séparé, identité propre, fond uni, h
   assert.deepEqual(Object.keys(f).sort(), ['app.css', 'app.js', 'config.xml', 'icon.png', 'index.html']);
   const cfg = f['config.xml'].toString();
   assert.match(cfg, /<tizen:application id="cimaiseblk\.Blank" package="cimaiseblk" required_version="5\.0"/);
-  assert.doesNotMatch(cfg.replace(/<!--[\s\S]*?-->/, ''), /cimaise00/);
+  assert.doesNotMatch(cfg.replace(/<!--[\s\S]*?-->/, ''), /cimaise001/);
   const id = (c) => /<widget[^>]* id="([^"]+)"/.exec(c)[1];
   assert.notEqual(id(cfg), id(readFileSync('apps/tv/config.xml', 'utf8')));
+});
+
+test('le package de chaque config.xml fait exactement 10 caractères alphanumériques', () => {
+  const cfgs = ['apps/tv/config.xml', 'apps/blank/config.xml', 'bench/cleanframe/work/app/config.xml'];
+  for (const p of cfgs) {
+    const m = /<tizen:application id="([^"]+)" package="([^"]+)"/.exec(readFileSync(p, 'utf8'));
+    assert.ok(m, p);
+    assert.match(m[2], /^[A-Za-z0-9]{10}$/, p + ' : package ' + m[2]);
+    assert.ok(m[1].startsWith(m[2] + '.'), p);
+  }
+});
+
+test('apps/tv déclare les privilèges de lancement et d’inventaire, documentés', () => {
+  const cfg = readFileSync('apps/tv/config.xml', 'utf8');
+  for (const p of ['application.launch', 'application.info']) {
+    assert.match(cfg, new RegExp('<tizen:privilege name="http://tizen\\.org/privilege/' + p.replace('.', '\\.') + '"'));
+    assert.ok(readFileSync('docs/decisions.md', 'utf8').includes(p), p + ' non documenté');
+  }
 });
