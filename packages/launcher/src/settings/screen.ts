@@ -1,7 +1,7 @@
 import { applyIcon } from '../../../tv-core/src/icon';
 import { Key } from '../../../tv-core/src/keys';
 import { Panel } from '../../../tv-core/src/router/router';
-import { AppEntry, DiscoveredApp, removeAt, moveItem, setTint, nextTint, addDiscovered, ROW_H, scrollOffset } from './model';
+import { AppEntry, DiscoveredApp, removeAt, moveItem, addInternal, setTint, nextTint, addDiscovered, ROW_H, scrollOffset } from './model';
 import { HomeMode, normalizeMode, normalizeTiles, TILES_CHOICES } from '../home/model';
 import { fillIds } from '../catalog/model';
 import { knownApp } from '../catalog/known-apps';
@@ -21,6 +21,7 @@ export interface SettingsOptions {
   onAudioLang?: (code: string) => void;      // le propriétaire persiste
   subLang?: string;                          // langue des sous-titres par défaut ; '' = aucun (sauf pistes forcées)
   onSubLang?: (code: string) => void;         // le propriétaire persiste
+  internalApps?: AppEntry[];                 // modules internes proposables (rubrique « Apps intégrées ») ; ne dépend pas de la découverte
   ha?: HaSettings;                           // section « Scènes » (Home Assistant) ; absente = ligne non proposée
   onClose: () => void;
   doc?: Document;
@@ -94,11 +95,25 @@ export function createSettings(opts: SettingsOptions): Panel {
     return t;
   }
 
-  function rowCount(): number { return 1 + catalog.length + found.length; }
+  // Modules internes absents du catalogue : proposés même quand la découverte échoue.
+  function missing(): AppEntry[] {
+    var out: AppEntry[] = [], all = opts.internalApps || [];
+    for (var i = 0; i < all.length; i++) {
+      var dup = false;
+      for (var j = 0; j < catalog.length; j++) if (catalog[j].id === all[i].id) dup = true;
+      if (!dup) out.push(all[i]);
+    }
+    return out;
+  }
+
+  function rowCount(): number { return 1 + catalog.length + missing().length + found.length; }
 
   // Ligne sélectionnable -> position dans la liste (le titre de section occupe une ligne non sélectionnable).
-  function posOf(r: number): number { return r + 5 + (found.length && r > catalog.length ? 1 : 0); }
-  function totalPos(): number { return 6 + catalog.length + (found.length ? 1 + found.length : 0); }
+  function posOf(r: number): number {
+    var m = missing().length;
+    return r + 5 + (m && r > catalog.length ? 1 : 0) + (found.length && r > catalog.length + m ? 1 : 0);
+  }
+  function totalPos(): number { var m = missing().length; return 6 + catalog.length + (m ? 1 + m : 0) + (found.length ? 1 + found.length : 0); }
 
   function absRow(node: HTMLElement, pos: number): HTMLElement {
     node.style.top = pos * ROW_H + 'px';
@@ -121,6 +136,7 @@ export function createSettings(opts: SettingsOptions): Panel {
     list.style.transform = 'translateY(' + (offset ? -offset : 0) + 'px)';
     var total = totalPos();
     var from = Math.max(-5, Math.floor(offset / ROW_H) - 5), to = Math.min(total - 6, Math.ceil(offset / ROW_H) + 7); // pos = position visuelle - 5
+    var miss = missing(), m = miss.length;
     var inCat: { [id: string]: boolean } = {};
     for (var q = 0; q < catalog.length; q++) if (catalog[q].id) inCat[catalog[q].id] = true;
     for (var pos = from; pos <= to; pos++) {
@@ -155,10 +171,19 @@ export function createSettings(opts: SettingsOptions): Panel {
           if (on) line.appendChild(div('puce' + (chip === c ? ' focus' : ''), CHIPS[c]));
         }
         list.appendChild(absRow(line, pos + 5));
-      } else if (pos === catalog.length + 1) {
+      } else if (m && pos === catalog.length + 1) {
+        list.appendChild(absRow(div('titre-section', 'Apps intégrées'), pos + 5));
+      } else if (m && pos <= catalog.length + 1 + m) {
+        var mi = pos - catalog.length - 2, mon = row === pos - 1;
+        var ml2 = div('ligne' + (mon ? ' focus' : ''));
+        ml2.appendChild(tile(miss[mi].name, miss[mi].tint, miss[mi].icon));
+        ml2.appendChild(div('nom', miss[mi].name));
+        if (mon) ml2.appendChild(div('puce focus', 'Ajouter'));
+        list.appendChild(absRow(ml2, pos + 5));
+      } else if (pos === catalog.length + (m ? m + 1 : 0) + 1) {
         list.appendChild(absRow(div('titre-section', 'Apps installées'), pos + 5));
       } else {
-        var f = pos - catalog.length - 2, fon = row === pos - 1;
+        var f = pos - catalog.length - (m ? m + 1 : 0) - 2, fon = row === catalog.length + m + 1 + f;
         var fl = div('ligne' + (fon ? ' focus' : ''));
         fl.appendChild(tile(found[f].name, null, found[f].icon));
         var fk = knownApp(found[f].name), nom = div('nom', fk ? undefined : found[f].name);
@@ -279,8 +304,12 @@ export function createSettings(opts: SettingsOptions): Panel {
         if (chip === 0) { catalog = setTint(catalog, idx, nextTint(catalog[idx].tint)); changed(); }
         else if (chip === 1) grabbed = true;
         else { catalog = removeAt(catalog, idx); chip = 0; clampRow(); changed(); }
+      } else if (row <= catalog.length + missing().length) {
+        catalog = addInternal(catalog, missing()[row - 1 - catalog.length]);
+        clampRow();
+        changed();
       } else {
-        var app = found[row - 1 - catalog.length];
+        var app = found[row - 1 - catalog.length - missing().length];
         var before = catalog.length;
         catalog = addDiscovered(catalog, app);
         if (catalog.length !== before) { row++; changed(); } // le catalogue grandit d'une ligne : le focus reste sur l'app

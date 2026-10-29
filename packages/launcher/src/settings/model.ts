@@ -50,6 +50,12 @@ export function addDiscovered(c: AppEntry[], app: DiscoveredApp): AppEntry[] {
   return r;
 }
 
+// Remet un module interne retiré à sa place par défaut (en tête) ; un id déjà présent est ignoré.
+export function addInternal(c: AppEntry[], app: AppEntry): AppEntry[] {
+  for (var i = 0; i < c.length; i++) if (c[i].id === app.id) return copy(c);
+  return [app].concat(c);
+}
+
 // Défilement des listes (Réglages, découverte) : lignes de hauteur fixe, une seule couche déplacée par transform.
 export var ROW_H = 108;    // ligne 96 + marge 12
 export var VIEW_H = 756;   // 7 lignes visibles
