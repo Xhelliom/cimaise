@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { build } from 'esbuild';
+import { writeFileSync } from 'node:fs';
 
 let H, TV, dir;
 async function bundle(es5Dir, rel, name) {
@@ -18,7 +19,9 @@ before(async () => {
   const es5Dir = join(dir, 'es5');
   const t = spawnSync('node_modules/.bin/tsc', ['-p', 'packages/launcher/tsconfig.json', '--outDir', es5Dir], { encoding: 'utf8' });
   assert.equal(t.status, 0, t.stdout + t.stderr);
-  H = await bundle(es5Dir, 'launcher/src/home/index.js', 'home');
+  // Même bundle que l'accueil pour le diagnostic : les événements (noteEvent) sont lus dans le module qui les écrit.
+  writeFileSync(join(es5Dir, 'home-diag.js'), "export * from './launcher/src/home/index.js';\nexport { keyLatency, resetLatency, resetEvents, latencyStats } from './tv-core/src/diag.js';\n");
+  H = await bundle(es5Dir, 'home-diag.js', 'home');
   TV = await bundle(es5Dir, 'tv-core/src/index.js', 'tv');
 });
 
@@ -755,4 +758,25 @@ test('logo prêt : peint une fois dans une couche cachée (pré-décodage), copi
     queue.shift()(); assert.equal(copies().length, 1, 'encore là après une peinture');
     queue.shift()(); assert.equal(copies().length, 0, 'retirée après la seconde');
   } finally { delete globalThis.requestAnimationFrame; }
+});
+
+test('logo hors écran : l’appui qui l’amène à l’écran a pour cause « 1re peinture logo <fichier> »', () => {
+  const { doc, made } = imgDoc();
+  const filler = Array.from({ length: 8 }, (_, i) => ({ id: 'f' + i, name: 'Inconnue' + i, color: '#113ccf', type: 'tv' }));
+  H.resetEvents();
+  const { p, press } = mount({ catalog: [...filler, NETFLIX], deferRich: true, doc });
+  p.enrich();
+  made[0].src = 'logos/netflix.png'; made[0].onload();
+  // Un appui mesuré : keyLatency (horloge et rAF factices) rattache à l'appui les événements survenus pendant sa fenêtre.
+  const cause = (...ks) => {
+    H.resetLatency(); H.resetEvents();
+    let t = 1000; const q = [];
+    H.keyLatency(() => t++, (f) => q.push(f));
+    press(...ks);
+    while (q.length) q.shift()();
+    return H.latencyStats().maxCause;
+  };
+  assert.equal(cause('right'), 'inconnue', 'tuile hors écran : rien consigné');
+  assert.equal(cause('left', 'down', 'down'), '1re peinture logo netflix.png');
+  assert.equal(cause('up', 'down'), 'inconnue', 'une seule fois');
 });

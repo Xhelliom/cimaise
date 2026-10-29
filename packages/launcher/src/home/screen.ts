@@ -6,7 +6,7 @@ import { Panel } from '../../../tv-core/src/router/router';
 import { launchApp as deviceLaunch, watchNetwork as deviceWatchNetwork } from '../../../tv-core/src/device';
 import { CatalogEntry } from '../catalog/model';
 import { knownApp } from '../catalog/known-apps';
-import { greeting, formatClock, formatDate, tintGradient, tileInk, railOffset, pageShift, rowOffset, HomeMode, DEFAULT_MODE, normalizeTiles } from './model';
+import { greeting, formatClock, formatDate, tintGradient, tileInk, railOffset, pageShift, rowOffset, tileH, rowTileLeft, rowTileW, BAC_TOP, PAD, GAP, BAC_W, SCREEN_H, HomeMode, DEFAULT_MODE, normalizeTiles } from './model';
 
 export type PastilleName = 'reglages' | 'smarthub';
 
@@ -101,6 +101,8 @@ export function createHome(opts: HomeOptions): HomePanel {
   el.appendChild(reseau);
 
   var tiles: HTMLElement[] = [];
+  // Logos posés dont la 1re peinture n'a pas encore eu lieu (ni par le pré-décodage, ni à l'écran).
+  var unpainted: Array<{ tile: HTMLElement; file: string }> = [];
   var grid = new Focus(0, per);
   var chips = new Focus(PASTILLES.length, PASTILLES.length);
   var zone: 'tiles' | 'pastilles' = 'tiles';
@@ -151,6 +153,26 @@ export function createHome(opts: HomeOptions): HomePanel {
   }
   function stopClock(): void { if (clockTimer !== null) { timer.clear(clockTimer); clockTimer = null; } }
 
+  // Tuile à l'écran avec la page et le rail dans leur état courant (mêmes formules que le CSS).
+  function onScreen(i: number): boolean {
+    var idx = zone === 'tiles' && tiles.length ? grid.index : 0;
+    if (mode === 'grille') {
+      var cur = Math.floor(idx / per), th = tileH(per);
+      var top = BAC_TOP - pageShift(cur) + PAD + Math.floor(i / per) * (th + GAP) - railOffset(cur, per);
+      return top + th > 0 && top < SCREEN_H;
+    }
+    var left = rowTileLeft(i, per) - rowOffset(idx, tiles.length, per);
+    return left + rowTileW(per) > 0 && left < BAC_W;
+  }
+  // Un logo n'est décodé qu'à sa 1re peinture (Chromium 63) : si un appui l'amène à l'écran, le diagnostic le dit.
+  function notePaintedLogos(): void {
+    for (var u = unpainted.length - 1; u >= 0; u--) {
+      var i = tiles.indexOf(unpainted[u].tile);
+      if (i < 0) { unpainted.splice(u, 1); continue; }
+      if (onScreen(i)) { noteEvent('1re peinture logo ' + unpainted[u].file); unpainted.splice(u, 1); }
+    }
+  }
+
   // --- peinture : n'écrit que ce qui change ---
   function paint(): void {
     for (var i = 0; i < tiles.length; i++) {
@@ -175,6 +197,7 @@ export function createHome(opts: HomeOptions): HomePanel {
         ? 'translateY(' + -railOffset(row, per) + 'px)'
         : 'translateX(' + -rowOffset(idx, tiles.length, per) + 'px)';
     }
+    if (unpainted.length) notePaintedLogos();
     var known = rich && zone === 'tiles' && catalog[grid.index] ? knownApp(catalog[grid.index].name) : null;
     if (desc.textContent !== (known ? known.desc : '')) desc.textContent = known ? known.desc : '';
     if (zone === 'tiles' && catalog[grid.index]) {
@@ -195,6 +218,7 @@ export function createHome(opts: HomeOptions): HomePanel {
   function buildTiles(): void {
     while (rail.firstChild) rail.removeChild(rail.firstChild);
     tiles = [];
+    unpainted = [];
     for (var i = 0; i < catalog.length; i++) {
       var t = div('tuile');
       var k = knownApp(catalog[i].name), bg = k && k.logoUrl ? k.bg : catalog[i].color;
@@ -216,14 +240,18 @@ export function createHome(opts: HomeOptions): HomePanel {
   // Chromium 63 (Tizen 5) n'a pas img.decode() et décode une image à sa première peinture : un logo hors écran serait donc décodé
   // sur l'appui qui l'amène à l'écran. Chaque logo prêt est peint une fois dans une couche cachée (1 px, quasi transparente) juste
   // après sa pose, puis la copie est retirée après deux peintures : le premier appui ne décode plus rien.
-  function predecode(src: string): void {
+  function predecode(src: string, t: HTMLElement): void {
     var c: any = doc.createElement('img');
     c.className = 'predecode';
     c.setAttribute('src', src);
     el.appendChild(c);
     var drop = function () { if (c.parentNode) c.parentNode.removeChild(c); };
     if (typeof requestAnimationFrame === 'undefined') drop();
-    else requestAnimationFrame(function () { requestAnimationFrame(drop); });
+    else requestAnimationFrame(function () {
+      // Copie peinte : le décodage est fait, il n'aura pas lieu sur un appui.
+      for (var u = 0; u < unpainted.length; u++) if (unpainted[u].tile === t) { unpainted.splice(u, 1); break; }
+      requestAnimationFrame(drop);
+    });
   }
 
   // Logo d'une tuile : l'image est chargée hors DOM, puis posée à la place du nom une fois prête ; en cas d'échec le nom reste.
@@ -234,7 +262,10 @@ export function createHome(opts: HomeOptions): HomePanel {
     applyIcon(doc, holder, e.icon || '', e.name, e.name, k.logoUrl, function (img) {
       if (t.textContent) t.textContent = '';
       t.appendChild(img);
-      predecode((img as any).src || '');
+      var src: string = (img as any).src || '';
+      unpainted.push({ tile: t, file: src.replace(/^.*\//, '') });
+      notePaintedLogos(); // déjà à l'écran : la 1re peinture est celle de la pose
+      predecode(src, t);
     });
   }
 
