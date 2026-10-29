@@ -1,12 +1,11 @@
-# Bilan — Certificate Manager en mode web
+# Bilan — Certificate Manager dans un navigateur (mode web)
 
-## Fait
-- Relancé pour de vrai, sur le code de fdfa66e : `env -u DISPLAY scripts/tizen/cert-manager.sh --port 6081` (conteneur cimaise-tizen:5.6). URL + mot de passe affichés, fenêtre « Tizen Certificate Manager » visible sur Xvfb 1600×1000.
-- Authentification vérifiée via websockify (chemin noVNC) avec un client RFB scripté : mauvais mot de passe refusé (SecurityResult=1), bon mot de passe accepté.
-- Capture `.board/captures/certificate-manager-novnc.png` refaite depuis cette session VNC (1600×1000).
-- Aucun `workspace/` dans le dépôt après coup ; conteneur arrêté (le mien uniquement).
-- `docs/m1-procedure.md` §5 : ne dit plus « observé par Stéphane », liste ce qui a été vérifié, quand, comment, et ce qui ne l'est pas ; « bureau gris » corrigé en « fond noir ».
+**Fait**
+- `cert-manager.sh` : mode web (Xvfb 1600×1000, openbox, x11vnc, noVNC), défaut sans `DISPLAY`, URL + mot de passe aléatoire affichés une fois (commits af5cad3, fdfa66e).
+- Vérification réelle dans un Chromium headless sur la VM : mot de passe saisi dans la page noVNC, fenêtre Certificate Manager visible, clic sur « + » jusqu'au choix Tizen / Samsung. Capture du navigateur : `.board/captures/certificate-manager-novnc.png`.
+- `docs/m1-procedure.md` §5 corrigé (DISPLAY limité au mode hôte, navigateur Samsung « non testé », résultat du run navigateur) ; `docs/decisions.md` : mot de passe VNC visible via `docker inspect` pendant l'exécution, accepté sur la VM.
 
-## Non fait / pourquoi
-- Pas ouvert dans un vrai navigateur : le Chrome de l'agent n'atteint pas la VM (page d'erreur sur localhost et sur l'IP LAN). Le client scripté suit le même chemin websocket + RFB, mais le rendu noVNC lui-même n'est pas vérifié.
-- Clics dans la fenêtre, connexion Samsung et création de certificats non testés (compte Samsung : jamais touché).
+**Pas fait**
+- Choix Samsung et suite, connexion au compte Samsung, création des certificats : volontairement non faits (compte de Stéphane). Les certificats vers `.local/certs/` restent non vérifiés de bout en bout.
+- Pas vu par Stéphane dans son propre navigateur.
+- Détail noté : le bandeau « Password is required » reste affiché avec `autoconnect=1`.
