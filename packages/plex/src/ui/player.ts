@@ -1,7 +1,7 @@
 import { Item } from '../api/types';
-import { decidePlayback, directPlaybackUrl, newTranscodeSession, normalizeLang, PlaybackPlan, requestTranscode, stopTranscode, subtitleUrl, trackEntries, TrackEntry } from '../playback';
+import { bifFrameAt, Bif, decidePlayback, hasPreviewIndex, loadBif, directPlaybackUrl, newTranscodeSession, normalizeLang, PlaybackPlan, requestTranscode, stopTranscode, subtitleUrl, trackEntries, TrackEntry } from '../playback';
 import { getMetadata } from '../api/library';
-import { xhrHttp } from '../api/xhr';
+import { xhrBinary, xhrHttp } from '../api/xhr';
 import { createProgress, Progress } from '../progress';
 import { Panel } from '../../../tv-core/src/router/router';
 import { Key } from '../../../tv-core/src/keys';
@@ -44,6 +44,11 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): P
   var doc = c.doc;
   var timers = arg.timers || realTimers();
   var http = arg.http || xhrHttp;
+  var httpBin = arg.httpBinary || xhrBinary;
+  var blobs = arg.blobUrl || {
+    create: function (jpeg) { return URL.createObjectURL(new Blob([jpeg], { type: 'image/jpeg' })); },
+    revoke: function (u) { URL.revokeObjectURL(u); }
+  };
 
   var root = el(doc, 'plex-player');
   var ui = el(doc, 'plex-pl-ui');
@@ -52,7 +57,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): P
   var track = el(doc, 'plex-pl-track');
   var bar = el(doc, 'plex-pl-bar');
   var cursor = el(doc, 'plex-pl-cursor');
-  var preview = el(doc, 'plex-pl-preview'); // emplacement réservé à la miniature d'aperçu (carte suivante)
+  var preview = el(doc, 'plex-pl-preview'); // miniature de l'image visée (index BIF), au-dessus de l'heure
   var cursorTime = el(doc, 'plex-pl-cursor-time', '');
   var elapsed = el(doc, 'plex-pl-elapsed', '');
   var remaining = el(doc, 'plex-pl-remaining', '');
@@ -100,6 +105,44 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): P
   // Barre de contrôles : ouverte ou non ; focus sur la barre de progression ('track') ou sur la rangée de boutons ('btns', bi = bouton).
   // jumping : une position visée est en attente dans le lecteur (jumpBase : d'où la rafale est partie) ; holding : le lecteur est en mode maintien.
   var barOpen = false, zone: 'track' | 'btns' = 'btns', bi = 0, jumping = false, jumpBase = 0, holding = false;
+
+  // Index de prévisualisation (BIF) : chargé seulement quand le focus entre sur la barre de progression, libéré en la quittant (ou en quittant le lecteur).
+  // Une seule image vivante à la fois (URL d'objet révoquée au changement) ; sans index, seule l'heure visée est affichée.
+  var bif: Bif | null = null, bifReq: { abort(): void } | null = null, bifTried = false, previewUrl: string | null = null, previewAt = -1, targetMs = -1;
+  function dropPreview(): void {
+    if (previewUrl !== null) { blobs.revoke(previewUrl); previewUrl = null; }
+    previewAt = -1;
+    preview.style.backgroundImage = '';
+    setClass(preview, 'plex-pl-preview', false);
+  }
+  function releaseIndex(): void {
+    if (bifReq) { bifReq.abort(); bifReq = null; }
+    bif = null; bifTried = false; targetMs = -1;
+    dropPreview();
+  }
+  function showPreview(ms: number): void {
+    targetMs = ms;
+    if (!bif) return;
+    var f = bifFrameAt(bif, ms);
+    if (!f) { dropPreview(); return; }
+    if (f.start === previewAt) return;
+    var old = previewUrl;
+    previewUrl = blobs.create(bif.buf.slice(f.start, f.end));
+    previewAt = f.start;
+    preview.style.backgroundImage = 'url("' + previewUrl + '")';
+    setClass(preview, 'plex-pl-preview', true);
+    if (old !== null) blobs.revoke(old);
+  }
+  function loadIndex(): void {
+    if (bif || bifReq || bifTried || !plan || !hasPreviewIndex(plan.part)) return;
+    bifTried = true;
+    bifReq = loadBif(httpBin, identityOf(arg), c.session, plan.part.id, function (err, b) {
+      bifReq = null;
+      if (closed || zone !== 'track' || !barOpen || err || !b) return; // échec : repli sur l'heure seule
+      bif = b;
+      if (targetMs >= 0) showPreview(targetMs);
+    });
+  }
 
   function setClass(node: HTMLElement, base: string, on: boolean): void { node.className = on ? base + ' on' : base; }
 
@@ -155,12 +198,14 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): P
     if (!barOpen) { barOpen = true; bi = 0; }
     zone = z;
     setHold(z === 'track');
+    if (z === 'track') loadIndex(); else releaseIndex();
     paintCtl();
     setClass(ui, 'plex-pl-ui', true);
     armHide();
   }
   function closeBar(): void {
     barOpen = false; zone = 'btns';
+    releaseIndex();
     setHold(false);
     setClass(ui, 'plex-pl-ui', false);
     clearHide();
@@ -222,6 +267,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): P
     stopSession();
     clearHide();
     clearSub();
+    releaseIndex();
     if (metaReq) { metaReq.abort(); metaReq = null; }
     if (progress) progress.stop(false);
     if (player) player.destroy();
@@ -245,6 +291,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): P
     stopSession();
     clearHide();
     clearSub();
+    releaseIndex();
     live(false);
     barOpen = false; zone = 'btns'; holding = false; jumping = false;
     setClass(ui, 'plex-pl-ui', false);
@@ -284,6 +331,8 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): P
           jumping = false;
           setClass(jumpBox, 'plex-pl-jump', false);
           setClass(cursor, 'plex-pl-cursor', false);
+          targetMs = -1;
+          dropPreview();
           armHide();
           return;
         }
@@ -291,6 +340,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): P
         if (barOpen && zone === 'track') {
           cursor.style.transform = 'translateX(' + Math.round(BAR_W * ratio(ms)) + 'px)';
           cursorTime.textContent = formatTime(ms);
+          showPreview(ms);
           setClass(cursor, 'plex-pl-cursor', true);
           armHide();
         } else {

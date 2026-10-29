@@ -1,4 +1,4 @@
-import { Http, Identity, Item, ServerRef, Timers } from '../api/types';
+import { Http, HttpBinary, Identity, Item, ServerRef, Timers } from '../api/types';
 import { xhrHttp } from '../api/xhr';
 import { getClientId } from '../api/identity';
 import { loadStored } from '../../../tv-core/src/storage';
@@ -17,6 +17,9 @@ export interface PlexArg {
   nav: Nav;
   doc?: Document;
   http?: Http;
+  httpBinary?: HttpBinary;   // index de prévisualisation (BIF)
+  // Image d'aperçu : octets JPEG → URL d'objet (une seule vivante à la fois), puis révocation. Défaut : Blob + URL.createObjectURL.
+  blobUrl?: { create(jpeg: ArrayBuffer): string; revoke(url: string): void };
   store?: Storage;
   session?: ServerRef | null;   // null = pas de session ; absent = lue dans le stockage (prefs.plexSession)
   id?: Identity;

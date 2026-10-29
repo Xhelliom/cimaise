@@ -1015,3 +1015,176 @@ test('barre ouverte en pause : « Se termine à » recalculé chaque minute, arr
   s.timers.advance(60000);
   assert.ok(!has(s.panel.el, /^Se termine à 21 h 22$/), 'barre fermée : minuterie arrêtée');
 });
+
+// ---- Miniature d'aperçu (index BIF) ----
+function makeBif(stamps, { mult = 1000 } = {}) {
+  const frames = stamps.map((_, i) => Buffer.from([0xff, 0xd8, i, 0xff, 0xd9]));
+  const head = Buffer.alloc(64);
+  Buffer.from([0x89, 0x42, 0x49, 0x46, 0x0d, 0x0a, 0x1a, 0x0a]).copy(head);
+  head.writeUInt32LE(0, 8); head.writeUInt32LE(stamps.length, 12); head.writeUInt32LE(mult, 16);
+  const table = Buffer.alloc((stamps.length + 1) * 8);
+  let off = 64 + table.length;
+  stamps.forEach((t, i) => { table.writeUInt32LE(t, i * 8); table.writeUInt32LE(off, i * 8 + 4); off += frames[i].length; });
+  table.writeUInt32LE(0xffffffff, stamps.length * 8); table.writeUInt32LE(off, stamps.length * 8 + 4);
+  const b = Buffer.concat([head, table, ...frames]);
+  return b.buffer.slice(b.byteOffset, b.byteOffset + b.length);
+}
+
+test('BIF : parseur ES5 (DataView), image la plus proche, rejet des index invalides', () => {
+  const b = ui.parseBif(makeBif([0, 10, 20, 30]));
+  assert.equal(b.count, 4);
+  const at = (ms) => new Uint8Array(ui.bifFrameBytes(b, ms))[2];
+  assert.equal(at(0), 0); assert.equal(at(4000), 0); assert.equal(at(6000), 1); assert.equal(at(5000), 0);
+  assert.equal(at(25000), 2); assert.equal(at(26000), 3); assert.equal(at(999999), 3);
+  const sec = ui.parseBif(makeBif([0, 1, 2], { mult: 0 }));
+  assert.equal(sec.mult, 1000, 'multiplicateur absent = 1000 ms');
+  assert.equal(ui.parseBif(new ArrayBuffer(10)), null);
+  const bad = new Uint8Array(makeBif([0, 10])); bad[0] = 0;
+  assert.equal(ui.parseBif(bad.buffer), null);
+  const trunc = makeBif([0, 10, 20]).slice(0, 70);
+  assert.equal(ui.parseBif(trunc), null);
+});
+
+const withIndex = (flag) => () => {
+  const j = JSON.parse(fx('metadata'));
+  Object.assign(j.MediaContainer.Metadata[0].Media[0].Part[0], flag);
+  return JSON.stringify(j);
+};
+function previewSetup(flag, binary) {
+  const urls = { made: [], revoked: [] };
+  const reqs = [];
+  const handles = [];
+  const httpBinary = (req, cb) => {
+    reqs.push(req);
+    const r = { aborted: false, abort() { r.aborted = true; } };
+    handles.push(r);
+    setImmediate(() => { if (!r.aborted) binary(cb, req); });
+    return r;
+  };
+  const s = setup({ meta: withIndex(flag), arg: {
+    httpBinary, blobUrl: { create: (buf) => { const u = 'blob:' + new Uint8Array(buf)[2]; urls.made.push(u); return u; }, revoke: (u) => urls.revoked.push(u) },
+  } });
+  return { s, urls, reqs, handles };
+}
+const okBif = (cb) => cb(null, { status: 200, body: makeBif([0, 10, 20, 30]) });
+const previewOf = (panel) => byClass(panel.el, 'plex-pl-preview')[0];
+async function onTrack(over) {
+  const p = previewSetup(over.flag, over.binary || okBif);
+  const panel = ui.createPlayerPanel(p.s.arg, MOVIE);
+  await flush();
+  p.s.player.ready();
+  p.panel = panel;
+  return p;
+}
+
+test('aperçu : rien n’est téléchargé tant que le focus n’est pas sur la barre ; chargé à l’entrée, URL du serveur avec jeton', async () => {
+  const p = await onTrack({ flag: { indexes: 'sd' } });
+  p.panel.onKey('up'); // barre ouverte, focus sur les boutons
+  await flush();
+  assert.equal(p.reqs.length, 0);
+  p.panel.onKey('up'); // focus sur la barre
+  await flush();
+  assert.equal(p.reqs.length, 1);
+  assert.equal(p.reqs[0].url, SERVER.uri + '/library/parts/11/indexes/sd');
+  assert.equal(p.reqs[0].headers['X-Plex-Token'], SERVER.token);
+});
+
+test('aperçu : une seule image à la fois (la plus proche), URL révoquée au changement, rien sans cible', async () => {
+  const p = await onTrack({ flag: { indexes: 'sd' } });
+  p.panel.onKey('up'); p.panel.onKey('up');
+  await flush();
+  const E = p.s.player.events, pv = previewOf(p.panel);
+  E.onSeekPending(4000, 4000);
+  assert.deepEqual(p.urls.made, ['blob:0']);
+  assert.ok(pv.classList.contains('on') && pv.style.backgroundImage.includes('blob:0'));
+  E.onSeekPending(5000, 1000); // même image : rien de neuf
+  assert.deepEqual(p.urls.made, ['blob:0']);
+  E.onSeekPending(21000, 16000);
+  assert.deepEqual(p.urls.made, ['blob:0', 'blob:2']);
+  assert.deepEqual(p.urls.revoked, ['blob:0']);
+  E.onSeekPending(null);
+  assert.deepEqual(p.urls.revoked, ['blob:0', 'blob:2']);
+  assert.ok(!pv.classList.contains('on'));
+});
+
+test('aperçu : l’index est libéré en quittant la barre, à la fermeture de la barre et en quittant le lecteur', async () => {
+  const p = await onTrack({ flag: { indexes: 'sd' } });
+  p.panel.onKey('up'); p.panel.onKey('up');
+  await flush();
+  p.s.player.events.onSeekPending(11000, 11000);
+  assert.equal(p.urls.made.length, 1);
+  p.panel.onKey('down'); // retour aux boutons
+  assert.deepEqual(p.urls.revoked, ['blob:1'], 'image révoquée');
+  assert.ok(!previewOf(p.panel).classList.contains('on'));
+  // L'index était bien libéré : un nouvel accès à la barre le recharge.
+  p.panel.onKey('up'); await flush();
+  assert.equal(p.reqs.length, 2);
+  p.s.player.events.onSeekPending(11000, 0);
+  assert.equal(p.urls.made.length, 2);
+  p.panel.onKey('back'); // annule la cible
+  p.s.player.events.onSeekPending(null);
+  p.panel.onKey('back'); // ferme la barre
+  p.panel.onKey('up'); p.panel.onKey('up'); await flush();
+  assert.equal(p.reqs.length, 3, 'rechargé après fermeture de la barre');
+  p.s.player.events.onSeekPending(21000, 10000);
+  const live = p.urls.made.length - p.urls.revoked.length;
+  assert.equal(live, 1, 'une seule URL vivante');
+  p.panel.destroy();
+  assert.equal(p.urls.made.length, p.urls.revoked.length, 'plus aucune URL à la sortie du lecteur');
+});
+
+test('aperçu : quitter la barre pendant le téléchargement l’interrompt', async () => {
+  const late = [];
+  const p = previewSetup({ indexes: 'sd' }, (cb) => late.push(cb)); // réponse libérée à la main
+  const panel = ui.createPlayerPanel(p.s.arg, MOVIE);
+  await flush(); p.s.player.ready();
+  panel.onKey('up'); panel.onKey('up');
+  assert.equal(p.reqs.length, 1);
+  assert.equal(p.handles[0].aborted, false);
+  panel.onKey('down');
+  assert.equal(p.handles[0].aborted, true, 'abort() appelé dès la sortie de la barre');
+  // Réponse tardive d'un transport qui ignore l'abort : aucune image.
+  await flush();
+  late.forEach((cb) => cb(null, { status: 200, body: makeBif([0, 10, 20, 30]) }));
+  p.s.player.events.onSeekPending(11000, 0);
+  assert.equal(p.urls.made.length, 0, 'aucune image après abort');
+  assert.ok(!previewOf(panel).classList.contains('on'));
+  panel.destroy();
+  assert.equal(p.reqs.length, 1);
+});
+
+test('aperçu : sans index (part non analysée) aucun téléchargement, seule l’heure visée s’affiche', async () => {
+  const p = await onTrack({ flag: {} });
+  p.panel.onKey('up'); p.panel.onKey('up');
+  await flush();
+  p.s.player.events.onSeekPending(61000, 1000);
+  assert.equal(p.reqs.length, 0);
+  assert.equal(p.urls.made.length, 0);
+  assert.equal(byClass(p.panel.el, 'plex-pl-cursor-time')[0].textContent, '00:01:01');
+  assert.ok(!previewOf(p.panel).classList.contains('on'));
+});
+
+test('aperçu : une part avec seulement hasThumbnail (pochette intégrée) ne télécharge rien, heure seule', async () => {
+  const p = await onTrack({ flag: { hasThumbnail: '1' } });
+  p.panel.onKey('up'); p.panel.onKey('up');
+  await flush();
+  p.s.player.events.onSeekPending(61000, 1000);
+  assert.equal(p.reqs.length, 0);
+  assert.equal(p.urls.made.length, 0);
+  assert.equal(byClass(p.panel.el, 'plex-pl-cursor-time')[0].textContent, '00:01:01');
+  assert.ok(!previewOf(p.panel).classList.contains('on'));
+});
+
+test('aperçu : index en erreur ou invalide → repli sur l’heure seule, sans nouvelle tentative pendant le même focus', async () => {
+  for (const binary of [(cb) => cb(null, { status: 404, body: new ArrayBuffer(0) }), (cb) => cb(null, { status: 200, body: new ArrayBuffer(100) }), (cb) => cb(new Error('réseau'))]) {
+    const p = await onTrack({ flag: { indexes: 'sd' }, binary });
+    p.panel.onKey('up'); p.panel.onKey('up');
+    await flush();
+    p.s.player.events.onSeekPending(61000, 1000);
+    p.s.player.events.onSeekPending(71000, 10000);
+    assert.equal(p.urls.made.length, 0);
+    assert.equal(p.reqs.length, 1);
+    assert.equal(byClass(p.panel.el, 'plex-pl-cursor-time')[0].textContent, '00:01:11');
+    p.panel.destroy();
+  }
+});
