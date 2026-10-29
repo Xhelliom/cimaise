@@ -154,3 +154,16 @@ est un provisoire (M3). Retour à la racine : confirmation de sortie du routeur.
 **Coût mesuré (build, non mesuré sur la TV).** JS initial 11,72 Ko minifié (budget 100 Ko) ; `.wgt` cimaise 28,58 Ko (budget 1,5 Mo),
 dont police Outfit 19,06 Ko + OFL.txt 4,29 Ko ; `.wgt` blank 4,82 Ko. `npm test` passe en `--test-concurrency=1` : plusieurs fichiers
 reconstruisaient `dist/` en parallèle et se marchaient dessus.
+
+## Certificate Manager : mode web (noVNC) (2026-10-29)
+
+**Problème.** `cert-manager.sh` exigeait un `DISPLAY` local ; la VM `dev` (Incus) n'a pas de session graphique et se pilote en SSH.
+
+**Mode web (défaut sans `DISPLAY`, ou `--web`).** Dans le conteneur (`scripts/tizen/web-session.sh`) : Xvfb 1600×1000, openbox,
+x11vnc (lié à localhost, mot de passe) et noVNC/websockify sur le port `--port N` / `CIMAISE_WEB_PORT` (6080 par défaut, réseau hôte).
+Mot de passe de 8 caractères tiré au hasard à chaque lancement, affiché une fois dans le terminal, passé au conteneur par l'environnement
+(jamais en argument : x11vnc le lit dans un fichier 0600 temporaire du conteneur, via `-passwdfile` ; jamais dans un fichier du dépôt ni un log). Coût : 4 paquets apt (xvfb, openbox, x11vnc, novnc + websockify) dans
+l'image des outils, sans effet sur l'app TV.
+
+
+Le mot de passe VNC transite par l'environnement du conteneur (`-e CIMAISE_VNC_PW`) : il est donc lisible par `docker inspect` tant que le conteneur tourne. Acceptable sur la VM (usage personnel, mot de passe à usage unique renouvelé à chaque lancement, jamais écrit dans git ni un log).
