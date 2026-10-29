@@ -974,3 +974,44 @@ test('reprise : RESUME sur un titre dont le serveur n’a plus de position → d
   assert.ok(!s.player.openOpts.startMs);
   panel.destroy();
 });
+
+test('rafale lancée pendant qu’un saut est en vol : le cumul part de la cible, pas de la position AVPlay', async () => {
+  const s = await started();
+  s.player.ready();
+  s.player.pos = 600000;
+  const J = jump(s.panel);
+  // 1re rafale terminée : le seek (vers 620 s) est en vol, AVPlay est encore à 600 s.
+  s.player.events.onSeekPending(610000, 10000);
+  s.player.events.onSeekPending(620000, 10000);
+  s.player.events.onSeekPending(null);
+  // 2e rafale : tv-core part de la cible en vol (620 s) → 630 s au premier appui.
+  s.player.events.onSeekPending(630000, 10000);
+  assert.equal(byClass(J, 'plex-pl-jump-sum')[0].textContent, '+10 s');
+  s.player.events.onSeekPending(650000, 20000);
+  assert.equal(byClass(J, 'plex-pl-jump-sum')[0].textContent, '+30 s');
+});
+
+test('barre ouverte en pause : « Se termine à » recalculé chaque minute, arrêté à la reprise et à la fermeture', async () => {
+  let now = new Date(2026, 0, 1, 20, 0, 0).getTime();
+  const s = await started({ arg: { now: () => now } });
+  s.player.ready();
+  s.player.events.onTime(DUR / 4); // reste 1 h 17 min 03 → 21 h 17
+  s.panel.onKey('enter'); // pause + barre
+  assert.ok(has(s.panel.el, /^Se termine à 21 h 17$/));
+  now += 60000;
+  s.timers.advance(60000);
+  assert.ok(has(s.panel.el, /^Se termine à 21 h 18$/), texts(s.panel.el).join('|'));
+  now += 60000;
+  s.timers.advance(60000);
+  assert.ok(has(s.panel.el, /^Se termine à 21 h 19$/));
+  s.panel.onKey('enter'); // reprise : plus de minuterie
+  now += 120000;
+  s.timers.advance(120000);
+  assert.ok(!has(s.panel.el, /^Se termine à 21 h 21$/), 'reprise : plus de recalcul');
+  s.panel.onKey('enter'); // pause à nouveau, puis fermeture
+  s.panel.onKey('back');
+  assert.ok(!barOn(s.panel));
+  now += 60000;
+  s.timers.advance(60000);
+  assert.ok(!has(s.panel.el, /^Se termine à 21 h 22$/), 'barre fermée : minuterie arrêtée');
+});

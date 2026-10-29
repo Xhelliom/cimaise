@@ -92,7 +92,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): P
   var extFailed = false, subsOn = false, subTimer: any = null, seriesKey = item.grandparentRatingKey;
   // Mesure (diagnostic) : Entrée sur Lire → première image (1er temps de lecture signalé par AVPlay).
   var t0 = Date.now(), awaitFrame = false;
-  var hideTimer: any = null;
+  var hideTimer: any = null, endTimer: any = null, lastMs = 0;
   var metaReq: { abort(): void } | null = null;
   var buttons: Array<{ label: string; run(): void }> = [];
   var at = 0;
@@ -106,6 +106,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): P
   function clock(t: number): string { var d = new Date(t); return two(d.getHours()) + ' h ' + two(d.getMinutes()); }
   function ratio(ms: number): number { return durationMs > 0 ? Math.max(0, Math.min(1, ms / durationMs)) : 0; }
   function paintTime(ms: number): void {
+    lastMs = ms;
     bar.style.transform = 'scaleX(' + ratio(ms) + ')';
     elapsed.textContent = formatTime(ms);
     if (durationMs > 0) {
@@ -138,8 +139,16 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): P
     holding = on;
     if (player) player.holdSeek(on);
   }
+  // En pause AVPlay n'émet plus onTime : tant que la barre est ouverte, l'heure de fin est recalculée chaque minute.
+  function armEnd(): void {
+    var need = barOpen && paused && mode === 'play';
+    if (!need) { if (endTimer !== null) { timers.clearTimeout(endTimer); endTimer = null; } return; }
+    if (endTimer !== null) return;
+    endTimer = timers.setTimeout(function () { endTimer = null; paintTime(lastMs); armEnd(); }, 60000);
+  }
   function armHide(): void {
     clearHide();
+    armEnd();
     if (barOpen && mode === 'play' && !paused && !menuOpen && !jumping) hideTimer = timers.setTimeout(function () { hideTimer = null; closeBar(); }, HIDE_MS);
   }
   function openBar(z: 'track' | 'btns'): void {
@@ -155,6 +164,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): P
     setHold(false);
     setClass(ui, 'plex-pl-ui', false);
     clearHide();
+    armEnd();
   }
   // Message passager (erreur de saut, sous-titres indisponibles) : la barre apparaît si elle était fermée.
   function showBar(): void { if (barOpen) armHide(); else openBar('btns'); }
@@ -277,7 +287,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): P
           armHide();
           return;
         }
-        if (!jumping) { jumping = true; jumpBase = p.getPosition(); }
+        if (!jumping) { jumping = true; jumpBase = ms - (step || 0); }
         if (barOpen && zone === 'track') {
           cursor.style.transform = 'translateX(' + Math.round(BAR_W * ratio(ms)) + 'px)';
           cursorTime.textContent = formatTime(ms);
