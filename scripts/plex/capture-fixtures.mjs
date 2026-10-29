@@ -51,7 +51,7 @@ function anonItem(it, o) {
   } else out.title = label(it.title, 'Titre de film');
   if (it.summary) out.summary = 'Résumé.';
   out.year = num(it.year); out.index = num(it.index); out.duration = num(it.duration);
-  out.leafCount = num(it.leafCount); out.viewedLeafCount = num(it.viewedLeafCount);
+  out.viewCount = num(it.viewCount); out.leafCount = num(it.leafCount); out.viewedLeafCount = num(it.viewedLeafCount);
   out.viewOffset = o.viewOffset !== undefined ? o.viewOffset : num(it.viewOffset);
   if (it.thumb) out.thumb = '/library/metadata/' + rk + '/thumb/' + TS;
   if (it.art) out.art = '/library/metadata/' + rk + '/art/' + TS;

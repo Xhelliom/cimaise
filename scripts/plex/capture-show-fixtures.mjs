@@ -29,7 +29,7 @@ function anonEpisode(e, base) {
     ratingKey: rk, key: '/library/metadata/' + rk, type: 'episode', title: 'Titre d\'épisode ' + (base + 1),
     grandparentTitle: 'Titre de série ' + base, grandparentRatingKey: String(base), grandparentThumb: '/library/metadata/' + base + '/thumb/' + TS,
     parentTitle: 'Titre de saison ' + e.parentIndex, parentRatingKey: String(base + 50), parentIndex: num(e.parentIndex),
-    summary: e.summary ? 'Résumé.' : undefined, year: num(e.year), index: num(e.index), duration: num(e.duration), viewOffset: num(e.viewOffset),
+    summary: e.summary ? 'Résumé.' : undefined, year: num(e.year), index: num(e.index), duration: num(e.duration), viewOffset: num(e.viewOffset), viewCount: num(e.viewCount),
     thumb: '/library/metadata/' + rk + '/thumb/' + TS, art: '/library/metadata/' + rk + '/art/' + TS,
     Media: (e.Media || []).slice(0, 1).map((m) => ({ id: 900 + base, container: m.container, videoCodec: m.videoCodec, audioCodec: m.audioCodec,
       Part: (m.Part || []).slice(0, 1).map((p) => ({ id: 900 + base, key: '/library/parts/' + (900 + base) + '/' + TS + '/file.' + (m.container || 'mkv'), duration: num(p.duration) })) })),

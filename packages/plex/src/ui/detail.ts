@@ -23,6 +23,9 @@ function progress(it: Item): number {
   return it.duration && it.viewOffset ? Math.min(1, it.viewOffset / it.duration) : 0;
 }
 
+// Saison dont tous les épisodes sont vus (info absente : non).
+function seasonSeen(s: Item): boolean { return !!s.leafCount && s.viewedLeafCount === s.leafCount; }
+
 // Position de reprise d'une pastille : « 12:34 » ou « 1:02:10 ».
 function clock(ms: number): string {
   var s = Math.floor(ms / 1000), h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, ss = s % 60;
@@ -59,6 +62,8 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
 
   var seasons: Item[] = [], episodes: Item[] = [];
   var target: Item | null = stub.type === 'show' && focus ? focus : null;   // l'épisode que lit Lire
+  var wanted: Item | null = target;   // épisode qui désigne la saison à ouvrir : celui de l'appelant, sinon l'« à suivre » du serveur
+  var auto = true;   // tant qu'aucune touche n'a été pressée, la saison et l'épisode à suivre se placent seuls
   var pinned = !!target;   // visé par l'appelant : ni « à suivre » ni premier épisode ne le remplacent
   var cancels: Array<() => void> = [], epCancel: (() => void) | null = null;
   var zone: Zone = 'play';
@@ -100,14 +105,14 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
   if (stub.type === 'show') {
     seasonList = createRow({
       container: seasonsBox, doc: doc, count: 0, itemW: 240, itemH: 84, gap: 24, viewportW: 1400, viewportH: 84,
-      render: function (i) { return seasons[i] ? { title: seasons[i].title, image: null, selected: seasons[i] === curSeason } : null; },
+      render: function (i) { return seasons[i] ? { title: seasons[i].title, image: null, selected: seasons[i] === curSeason, done: seasonSeen(seasons[i]) } : null; },
       onSelect: function (i) { settle(); loadEpisodes(seasons[i]); }
     });
     episodeList = createRow({
       container: episodesBox, doc: doc, count: 0, itemW: EPISODE.w, itemH: EPISODE.h + 72, gap: 48, viewportW: 1800, viewportH: EPISODE.h + 72,
       render: function (i) {
         var e = episodes[i];
-        return e ? { title: (e.index ? e.index + '. ' : '') + e.title, image: episodeThumbUrl(c.session, e) } : null;
+        return e ? { title: (e.index ? e.index + '. ' : '') + e.title, image: episodeThumbUrl(c.session, e), done: !!e.viewCount && e.viewCount > 0, progress: progress(e) } : null;
       },
       onSelect: function (i) { startPlay(episodes[i], RESUME); }
     });
@@ -146,9 +151,15 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
       episodes = l;
       episodeList!.setCount(l.length);
       if (fresh) episodeList!.setFocus(0);
-      var t = target ? target.ratingKey : '';
-      for (var i = 0; i < l.length; i++) if (l[i].ratingKey === t) { target = l[i]; episodeList!.setFocus(i); break; }   // version à jour
-      if (!target && l.length) target = l[0];
+      var t = target ? target.ratingKey : '', hit = false;
+      for (var i = 0; i < l.length; i++) if (l[i].ratingKey === t) { target = l[i]; episodeList!.setFocus(i); hit = true; break; }   // version à jour
+      if (!hit && l.length && (!target || (auto && !wanted))) {   // ni visé ni « à suivre » : premier épisode non vu, à défaut le premier
+        var u = 0;
+        while (u < l.length - 1 && l[u].viewCount) u++;
+        if (l[u].viewCount) u = 0;
+        target = l[u];
+        episodeList!.setFocus(u);
+      }
       paint();
     });
   }
@@ -162,27 +173,47 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
       var d = full.OnDeck && full.OnDeck.Metadata;
       var next: Item | undefined = d instanceof Array ? d[0] : d;
       if (stub.type === 'show' && !pinned) {
-        if (next && next.type === 'episode') target = next; else if (!next && target && !(target.ratingKey && episodes.length)) target = null;
+        if (next && next.type === 'episode') { target = next; wanted = next; } else if (!next) { wanted = null; if (target && !(target.ratingKey && episodes.length)) target = null; }
       }
       paint();
+      if (stub.type === 'show') openSeason();
       if (!measured) { measured = true; recordMeasure('fiche', Date.now() - t0); }
     }, undefined, stub.type === 'show');
   }
   loadMeta();
-  if (seasonList) {
-    cancels.push(c.data.children(stub.ratingKey, function (l) {
+  // La saison à ouvrir : celle de l'épisode visé ou à suivre (par clé puis par numéro), sinon la première non terminée,
+  // sinon la première ; « Épisodes spéciaux » (0) en dernier recours.
+  function seasonToOpen(): number {
+    var l = seasons, first = 0, i;
+    for (i = 0; i < l.length; i++) if ((l[i].index || 0) > 0) { first = i; break; }
+    if (wanted) {
+      for (var j = 0; j < l.length; j++) {
+        if (wanted.parentRatingKey ? l[j].ratingKey === wanted.parentRatingKey : (wanted.parentIndex !== undefined && l[j].index === wanted.parentIndex)) return j;
+      }
+      return first;
+    }
+    for (i = first; i < l.length; i++) if ((l[i].index || 0) > 0 && !seasonSeen(l[i])) return i;
+    return first;
+  }
+  // Ouvre la saison à suivre et y présélectionne l'épisode ; rappelée quand la fiche de la série ou ses saisons arrivent.
+  function openSeason(): void {
+    if (!auto || !seasonList || !seasons.length) return;
+    var i = seasonToOpen();
+    seasonList.setFocus(i);
+    if (!curSeason || curSeason.ratingKey !== seasons[i].ratingKey) { loadEpisodes(seasons[i]); return; }
+    if (wanted) for (var k = 0; k < episodes.length; k++) if (episodes[k].ratingKey === wanted.ratingKey) { episodeList!.setFocus(k); break; }
+  }
+  var seasonsCancel: (() => void) | null = null;
+  function loadSeasons(): void {
+    if (seasonsCancel) seasonsCancel();
+    seasonsCancel = c.data.children(stub.ratingKey, function (l) {
       seasons = l;
       seasonList!.setCount(l.length);
-      var first = 0, want = focus;
-      for (var i = 0; i < l.length; i++) if ((l[i].index || 0) > 0) { first = i; break; } // « Épisodes spéciaux » (0) en dernier recours
-      if (want) {   // la saison de l'épisode visé, par clé puis par numéro
-        for (var j = 0; j < l.length; j++) {
-          if (want.parentRatingKey ? l[j].ratingKey === want.parentRatingKey : (want.parentIndex !== undefined && l[j].index === want.parentIndex)) { first = j; break; }
-        }
-      }
-      if (l.length) { seasonList!.setFocus(first); loadEpisodes(l[first]); }
-    }));
+      seasonList!.refresh();
+      openSeason();
+    });
   }
+  if (seasonList) loadSeasons();
 
   function setZone(z: Zone): void {
     zone = z;
@@ -202,6 +233,7 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
     el: root,
     onKey: function (k: Key): boolean {
       say('');
+      auto = false;
       var z = zones(), at = z.indexOf(zone);
       if (k === 'down') { if (at >= z.length - 1) return false; setZone(z[at + 1]); return true; }
       if (k === 'up') { if (at <= 0) return false; setZone(z[at - 1]); return true; }
@@ -234,6 +266,7 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
       held = false;
       paint();
       loadMeta();   // retour de lecture : progression et « Reprendre » à jour
+      if (seasonList) loadSeasons();   // coches de saison à jour
       if (curSeason) loadEpisodes(curSeason);
       if (seasonList) { seasonList.restore(); episodeList!.restore(); }
     },
@@ -242,6 +275,7 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
       for (var i = 0; i < cancels.length; i++) cancels[i]();
       if (metaCancel) metaCancel();
       if (epCancel) epCancel();
+      if (seasonsCancel) seasonsCancel();
       if (seasonList) { seasonList.release(); episodeList!.release(); }
     }
   };
