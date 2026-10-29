@@ -20,7 +20,7 @@
    .bac (880 px, bas coupé par la scène) est le cadre découpant ; seul .rail défile. Marge 44 px + rayon 64 px : coins concentriques avec la tuile agrandie (36 × 1,1 + anneau 6). */
 .home .bac{position:absolute;left:100px;width:1720px;top:690px;height:880px;overflow:hidden;border-radius:64px;background:rgba(255,255,255,.07);box-shadow:inset 0 0 0 2px rgba(255,255,255,.1);z-index:3;will-change:transform;transition:transform .2s ease}
 .home .rail{padding:44px;display:grid;grid-template-columns:repeat(4,1fr);grid-gap:40px;transition:transform .2s ease}
-.home .tuile{height:216px;border-radius:36px;display:flex;align-items:center;justify-content:center;font-size:104px;font-weight:500;overflow:hidden;will-change:transform;transition:transform .2s ease}
+.home .tuile{height:216px;border-radius:36px;display:flex;align-items:center;justify-content:center;text-align:center;box-sizing:border-box;padding:0 20px;font-size:48px;line-height:1.1;font-weight:500;overflow:hidden;will-change:transform;transition:transform .2s ease}
 .home.defile .entete,.home.defile .pastilles{transform:translateY(-520px)}
 .home.defile .titre{transform:translateY(-484px) scale(.6)}
 .home.defile .desc{transform:translateY(-530px)}
@@ -30,15 +30,14 @@
 .home.rangee .rail{display:flex;grid-gap:0}
 .home.rangee .tuile{flex:none;width:378px}
 .home.rangee .tuile+.tuile{margin-left:40px}
-.home .tuile img{width:144px;height:144px;border-radius:28px}
-/* Tuiles à l'écran 5 / 6 : même ratio 378 × 216, logo et monogramme réduits ; rayons concentriques avec le bac. Aucun asset en plus. */
+/* La tuile est la marque : logo large centré (64 % de la largeur, 60 % de la hauteur), sans cadre ni arrondi ; le fond de la tuile est le fond du logo. */
+.home .tuile img{width:64%;height:60%;object-fit:contain}
+/* Tuiles à l'écran 5 / 6 : même ratio 378 × 216, le logo suit la tuile en %, le nom est réduit ; rayons concentriques avec le bac. Aucun asset en plus. */
 .home.n5 .rail{grid-template-columns:repeat(5,1fr)}
-.home.n5 .tuile{height:168px;border-radius:32px;font-size:88px}
-.home.n5 .tuile img{width:120px;height:120px;border-radius:24px}
+.home.n5 .tuile{height:168px;border-radius:32px;font-size:38px}
 .home.rangee.n5 .tuile{width:294px}
 .home.n6 .rail{grid-template-columns:repeat(6,1fr)}
-.home.n6 .tuile{height:136px;border-radius:29px;font-size:72px}
-.home.n6 .tuile img{width:96px;height:96px;border-radius:20px}
+.home.n6 .tuile{height:136px;border-radius:29px;font-size:30px;padding:0 14px}
 .home.rangee.n6 .tuile{width:238px}
 .home .tuile.focus{transform:scale(1.1);box-shadow:0 0 0 6px rgba(255,255,255,.92);position:relative;z-index:1}
 .home .message{position:absolute;left:100px;top:630px;max-width:1720px;padding:18px 36px;border-radius:36px;font-size:32px;font-weight:500;background:rgba(255,255,255,.92);color:#111;z-index:5;opacity:0}

@@ -1,12 +1,16 @@
-# Bilan — Tuiles à l'écran : 4 / 5 / 6
+# Bilan — La tuile EST la marque
 
 Fait :
-- Réglages : ligne « Tuiles à l'écran » (4 / 5 / 6) sous « Affichage de l'accueil », même section ; gauche/droite (borné) ou Entrée (4→5→6→4) ; appliqué tout de suite à l'accueil (`setTiles`, sans reconstruire les tuiles).
-- Géométrie déduite : largeur = (bac − marges − écarts) / n, hauteur au même ratio 378×216 ; 5 et 6 = classes `n5` / `n6` (aucune classe à 4), logos 120 / 96 px, monogramme 88 / 72 px, rayons concentriques conservés. Aucun asset, aucune minuterie.
-- Mode grille : n colonnes. Mode une rangée : les n premières tuiles entières sans défilement, puis défilement avec la suivante esquissée.
-- Stockage `cimaise.v1` passé en schéma v2 (migration v0→v1→v2, `prefs.homeTiles`, défaut 4) ; `loadHomeTiles` / `saveHomeTiles`.
-- Tests ajoutés/adaptés : home (modèle, 4/5/6 grille et rangée, setTiles, CSS lisibilité, persistance), settings, app (bout en bout), tv-core (migration). `npm run check` vert (344 tests).
+- 19 logotypes LARGES (Wikimedia Commons, provenance dans THIRD_PARTY_NOTICES.md) remplacent les icônes carrées : PNG transparents ≤ 320×160, 1,5 à 4,5 Ko chacun, 52 Ko au total (< 15 Ko/logo ; .wgt 107 Ko).
+- Fond de tuile = fond naturel du logo (`bg` dans known-apps) : Netflix/YouTube/Disney+/Deezer… blancs, Canal+/Plex/Spotify noirs, Prime/Paramount/Max bleus (versions monochromes blanches inversées pour Prime, Paramount, Plex, Max — documenté).
+- Logo centré à 64 % de la largeur / 60 % de la hauteur de la tuile, sans cadre ni arrondi, identique à 4/5/6 tuiles (CSS en %).
+- Sans logo (Smart Hub, apps inconnues) : nom en grand (Outfit) sur la couleur de l'app. Icône de la TV : dernier recours, sans cadre.
+- La teinte du fond d'écran suit toujours la couleur de l'app.
+- Réglages : tuiles d'apps élargies (112×64), même logo/fond.
+- Tests adaptés/ajoutés ; `npm run check` vert (348 tests).
+- Captures avant/après (4, 5, 6 tuiles) + planche des 19 logos publiées sur la carte.
 
-Changement de comportement à signaler : en mode une rangée la tuile passe de 370 à 378 px (4 tuiles exactement entières, au lieu de ~3,5). « Affichage de l'accueil » est maintenant 2 crans au-dessus de Découvrir (tests adaptés).
-
-Non fait : aucun rendu visuel publié (pas de capture réalisée).
+À signaler :
+- La puce « Couleur » des Réglages ne change plus le fond d'une tuile à logo (elle teinte le fond d'écran) ; les apps sans logo gardent leur couleur.
+- `smarthub.png` supprimé : Smart Hub affiche son nom.
+- Rendu vérifié dans Chromium seulement, pas sur la TV.

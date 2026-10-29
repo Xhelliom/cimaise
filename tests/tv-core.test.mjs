@@ -380,32 +380,31 @@ test('icônes : toute app découverte est tracée, rapport plafonné', () => {
   assert.match(lines[lines.length - 1], /^\+ \d+ autres$/);
 });
 
-test('icônes : ordre icône TV, puis logo de la bibliothèque, puis monogramme', () => {
+test('icônes : logo de la bibliothèque d’abord, icône TV en dernier recours, puis le nom', () => {
   core.resetIcons();
   const tile = iconTile();
-  core.applyIcon(iconDoc(), tile, '/opt/a.png', 'Netflix', 'N', 'logos/netflix.png');
+  core.applyIcon(iconDoc(), tile, '/opt/a.png', 'Netflix', 'Netflix', 'logos/netflix.png');
   const img = tile.children[0];
-  assert.equal(img.attrs.src, 'file:///opt/a.png');
-  img.onerror();
-  assert.equal(img.attrs.src, '/opt/a.png');
-  img.onerror();
-  assert.equal(img.attrs.src, 'logos/netflix.png', 'TV illisible : logo de la bibliothèque');
+  assert.equal(img.attrs.src, 'logos/netflix.png', 'le logo large passe avant l’icône de la TV');
   img.onload();
   assert.match(core.iconReport(), /Netflix \[logo\]/);
   assert.equal(tile.textContent, '');
 
+  const t2 = iconTile();
+  core.applyIcon(iconDoc(), t2, '/opt/a.png', 'YouTube', 'YouTube', 'logos/youtube.png');
+  t2.children[0].onerror();
+  assert.equal(t2.children[0].attrs.src, 'file:///opt/a.png', 'logo illisible : icône de la TV');
+  t2.children[0].onerror();
+  assert.equal(t2.children[0].attrs.src, '/opt/a.png');
+  t2.children[0].onload();
+  assert.match(core.iconReport(), /YouTube \[ok\]/);
+
   const nue = iconTile();
-  core.applyIcon(iconDoc(), nue, '', 'Plex', 'P', 'logos/plex.png');
-  assert.equal(nue.children[0].attrs.src, 'logos/plex.png', 'sans iconPath : logo directement');
+  core.applyIcon(iconDoc(), nue, '', 'Plex', 'Plex', 'logos/plex.png');
+  assert.equal(nue.children[0].attrs.src, 'logos/plex.png');
   nue.children[0].onerror();
   assert.equal(nue.children.length, 0);
-  assert.equal(nue.textContent, 'P', 'logo illisible : monogramme');
-
-  const ok = iconTile();
-  core.applyIcon(iconDoc(), ok, 'file:///tv.png', 'YouTube', 'Y', 'logos/youtube.png');
-  ok.children[0].onload();
-  assert.equal(ok.children[0].attrs.src, 'file:///tv.png', 'TV chargée : le logo n’est pas utilisé');
-  assert.match(core.iconReport(), /YouTube \[ok\]/);
+  assert.equal(nue.textContent, 'Plex', 'ni logo ni icône : le nom');
 });
 
 test('diagnostic : le user agent du moteur web figure dans le rapport', () => {

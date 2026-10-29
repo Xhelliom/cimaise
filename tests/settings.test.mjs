@@ -282,7 +282,7 @@ test('Découvrir : logo + nom + description pour une app connue, monogramme pour
   const img = (l) => all(l, (e) => e.tag === 'img').map((i) => i.attrs.src);
   assert.deepEqual(img(netflix), ['logos/netflix.png']);
   assert.ok(texts(netflix).includes('Séries, films et documentaires en streaming.'));
-  assert.deepEqual(img(disney), ['file:///d.png'], 'icône TV d’abord');
+  assert.deepEqual(img(disney), ['logos/disney.png'], 'logo large d’abord, icône TV en dernier recours');
   assert.ok(texts(disney).some((t) => /Disney/.test(t) && t !== 'Disney Plus'));
   assert.deepEqual(img(inconnue), []);
   assert.ok(texts(inconnue).includes('I'));
