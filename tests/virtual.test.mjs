@@ -165,3 +165,10 @@ test('aperçu : la démo de virtualisation est servie et se compile', async () =
     assert.match(await js.text(), /vtile/);
   } finally { srv.close(); }
 });
+
+test('images : la ligne de marge au-dessus du visible est aussi chargée', () => {
+  const { g, layer } = grid();
+  g.setFocus(2500);
+  const above = layer.children.filter((t) => xy(t)[1] < layerY(layer) * -1 && t.children[0].getAttribute('src'));
+  assert.ok(above.length >= 5, 'ligne de marge supérieure sans image');
+});
