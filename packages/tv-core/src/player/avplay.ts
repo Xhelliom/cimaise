@@ -18,7 +18,7 @@ export interface PlayerEvents {
   // Sous-titre externe refusé par AVPlay : la lecture continue sans (distinct de onError, fatal).
   onSubtitleError?: (err: Error) => void;
   // Position visée par une rafale d'appuis ±, en attente d'application ; null quand le seek est parti ou abandonné.
-  onSeekPending?: (targetMs: number | null) => void;
+  onSeekPending?: (targetMs: number | null, stepMs?: number) => void;
   // Un seek échoué n'arrête pas la lecture : on reste où on est (distinct de onError, fatal).
   onSeekError?: (err: Error) => void;
   // Transcodage HLS : saut hors de ce que la session a déjà produit ; la page relance la session à cette position (temps du film).
@@ -46,6 +46,11 @@ export interface Player {
   // null : lecture directe. À appeler avant open().
   setTranscode(offsetMs: number | null, totalMs?: number): void;
   seekTo(ms: number, done?: (err: Error | null) => void): void;
+  // Maintien : les rafales ± déplacent une position visée sans jamais sauter d'elles-mêmes ; commitSeek() saute (un seul seek), cancelSeek() abandonne.
+  // holdSeek(false) abandonne la cible en attente.
+  holdSeek(on: boolean): void;
+  commitSeek(): void;
+  cancelSeek(): void;
   forward(): void;
   rewind(): void;
   stop(): void;
@@ -89,6 +94,7 @@ export function createPlayer(opts?: PlayerOptions): Player {
   // Rafale d'appuis ±, un seul seek en vol, au plus un seek en attente (le dernier gagne).
   var burst: { dir: number; count: number; target: number } | null = null;
   var burstTimer: any = null;
+  var hold = false, held: number | null = null; // maintien : cible laissée par une rafale terminée, en attente de commitSeek
   var inflight: { target: number; fail(e: Error): void } | null = null;
   var seekErrReported = false; // erreur déjà remontée par le rappel d'un seek : l'onerror qui suit est avalé
   var queued: { target: number; dones: Array<(err: Error | null) => void> } | null = null;
@@ -177,25 +183,34 @@ export function createPlayer(opts?: PlayerOptions): Player {
     if (!opened) return;
     var base: number;
     if (burst) base = burst.target;
+    else if (held !== null) base = held;
     else if (queued) base = queued.target;
     else if (inflight) base = inflight.target;
     else base = p.getPosition();
     if (!burst || burst.dir !== dir) burst = { dir: dir, count: 0, target: base };
     burst.count++;
-    burst.target = bound(burst.target + dir * stepFor(burst.count));
-    if (o.onSeekPending) o.onSeekPending(burst.target);
+    var step = stepFor(burst.count);
+    burst.target = bound(burst.target + dir * step);
+    if (o.onSeekPending) o.onSeekPending(burst.target, dir * step);
     if (burstTimer !== null) timers.clearTimeout(burstTimer);
     burstTimer = timers.setTimeout(function () {
       burstTimer = null;
       var t = burst!.target;
       burst = null;
+      if (hold) { held = t; return; }
       if (o.onSeekPending) o.onSeekPending(null);
       requestSeek(t);
     }, settle);
   }
+  function dropTarget(): void {
+    var had = burst !== null || held !== null;
+    if (burstTimer !== null) { timers.clearTimeout(burstTimer); burstTimer = null; }
+    burst = null; held = null;
+    if (had && o.onSeekPending) o.onSeekPending(null);
+  }
   function resetSeek(): void {
     if (burstTimer !== null) { timers.clearTimeout(burstTimer); burstTimer = null; }
-    burst = null; inflight = null; queued = null; seekErrReported = false;
+    burst = null; held = null; inflight = null; queued = null; seekErrReported = false;
   }
 
   function release(): void {
@@ -257,6 +272,16 @@ export function createPlayer(opts?: PlayerOptions): Player {
     play: function () { guard(function () { api().play(); }); },
     pause: function () { guard(function () { api().pause(); }); },
     seekTo: function (ms, done) { requestSeek(ms, done); },
+    holdSeek: function (on) { hold = on; if (!on) dropTarget(); },
+    cancelSeek: dropTarget,
+    commitSeek: function () {
+      var t = burst ? burst.target : held;
+      if (t === null) return;
+      if (burstTimer !== null) { timers.clearTimeout(burstTimer); burstTimer = null; }
+      burst = null; held = null;
+      if (o.onSeekPending) o.onSeekPending(null);
+      requestSeek(t);
+    },
     forward: function () { press(1); },
     rewind: function () { press(-1); },
     stop: function () { guard(function () { api().stop(); }); },

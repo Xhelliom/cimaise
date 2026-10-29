@@ -10,7 +10,8 @@ import { langPrefsFor, LangPrefs, rememberSeries } from '../../../tv-core/src/la
 import { recordMeasure } from '../../../tv-core/src/diag';
 import { Ctx, el, identityOf, PlexArg, realTimers, RESUME, resolve } from './context';
 
-var HIDE_MS = 3000;
+var HIDE_MS = 4000; // barre de contrôles : masquée après 4 s sans touche
+var BAR_W = 1680;   // largeur de la barre de progression (px de la scène 1920×1080)
 var SUB_MS = 3000; // durée d'affichage d'un sous-titre dont AVPlay ne donne pas la durée
 
 function two(n: number): string { return (n < 10 ? '0' : '') + n; }
@@ -33,8 +34,11 @@ export function cleanSubtitle(text: string): string {
 interface Choice { label: string; apply(): void; }
 type Mode = 'loading' | 'play' | 'error';
 
-// Écran lecteur (HANDOFF §5.4) : démarre directement à `startMs` (0, RESUME ou une position, choisi par l'appelant), lecture directe par AVPlay (wrapper de tv-core), interface masquée
-// au bout de 3 s, ±10 s, pistes, Retour = arrêt propre. Hors TV, le wrapper signale l'absence de webapis : aucune lecture simulée.
+// Écran lecteur (HANDOFF §5.4) : démarre directement à `startMs` (0, RESUME ou une position, choisi par l'appelant), lecture directe par AVPlay (wrapper de tv-core).
+// Pendant la lecture rien à l'écran : Gauche/Droite = sauts (même rafale accélérée partout, indicateur discret du cumul, saut automatique en fin de rafale) ;
+// Entrée = pause + barre ; Haut/Bas = barre, focus sur les boutons (Lecture/Pause, Audio, Sous-titres, sous-menus) ; Haut depuis les boutons = focus sur la barre de
+// progression : même déplacement mais la vidéo continue et rien ne part tout seul (Entrée confirme, Retour annule). Retour ferme la barre, puis quitte le lecteur.
+// Hors TV, le wrapper signale l'absence de webapis : aucune lecture simulée.
 export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): Panel {
   var c = resolve(arg) as Ctx;
   var doc = c.doc;
@@ -44,9 +48,19 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): P
   var root = el(doc, 'plex-player');
   var ui = el(doc, 'plex-pl-ui');
   var title = el(doc, 'plex-pl-title', item.title);
+  var prog = el(doc, 'plex-pl-prog');
   var track = el(doc, 'plex-pl-track');
   var bar = el(doc, 'plex-pl-bar');
-  var time = el(doc, 'plex-pl-time', '');
+  var cursor = el(doc, 'plex-pl-cursor');
+  var preview = el(doc, 'plex-pl-preview'); // emplacement réservé à la miniature d'aperçu (carte suivante)
+  var cursorTime = el(doc, 'plex-pl-cursor-time', '');
+  var elapsed = el(doc, 'plex-pl-elapsed', '');
+  var remaining = el(doc, 'plex-pl-remaining', '');
+  var endsAt = el(doc, 'plex-pl-end', '');
+  var ctls = el(doc, 'plex-pl-ctls');
+  var jumpBox = el(doc, 'plex-pl-jump');
+  var jumpSum = el(doc, 'plex-pl-jump-sum', '');
+  var jumpTo = el(doc, 'plex-pl-jump-to', '');
   var state = el(doc, 'plex-pl-state', '');
   var modeLine = el(doc, 'plex-pl-mode', '');
   var sub = el(doc, 'plex-pl-sub', '');
@@ -55,9 +69,13 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): P
   var text = el(doc, 'plex-pl-text', 'Chargement…');
   var btns = el(doc, 'plex-pl-btns');
   track.appendChild(bar);
-  ui.appendChild(title); ui.appendChild(track); ui.appendChild(time); ui.appendChild(state); ui.appendChild(modeLine);
+  cursor.appendChild(preview); cursor.appendChild(cursorTime);
+  prog.appendChild(track); prog.appendChild(cursor);
+  ui.appendChild(title); ui.appendChild(prog); ui.appendChild(elapsed); ui.appendChild(remaining); ui.appendChild(endsAt);
+  ui.appendChild(ctls); ui.appendChild(state); ui.appendChild(modeLine);
+  jumpBox.appendChild(jumpSum); jumpBox.appendChild(jumpTo);
   dialog.appendChild(text); dialog.appendChild(btns);
-  root.appendChild(sub); root.appendChild(ui); root.appendChild(menu); root.appendChild(dialog);
+  root.appendChild(sub); root.appendChild(jumpBox); root.appendChild(ui); root.appendChild(menu); root.appendChild(dialog);
 
   var mode: Mode = 'loading';
   var closed = false;
@@ -79,8 +97,67 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): P
   var buttons: Array<{ label: string; run(): void }> = [];
   var at = 0;
   var choices: Choice[] = [], mi = 0;
+  // Barre de contrôles : ouverte ou non ; focus sur la barre de progression ('track') ou sur la rangée de boutons ('btns', bi = bouton).
+  // jumping : une position visée est en attente dans le lecteur (jumpBase : d'où la rafale est partie) ; holding : le lecteur est en mode maintien.
+  var barOpen = false, zone: 'track' | 'btns' = 'btns', bi = 0, jumping = false, jumpBase = 0, holding = false;
 
   function setClass(node: HTMLElement, base: string, on: boolean): void { node.className = on ? base + ' on' : base; }
+
+  function clock(t: number): string { var d = new Date(t); return two(d.getHours()) + ' h ' + two(d.getMinutes()); }
+  function ratio(ms: number): number { return durationMs > 0 ? Math.max(0, Math.min(1, ms / durationMs)) : 0; }
+  function paintTime(ms: number): void {
+    bar.style.transform = 'scaleX(' + ratio(ms) + ')';
+    elapsed.textContent = formatTime(ms);
+    if (durationMs > 0) {
+      var left = Math.max(0, durationMs - ms);
+      remaining.textContent = '−' + formatTime(left);
+      endsAt.textContent = 'Se termine à ' + clock((arg.now || timers.now)() + left);
+    } else { remaining.textContent = ''; endsAt.textContent = ''; }
+  }
+  // « +10 s », « +1 min 50 », « −30 s » : cumul de la rafale depuis sa position de départ.
+  function signed(ms: number): string {
+    var sec = Math.round(Math.abs(ms) / 1000), sign = ms < 0 ? '−' : '+';
+    if (sec < 60) return sign + sec + ' s';
+    return sign + Math.floor(sec / 60) + ' min' + (sec % 60 ? ' ' + two(sec % 60) : '');
+  }
+
+  var ctlDefs: Array<{ label(): string; run(): void }> = [
+    { label: function () { return paused ? 'Lecture' : 'Pause'; }, run: function () { if (paused) resume(); else pause(); } },
+    { label: function () { return 'Audio'; }, run: function () { openMenu('audio'); } },
+    { label: function () { return 'Sous-titres'; }, run: function () { openMenu('subtitle'); } }
+  ];
+  function paintCtl(): void {
+    while (ctls.children.length) ctls.removeChild(ctls.children[0]);
+    for (var i = 0; i < ctlDefs.length; i++) ctls.appendChild(el(doc, zone === 'btns' && i === bi ? 'plex-pl-ctl focus' : 'plex-pl-ctl', ctlDefs[i].label()));
+    ctls.appendChild(el(doc, 'plex-pl-ctl plex-pl-next', '')); // emplacement réservé : Épisode suivant (carte suivante), jamais focalisable
+    track.className = zone === 'track' ? 'plex-pl-track focus' : 'plex-pl-track';
+  }
+  // Maintien côté lecteur : actif seulement tant que le focus est sur la barre de progression (le quitter abandonne la cible).
+  function setHold(on: boolean): void {
+    if (holding === on) return;
+    holding = on;
+    if (player) player.holdSeek(on);
+  }
+  function armHide(): void {
+    clearHide();
+    if (barOpen && mode === 'play' && !paused && !menuOpen && !jumping) hideTimer = timers.setTimeout(function () { hideTimer = null; closeBar(); }, HIDE_MS);
+  }
+  function openBar(z: 'track' | 'btns'): void {
+    if (!barOpen) { barOpen = true; bi = 0; }
+    zone = z;
+    setHold(z === 'track');
+    paintCtl();
+    setClass(ui, 'plex-pl-ui', true);
+    armHide();
+  }
+  function closeBar(): void {
+    barOpen = false; zone = 'btns';
+    setHold(false);
+    setClass(ui, 'plex-pl-ui', false);
+    clearHide();
+  }
+  // Message passager (erreur de saut, sous-titres indisponibles) : la barre apparaît si elle était fermée.
+  function showBar(): void { if (barOpen) armHide(); else openBar('btns'); }
 
   function paintButtons(): void {
     while (btns.children.length) btns.removeChild(btns.children[0]);
@@ -112,11 +189,6 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): P
   }
 
   function clearHide(): void { if (hideTimer !== null) { timers.clearTimeout(hideTimer); hideTimer = null; } }
-  function show(): void {
-    setClass(ui, 'plex-pl-ui', true);
-    clearHide();
-    if (mode === 'play' && !paused && !menuOpen) hideTimer = timers.setTimeout(function () { hideTimer = null; setClass(ui, 'plex-pl-ui', false); }, HIDE_MS);
-  }
 
   function live(on: boolean): void {
     var d: any = doc;
@@ -164,7 +236,9 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): P
     clearHide();
     clearSub();
     live(false);
+    barOpen = false; zone = 'btns'; holding = false; jumping = false;
     setClass(ui, 'plex-pl-ui', false);
+    setClass(jumpBox, 'plex-pl-jump', false);
     var list: Array<{ label: string; run(): void }> = [];
     var official = arg.officialApp ? arg.officialApp() : null;
     if (official) {
@@ -189,23 +263,36 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): P
       onTime: function (ms) {
         if (awaitFrame && mode === 'play') { awaitFrame = false; recordMeasure('lecture', Date.now() - t0); }
         if (mode !== 'play') return;
-        bar.style.transform = 'scaleX(' + (durationMs > 0 ? Math.min(1, ms / durationMs) : 0) + ')';
-        time.textContent = formatTime(ms) + ' / ' + formatTime(durationMs);
+        paintTime(ms);
       },
       timers: timers,
-      // Rafale d'appuis ± : la barre montre la position visée, le seek part à l'arrêt de la rafale.
-      onSeekPending: function (ms) {
+      // Rafale d'appuis ± (même mécanisme partout) : barre fermée, indicateur discret du cumul et du pas, le saut part à la fin de la rafale ;
+      // focus sur la barre de progression : curseur à la position visée (heure au-dessus), le saut attend Entrée.
+      onSeekPending: function (ms, step) {
         if (closed || mode !== 'play') return;
-        if (ms === null) { state.textContent = paused ? 'Pause' : ''; return; }
-        bar.style.transform = 'scaleX(' + (durationMs > 0 ? Math.min(1, ms / durationMs) : 0) + ')';
-        time.textContent = formatTime(ms) + ' / ' + formatTime(durationMs);
-        state.textContent = '→ ' + formatTime(ms);
-        show();
+        if (ms === null) {
+          jumping = false;
+          setClass(jumpBox, 'plex-pl-jump', false);
+          setClass(cursor, 'plex-pl-cursor', false);
+          armHide();
+          return;
+        }
+        if (!jumping) { jumping = true; jumpBase = p.getPosition(); }
+        if (barOpen && zone === 'track') {
+          cursor.style.transform = 'translateX(' + Math.round(BAR_W * ratio(ms)) + 'px)';
+          cursorTime.textContent = formatTime(ms);
+          setClass(cursor, 'plex-pl-cursor', true);
+          armHide();
+        } else {
+          jumpSum.textContent = signed(ms - jumpBase);
+          jumpTo.textContent = '→ ' + formatTime(ms) + (step ? ' · pas ' + Math.round(Math.abs(step) / 1000) + ' s' : '');
+          setClass(jumpBox, 'plex-pl-jump', true);
+        }
       },
       onSeekError: function () {
         if (closed || mode !== 'play') return;
         state.textContent = 'Déplacement impossible';
-        show();
+        showBar();
       },
       onSubtitle: showSub,
       // Transcodage : saut hors du déjà transcodé → nouvelle session à cette position, pas de seekTo hors segment.
@@ -220,7 +307,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): P
         setSubs(false);
         clearSub();
         state.textContent = 'Sous-titres indisponibles';
-        show();
+        showBar();
       },
       onEnd: function () { leave(true); },
       onError: fail,
@@ -254,13 +341,11 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): P
         if (err) { fail(err); return; }
         mode = 'play';
         setClass(dialog, 'plex-pl-dialog', false);
-        time.textContent = formatTime(startMs) + ' / ' + formatTime(durationMs);
-        bar.style.transform = 'scaleX(' + (durationMs > 0 ? Math.min(1, startMs / durationMs) : 0) + ')';
+        paintTime(startMs);
         modeLine.textContent = plan!.reason;
         applyTracks(p, true, true);
         live(true);
         progress!.playing();
-        show();
       });
     }
     if (plan!.mode === 'direct') {
@@ -378,28 +463,32 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): P
     mode = 'loading';
     awaitFrame = false;
     live(false);
-    setClass(ui, 'plex-pl-ui', false);
+    closeBar();
+    jumping = false;
+    setClass(jumpBox, 'plex-pl-jump', false);
     ask('Chargement…', []);
     // L'ancien flux est coupé avant l'arrêt de sa session serveur : il ne réclame plus de segments.
     if (player) { player.stop(); player.close(); }
     launch(pos);
   }
 
-  function openMenu(): void {
+  // Sous-menu vertical d'un type de pistes : langue, codec, « forcés », piste active cochée ; les sous-titres ajoutent « Aucun ».
+  function openMenu(kind: 'audio' | 'subtitle'): void {
     var out: Choice[] = [];
     var i: number;
     var entries = plan && plan.part.Stream && plan.part.Stream.length ? trackEntries(plan) : [];
+    function strip(l: string): string { return l.replace(/^(Audio|Sous-titres) · /, '').replace(/^Désactivés$/, 'Aucun'); }
     if (entries.length) {
       var pickEntry = function (e: TrackEntry): Choice {
-        return { label: (e.current ? '● ' : '') + e.label, apply: function () { choose(e); } };
+        return { label: (e.current ? '✓ ' : '') + strip(e.label), apply: function () { choose(e); } };
       };
-      for (i = 0; i < entries.length; i++) out.push(pickEntry(entries[i]));
+      for (i = 0; i < entries.length; i++) if (entries[i].kind === kind) out.push(pickEntry(entries[i]));
     } else {
       // Fiche sans détail des flux : pistes telles qu'AVPlay les liste.
       var tracks = player ? player.getTracks() : [];
       var pick = function (t: Track): Choice {
         return {
-          label: trackLabel(t),
+          label: strip(trackLabel(t)),
           apply: function () {
             if (t.kind === 'text') clearSub();
             player!.selectTrack(t.kind, t.index);
@@ -407,25 +496,34 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): P
           }
         };
       };
-      for (i = 0; i < tracks.length; i++) if (tracks[i].kind === 'audio') out.push(pick(tracks[i]));
-      out.push({ label: 'Sous-titres · Désactivés', apply: function () { setSubs(false); clearSub(); } });
-      for (i = 0; i < tracks.length; i++) if (tracks[i].kind === 'text') out.push(pick(tracks[i]));
+      if (kind === 'audio') {
+        for (i = 0; i < tracks.length; i++) if (tracks[i].kind === 'audio') out.push(pick(tracks[i]));
+      } else {
+        out.push({ label: 'Aucun', apply: function () { setSubs(false); clearSub(); } });
+        for (i = 0; i < tracks.length; i++) if (tracks[i].kind === 'text') out.push(pick(tracks[i]));
+      }
     }
+    if (!out.length) return;
     choices = out;
     mi = 0;
     menuOpen = true;
     paintMenu();
     setClass(menu, 'plex-pl-menu', true);
-    show();
+    armHide();
   }
   function paintMenu(): void {
     while (menu.children.length) menu.removeChild(menu.children[0]);
     for (var i = 0; i < choices.length; i++) menu.appendChild(el(doc, i === mi ? 'plex-pl-opt focus' : 'plex-pl-opt', choices[i].label));
   }
-  function closeMenu(): void { menuOpen = false; setClass(menu, 'plex-pl-menu', false); show(); }
+  function closeMenu(): void { menuOpen = false; setClass(menu, 'plex-pl-menu', false); armHide(); }
 
-  function pause(): void { if (paused) return; paused = true; player!.pause(); progress!.paused(); state.textContent = 'Pause'; show(); }
-  function resume(): void { if (!paused) return; paused = false; player!.play(); progress!.playing(); state.textContent = ''; show(); }
+  function pause(): void { if (paused) return; paused = true; player!.pause(); progress!.paused(); state.textContent = 'Pause'; paintCtl(); armHide(); }
+  function resume(): void { if (!paused) return; paused = false; player!.play(); progress!.playing(); state.textContent = ''; paintCtl(); armHide(); }
+
+  function jumpKey(dir: number): void {
+    if (dir < 0) player!.rewind(); else player!.forward();
+    if (barOpen) armHide();
+  }
 
   function playKey(k: Key): boolean {
     if (menuOpen) {
@@ -436,14 +534,35 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): P
       paintMenu();
       return true;
     }
-    if (k === 'back' || k === 'stop') { leave(false); return true; }
-    if (k === 'left' || k === 'rewind') { player!.rewind(); show(); return true; }
-    if (k === 'right' || k === 'forward') { player!.forward(); show(); return true; }
-    if (k === 'enter' || k === 'playpause') { if (paused) resume(); else pause(); return true; }
-    if (k === 'pause') { pause(); return true; }
+    if (k === 'stop') { leave(false); return true; }
+    if (k === 'rewind') { jumpKey(-1); return true; }
+    if (k === 'forward') { jumpKey(1); return true; }
+    if (k === 'pause') { pause(); openBar('btns'); return true; }
     if (k === 'play') { resume(); return true; }
-    if (k === 'up') { openMenu(); return true; }
-    show();
+    if (k === 'playpause') { if (paused) resume(); else { pause(); openBar('btns'); } return true; }
+    if (!barOpen) {
+      if (k === 'back') { if (jumping) player!.cancelSeek(); else leave(false); }
+      else if (k === 'left') jumpKey(-1);
+      else if (k === 'right') jumpKey(1);
+      else if (k === 'enter') { if (paused) resume(); else { pause(); openBar('btns'); } }
+      else if (k === 'up' || k === 'down') openBar('btns');
+      return true;
+    }
+    if (zone === 'track') {
+      if (k === 'left') jumpKey(-1);
+      else if (k === 'right') jumpKey(1);
+      else if (k === 'enter') { if (jumping) player!.commitSeek(); else if (paused) resume(); else pause(); }
+      else if (k === 'back') { if (jumping) player!.cancelSeek(); else closeBar(); }
+      else if (k === 'down') openBar('btns');
+      armHide();
+      return true;
+    }
+    if (k === 'back') closeBar();
+    else if (k === 'left') { bi = Math.max(0, bi - 1); paintCtl(); }
+    else if (k === 'right') { bi = Math.min(ctlDefs.length - 1, bi + 1); paintCtl(); }
+    else if (k === 'up') openBar('track');
+    else if (k === 'enter') ctlDefs[bi].run();
+    armHide();
     return true;
   }
 

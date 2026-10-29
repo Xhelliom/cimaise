@@ -130,6 +130,62 @@ test('rafale de 30 appuis : un seul seek, pas accéléré 10/30/60 s', () => {
   assert.equal(pending[30], null);
 });
 
+test('rafale : le pas courant (signé) accompagne la position visée', () => {
+  const { api, timers } = opened({ getDuration: () => 10000000 });
+  const got = [];
+  const q = core.createPlayer({ api, doc: fakeDoc(), timers, onSeekPending: (t, step) => got.push([t, step]) });
+  q.open('u', {}, () => {}); api.calls.length = 0;
+  for (let i = 0; i < 4; i++) q.forward();
+  assert.deepEqual(got.map((g) => g[1]), [10000, 10000, 10000, 30000]);
+  timers.advance(400);
+  q.rewind();
+  assert.equal(got[got.length - 1][1], -10000);
+});
+
+test('maintien (focus sur la barre) : même pas accéléré, aucun seek tout seul, la position visée reste', () => {
+  const { api, timers } = opened({ getDuration: () => 10000000 });
+  const pending = [];
+  const q = core.createPlayer({ api, doc: fakeDoc(), timers, onSeekPending: (t) => pending.push(t) });
+  q.open('u', {}, () => {}); api.calls.length = 0;
+  q.holdSeek(true);
+  for (let i = 0; i < 4; i++) q.forward();
+  timers.advance(2000);
+  assert.deepEqual(seeks(api), [], 'pas de saut automatique');
+  assert.equal(pending[pending.length - 1], 3 * 10000 + 30000, 'la cible reste affichée');
+  // nouvelle rafale : l'accélération repart de 10 s, depuis la cible
+  q.forward();
+  assert.equal(pending[pending.length - 1], 3 * 10000 + 30000 + 10000);
+  q.commitSeek();
+  assert.deepEqual(seeks(api), ['seekTo:70000']);
+  assert.equal(pending[pending.length - 1], null);
+});
+
+test('maintien : annuler efface la cible sans seek ; rien à valider = rien à faire', () => {
+  const { api, timers } = opened({ getDuration: () => 10000000 });
+  const pending = [];
+  const q = core.createPlayer({ api, doc: fakeDoc(), timers, onSeekPending: (t) => pending.push(t) });
+  q.open('u', {}, () => {}); api.calls.length = 0;
+  q.holdSeek(true);
+  q.forward(); timers.advance(1000);
+  q.cancelSeek();
+  assert.equal(pending[pending.length - 1], null);
+  q.commitSeek();
+  timers.advance(1000);
+  assert.deepEqual(seeks(api), []);
+  q.forward(); q.holdSeek(false); // quitter la barre = annuler
+  timers.advance(1000);
+  assert.deepEqual(seeks(api), []);
+});
+
+test('annuler une rafale en cours (barre fermée) : aucun seek', () => {
+  const { api, timers } = opened({ getDuration: () => 10000000 });
+  const q = core.createPlayer({ api, doc: fakeDoc(), timers });
+  q.open('u', {}, () => {}); api.calls.length = 0;
+  q.forward(); q.forward(); q.cancelSeek();
+  timers.advance(1000);
+  assert.deepEqual(seeks(api), []);
+});
+
 test('jamais deux seeks en vol : le suivant attend le rappel, le dernier gagne', () => {
   let ok; const log = [];
   const { api, timers, p } = opened({ seekTo: (ms, s) => { log.push(ms); ok = s; } });
