@@ -1,5 +1,4 @@
-# Bilan — Réglages défilants, découverte filtrée
-
-Fait : listes Réglages/découverte défilantes (transform, focus toujours visible, DOM fenêtré) ; découverte filtrée sur `show` et triée ; apps déjà au catalogue marquées ; complétion des ID des tuiles par défaut par nom (sans doublon) ; message à l'écran à la place du diagnostic ; diagnostic sur la touche 0 (documenté dans docs/decisions.md). Tests : 300 apps fictives (settings, tv-core), home, app. `npm run check` vert (189 tests).
-
-Non fait / à vérifier sur la TV : `show` réellement renseigné par la Frame ; touche 0 reçue ; rendu du message.
+# Bilan
+Fait : un seul `focus` visible. `VirtualList.setActive()` (tv-core) : une liste inactive marque sa sélection `mark` (repère discret) au lieu de `focus`. Branché dans l'accueil Plex (rangée active) et la fiche (saisons/épisodes). CSS : repère discret sur Bibliothèques/saisons (l'anneau d'« Films » n'était pas conditionné à la rangée active).
+Tests ajoutés (tests/plex-ui.test.mjs) : 1 seul focus à l'accueil et position mémorisée par rangée ; 1 seul focus sur la fiche série ; alignement des marges gauches (120 px, lu dans le CSS). La grille n'a qu'une liste. `npm run check` : vert (192 tests).
+Non fait : pas de capture ni de vérification sur la Frame (alignement vérifié par le CSS seulement : rangée 96+24 = titres 120).

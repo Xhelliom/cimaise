@@ -109,8 +109,8 @@ export function createDetailPanel(arg: PlexArg, stub: Item): Panel {
   function setZone(z: Zone): void {
     zone = z;
     paint();
-    if (seasonList) seasonsBox.className = z === 'seasons' ? 'plex-seasons on' : 'plex-seasons';
-    if (episodeList) episodesBox.className = z === 'episodes' ? 'plex-episodes on' : 'plex-episodes';
+    if (seasonList) { seasonsBox.className = z === 'seasons' ? 'plex-seasons on' : 'plex-seasons'; seasonList.setActive(z === 'seasons'); }
+    if (episodeList) { episodesBox.className = z === 'episodes' ? 'plex-episodes on' : 'plex-episodes'; episodeList.setActive(z === 'episodes'); }
   }
   function zones(): Zone[] {
     var z: Zone[] = ['play'];

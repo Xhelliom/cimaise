@@ -69,6 +69,7 @@ export function createHomePanel(arg: PlexArg): Panel {
     for (var j = 0; j < hubs.length; j++) {
       var on = v[active] === hubs[j];
       hubs[j].box.className = on ? 'plex-row on' : 'plex-row';
+      hubs[j].list.setActive(on);
       hubs[j].list.refresh();
     }
     status.textContent = v.length ? '' : status.textContent;

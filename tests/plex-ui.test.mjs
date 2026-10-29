@@ -453,3 +453,47 @@ test('serveurs : si une connexion locale ne répond pas, on passe à la suivante
   assert.ok(/^https:\/\/203-0-113-5\./.test(prefs(l.store).plexSession.uri));
   p.destroy();
 });
+
+// ---- un seul anneau de focus ---------------------------------------------------------------------------------
+test('accueil : un seul élément focalisé à tout moment ; la sélection de chaque rangée est mémorisée', async () => {
+  const d = deps();
+  const p = ui.createHomePanel(d.arg);
+  await tick(); await tick();
+  const rows = byClass(p.el, 'plex-row');
+  const count = () => byClass(p.el, 'focus').length;
+  const marked = (r) => byClass(r, 'mark').length;
+  assert.equal(count(), 1);
+  p.onKey('right'); p.onKey('right'); // décale la première rangée
+  const labelOf = (r, c) => byClass(r, c)[0].children.map((x) => x.textContent).join('');
+  const before = labelOf(rows[0], 'focus');
+  p.onKey('down');
+  assert.equal(count(), 1, 'changer de rangée déplace l’anneau');
+  assert.equal(byClass(rows[0], 'focus').length, 0);
+  assert.equal(marked(rows[0]), 1, 'la rangée quittée garde un repère discret');
+  assert.equal(labelOf(rows[0], 'mark'), before, 'position mémorisée');
+  p.onKey('down');
+  assert.equal(count(), 1);
+  p.onKey('up'); p.onKey('up');
+  assert.equal(count(), 1);
+  assert.equal(labelOf(rows[0], 'focus'), before, 'retour à la même tuile');
+});
+
+test('fiche série : un seul élément focalisé quand on passe boutons → saisons → épisodes', async () => {
+  const d = deps();
+  const show = { ratingKey: '200', type: 'show', title: 'Titre de série 1', thumb: '/library/metadata/200/thumb/1700000000' };
+  const p = ui.createDetailPanel(d.arg, show);
+  await tick(); await tick(); await tick();
+  for (let k = 0; k < 3; k++) {
+    assert.equal(byClass(p.el, 'focus').length, 1, 'zone ' + k);
+    p.onKey('down');
+  }
+});
+
+test('alignement : titres de rangée, première tuile, grille et fiche sur la même marge gauche (120 px)', () => {
+  const css = readFileSync('packages/plex/src/plex.css', 'utf8');
+  const px = (re) => +re.exec(css)[1];
+  const rowLeft = px(/\.plex-row\{left:(\d+)px/) + px(/\.plex-row \.vlayer,\.plex-grid \.vlayer\{margin:\d+px 0 0 (\d+)px/);
+  assert.equal(px(/\.plex-hub-title\{[^}]*left:(\d+)px/), rowLeft);
+  assert.equal(px(/\.plex-lib-title\{[^}]*left:(\d+)px/), rowLeft);
+  assert.equal(px(/\.plex-grid\{left:(\d+)px/) + px(/\.plex-grid \.vlayer\{margin:\d+px 0 0 (\d+)px/), rowLeft);
+});
