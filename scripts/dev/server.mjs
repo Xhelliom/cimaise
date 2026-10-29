@@ -78,9 +78,9 @@ const mockupRoute = (url) => {
   return async () => [readFileSync(file, ext === 'woff2' ? undefined : 'utf8'), MIME[ext]];
 };
 
-// Logos d'apps (packages/launcher/src/catalog/known-apps/logos) : /app/logos/<nom>.png, noms simples seulement.
+// Logos d'apps (packages/launcher/src/catalog/known-apps/logos) : /app/logos/<nom>.png (et /demo/logos/ pour la démo de l'accueil), noms simples seulement.
 const logoRoute = (url) => {
-  const m = /^\/app\/logos\/([\w-]+\.png)$/.exec(url);
+  const m = /^\/(?:app|demo)\/logos\/([\w-]+\.png)$/.exec(url);
   const file = m && `${root}packages/launcher/src/catalog/known-apps/logos/${m[1]}`;
   return file && existsSync(file) ? async () => [readFileSync(file), 'image/png'] : null;
 };

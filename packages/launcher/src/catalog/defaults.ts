@@ -15,6 +15,6 @@ export function defaultCatalog(): CatalogEntry[] {
     tv('YouTube', '#c4302b'),
     tv('Disney+', '#113ccf'),
     tv('Canal+', '#2b2b2e'),
-    tv('Smart Hub', '#5a5a5f')
+    tv('Smart Hub', '#1428a0')
   ];
 }

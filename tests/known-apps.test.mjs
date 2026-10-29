@@ -51,17 +51,78 @@ test('logos : seul Smart Hub (pictogramme maison) n’a pas de logo, la tuile po
   assert.equal(m.desc.length > 10, true);
 });
 
-test('fond de tuile : couleur naturelle du logo (Netflix et YouTube blancs, Prime bleu)', () => {
+// Palette d'un PNG : entrées avec leur alpha (tRNS), pour juger de la couleur du logo sans le décoder.
+function palette(file) {
+  const b = readFileSync(join(DIR, 'logos', file));
+  let pos = 8, plte, trns = Buffer.alloc(0);
+  while (pos < b.length) {
+    const len = b.readUInt32BE(pos), type = b.toString('latin1', pos + 4, pos + 8);
+    if (type === 'PLTE') plte = b.subarray(pos + 8, pos + 8 + len);
+    if (type === 'tRNS') trns = b.subarray(pos + 8, pos + 8 + len);
+    pos += 12 + len;
+  }
+  const out = [];
+  for (let i = 0; i < plte.length / 3; i++) out.push({ rgb: [plte[i * 3], plte[i * 3 + 1], plte[i * 3 + 2]], a: i < trns.length ? trns[i] : 255 });
+  return out;
+}
+const TWO_INKS = ['canal.png', 'm6.png', 'plex.png'];
+const lum = ([r, g, b]) => (0.299 * r + 0.587 * g + 0.114 * b);
+const rel = (hex) => {
+  const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)));
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+};
+const contrast = (x, y) => { const [p, q] = [rel(x), rel(y)].sort((m, n) => n - m); return (p + 0.05) / (q + 0.05); };
+
+test('fond de tuile : la couleur forte de la marque (carte « couleur de marque »)', () => {
   const bg = (n) => C.knownApp(n).bg.toLowerCase();
-  assert.equal(bg('Netflix'), '#ffffff');
-  assert.equal(bg('YouTube'), '#ffffff');
-  assert.match(bg('Prime Video'), /^#0[0-9a-f][0-9a-f]{2}[c-f][0-9a-f]$/);
+  assert.equal(bg('YouTube'), '#ff0000');
+  assert.equal(bg('Netflix'), '#e50914');
+  assert.equal(bg('Prime Video'), '#00a8e1');
+  assert.equal(bg('Disney+'), '#0e1a3d');
+  assert.equal(bg('Canal+'), '#000000', 'Canal+ : le noir est la marque');
+  assert.equal(bg('Molotov'), '#fecf21', 'Molotov : jaune du logo fourni');
+  assert.equal(bg('Plex officiel'), '#000000', 'Plex officiel inchangé');
+  assert.equal(bg('Plex intégré'), '#e5a00d', 'Plex intégré : jaune Plex');
+  assert.equal(bg('Smart Hub'), '#1428a0', 'Smart Hub : bleu Samsung');
+});
+
+test('Plex : « intégré » et « officiel » sont deux tuiles distinguables', () => {
+  const i = C.knownApp('Plex intégré'), o = C.knownApp('Plex officiel');
+  assert.notEqual(i.bg, o.bg);
+  assert.notEqual(i.logo, o.logo, 'logo noir sur jaune / blanc sur noir');
+  assert.equal(o.tag, 'officiel', 'petite mention sous le logo');
+  assert.equal(i.tag, undefined);
+  assert.equal(C.knownApp('Plex').logo, o.logo);
+});
+
+test('lisibilité : chaque logo a une encre blanche ou noire, contraste ≥ 2,5 : 1 (Prime : #fff sur #00a8e1 imposé par la carte, 2,7) avec le fond de la tuile', () => {
+  for (const k of C.KNOWN_APPS.filter((k) => k.logo)) {
+    assert.match(k.ink, /^#(ffffff|000000)$/, k.logo + ' : encre');
+    assert.ok(contrast(k.ink, k.bg) >= 2.5, k.logo + ' : contraste ' + contrast(k.ink, k.bg).toFixed(2) + ' (' + k.ink + ' sur ' + k.bg + ')');
+    if (TWO_INKS.includes(k.logo)) continue; // logos à deux encres (Canal+ noir/blanc, M6 blanc/rouge, Plex blanc/jaune)
+    // le PNG porte vraiment cette encre : ≥ 60 % des entrées visibles de la palette en sont proches
+    const vis = palette(k.logo).filter((e) => e.a > 0);
+    const ok = vis.filter((e) => (k.ink === '#ffffff' ? lum(e.rgb) > 200 : lum(e.rgb) < 60)).length;
+    assert.ok(ok / vis.length >= 0.6, k.logo + ' : encre du PNG ' + ok + '/' + vis.length);
+  }
+});
+
+test('Molotov : logo fourni par Stéphane, logotype ≤ 320 px, < 15 Ko, sur transparent', () => {
+  const b = readFileSync(join(DIR, 'logos', 'molotov.png'));
+  assert.ok(b.length < 15 * 1024);
+  assert.ok(b.readUInt32BE(16) <= 320 && b.readUInt32BE(16) >= 300, 'à la taille d’affichage');
+  const vis = palette('molotov.png');
+  assert.ok(vis.some((e) => e.a === 0), 'fond transparent');
+  assert.ok(vis.filter((e) => e.a > 200).every((e) => lum(e.rgb) < 60), 'logotype noir (pas le rouge de l’ancien logo)');
 });
 
 test('provenance : chaque logo est cité dans THIRD_PARTY_NOTICES.md', () => {
   const notices = readFileSync('THIRD_PARTY_NOTICES.md', 'utf8');
   for (const k of C.KNOWN_APPS) if (k.logo) assert.ok(notices.includes(k.logo), 'provenance absente : ' + k.logo);
   assert.match(notices, /commons\.wikimedia\.org/);
+  assert.match(notices, /jaimelesstartups\.fr\/wp-content\/uploads\/2019\/02\/logo-molotov-1024x421\.png/, 'Molotov : source fournie');
+  assert.doesNotMatch(notices, /Molotov-logo\.svg/, 'ancienne source Molotov retirée');
+  assert.ok(notices.includes('plex-integre.png'));
 });
 
 test('aucun ID d’app TV committé dans la bibliothèque', () => {
@@ -76,7 +137,8 @@ test('correspondance par nom : casse, accents, ponctuation, suffixes', () => {
   same('netflix.png', 'Netflix', 'NETFLIX', 'netflix', '  Netflix ');
   same('disney.png', 'Disney+', 'disney+', 'Disney Plus', 'DISNEY PLUS', 'Disney +');
   same('canal.png', 'Canal+', 'CANAL+', 'canal plus', 'myCANAL');
-  same('plex.png', 'Plex', 'Plex officiel', 'Plex Officiel', 'PLEX', 'Plex intégré', 'plex integre');
+  same('plex.png', 'Plex', 'Plex officiel', 'Plex Officiel', 'PLEX');
+  same('plex-integre.png', 'Plex intégré', 'plex integre');
   same('francetv.png', 'France.tv', 'france tv', 'FRANCE.TV', 'France TV');
   same('arte.png', 'Arte', 'ARTE', 'arte.tv');
   same('tf1.png', 'TF1+', 'tf1', 'TF1');
