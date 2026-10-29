@@ -59,7 +59,7 @@ export interface Player {
   destroy(): void;
 }
 
-// Au-delà de cette avance sur la position, un saut en transcodage relance la session (le transcodeur n'a pas encore produit ces segments).
+// Au-delà de cette avance sur la position courante (pas sur ce qui est réellement transcodé, inconnu d'AVPlay), un saut en transcodage relance la session (le transcodeur n'a pas encore produit ces segments).
 var AHEAD_MS = 30000;
 
 function toError(e: any): Error {

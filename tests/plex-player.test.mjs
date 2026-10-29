@@ -766,3 +766,34 @@ test('transcodage : codec refusé par le transcodeur → message et repli, sessi
   assert.ok(has(panel.el, /^Ouvrir Plex officiel$/));
   assert.equal(urls(s, STOP).length, 1);
 });
+
+// Relance (saut lointain) : l'ancien flux, coupé, ne doit ni afficher d'erreur ni quitter le lecteur avant la nouvelle décision.
+for (const [name, fire] of [['onerror', (ev) => ev.onError(new Error('AVPlay : erreur de lecture PLAYER_ERROR_CONNECTION_FAILED'))], ['onstreamcompleted', (ev) => ev.onEnd()]]) {
+  test('transcodage : saut lointain, ' + name + ' de l’ancien flux avant la nouvelle décision → lecture reprise, pas d’erreur, session intacte', async () => {
+    const s = await playing('mkv-h264-dts', {}, { transcode: true });
+    s.player.ready();
+    s.player.calls.length = 0;
+    const base = s.arg.http, held = [];
+    const http = (req, cb) => {
+      if (DECISION_URL.test(req.url) && param(req, 'offset') === '3600') { http.calls.push(req); held.push(() => base({ url: req.url, headers: req.headers, method: req.method }, cb)); return { abort() {} }; }
+      return base(req, cb);
+    };
+    http.calls = base.calls; http.timelines = base.timelines; http.scrobbles = base.scrobbles;
+    s.arg.http = http;
+    s.player.events.onFarSeek(3600000);
+    await flush();
+    assert.ok(s.player.calls.includes('stop') && s.player.calls.includes('close'), 'ancien flux coupé');
+    assert.equal(urls(s, STOP).length, 1);
+    fire(s.player.events);                 // l'ancien flux réagit à l'arrêt de sa session
+    await flush();
+    assert.ok(!has(s.panel.el, /Lecture impossible/), 'pas d’écran d’erreur');
+    assert.equal(s.pops(), 0, 'le lecteur n’est pas quitté');
+    assert.equal(urls(s, STOP).length, 1, 'la nouvelle session n’est pas arrêtée');
+    held.forEach((f) => f());
+    await flush();
+    assert.equal(param({ url: s.player.url }, 'offset'), '3600');
+    s.player.ready();
+    assert.match(mode(s.panel), /^Transcodage/);
+    assert.equal(urls(s, STOP).length, 1);
+  });
+}

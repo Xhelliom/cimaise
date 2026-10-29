@@ -223,8 +223,9 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
         state.textContent = 'Sous-titres indisponibles';
         show();
       },
-      onEnd: function () { leave(true); },
-      onError: fail,
+      // Pendant un rechargement, l'ancien flux peut encore signaler fin ou erreur : sans objet pour le nouveau.
+      onEnd: function () { if (mode !== 'loading') leave(true); },
+      onError: function (e) { if (mode !== 'loading') fail(e); },
       onSuspend: function (pos) { suspendPos = pos; leave(false); }
     });
     player = p;
@@ -387,6 +388,8 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
     live(false);
     setClass(ui, 'plex-pl-ui', false);
     ask('Chargement…', []);
+    // L'ancien flux est coupé avant l'arrêt de sa session serveur : il ne réclame plus de segments.
+    if (player) { player.stop(); player.close(); }
     launch(pos);
   }
 

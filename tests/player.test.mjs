@@ -336,7 +336,7 @@ test('transcodage : positions et durée en temps du film (décalage de la sessio
   assert.deepEqual(far, []);
 });
 
-test('transcodage : saut lointain (avant la session, ou bien au-delà du transcodé) → onFarSeek, aucun seekTo AVPlay', () => {
+test('transcodage : saut lointain (avant la session, ou à plus de 30 s de la position courante) → onFarSeek, aucun seekTo AVPlay', () => {
   const api = fakeApi();
   const far = [];
   const p = core.createPlayer({ api, doc: fakeDoc(), onFarSeek: (ms) => far.push(ms) });
@@ -345,7 +345,7 @@ test('transcodage : saut lointain (avant la session, ou bien au-delà du transco
   api.setTime(20000);
   let done = 'pending';
   p.seekTo(300000, (e) => { done = e; });      // avant le début de la session
-  p.seekTo(3600000);                            // bien au-delà de 20 s transcodées
+  p.seekTo(3600000);                            // à plus de 30 s de la position courante (mesuré depuis elle, pas depuis le transcodé)
   assert.deepEqual(far, [300000, 3600000]);
   assert.equal(done, null);
   assert.ok(!api.calls.some((c) => /^seekTo/.test(c)), api.calls.join());

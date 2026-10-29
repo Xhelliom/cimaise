@@ -1,13 +1,13 @@
 # Bilan — transcodage HLS fiable dans le lecteur
 
 ## Fait
-- Session de transcodage propre à chaque lecture (`newTranscodeSession`), réutilisée pour décision, flux, relances et timeline ; arrêtée par `/video/:/transcode/universal/stop` à la sortie (Retour, stop, fin, suspension), sur erreur du lecteur et sur échec de la décision.
-- Reprise et sauts : `offset` (secondes) dans la décision et le flux ; le wrapper AVPlay (`setTranscode`, `onFarSeek`) compte en temps du film. Saut proche = `seekTo` relatif ; saut lointain (avant la session ou > 30 s au-delà du transcodé) = arrêt puis relance de la session à la nouvelle position.
-- Qualité : `maxVideoBitrate=20000`, `videoResolution` = définition d'origine. Audio seul (DTS/Opus/FLAC/TrueHD) : `directStream=1`, vidéo copiée (`audioOnly` rendu par `requestTranscode`).
-- Erreurs : serveur occupé (503/429), refus du transcodeur (code ≥ 2000), autre → message clair sans adresse + bouton « Ouvrir Plex officiel » (déjà en place).
-- Timeline : en-tête `X-Plex-Session-Identifier` en transcodage uniquement.
-- Tests (faux serveur, faux AVPlay, aucun transcodage réel) : plex-playback, plex-progress, player, plex-player. `npm run check` vert (422 tests).
+- Session de transcodage stable par lecture, arrêtée à la sortie et sur erreur (`/video/:/transcode/universal/stop`), indiquée dans la timeline.
+- Reprise à un offset et sauts lointains : une nouvelle session est lancée à la nouvelle position, sans `seekTo` hors segment.
+- Qualité LAN ; erreurs du transcodeur (serveur occupé, codec refusé) → message clair + repli Plex officiel.
+- Correctif de cette passe (`packages/plex/src/ui/player.ts`) : `relaunch()` coupe l'ancien flux (`stop` + `close`) avant `launch()`, et `onEnd`/`onError` sont ignorés tant que `mode === 'loading'`. Un saut lointain ou un changement de piste ne finit donc plus sur l'écran d'erreur et ne tue plus la nouvelle session.
+- Tests ajoutés (`tests/plex-player.test.mjs`) : `onerror`, puis `onstreamcompleted`, de l'ancien flux après l'arrêt de l'ancienne session et avant la nouvelle décision → lecture reprise à la nouvelle position, pas d'écran d'erreur, pas de sortie du lecteur, nouvelle session non arrêtée.
+- Test et commentaire `AHEAD_MS` reformulés : le saut est mesuré depuis la position courante, pas depuis ce qui est transcodé.
+- `npm run check` : 424 tests passent.
 
-## Non fait / à valider sur le vrai serveur et la TV
-- `requestTranscode` n'a toujours jamais été appelé contre le vrai serveur (interdit en test auto). À vérifier : forme de la réponse de décision, que l'en-tête `X-Plex-Session-Identifier` suffit à signaler le transcodage dans la timeline, que `offset` décale bien les temps AVPlay à 0, le seuil de 30 s (`AHEAD_MS`), le HLS dans AVPlay.
-- AVI / AV1 / Hi10P / DV p5 : passent par le même chemin (transcodage vidéo complet), non testés en réel.
+## Pas fait
+- Validation contre le vrai serveur et la TV : aucun transcodage réel n'a été déclenché (tests sur faux serveur uniquement). HLS dans AVPlay, reprise et sauts restent à observer sur la Frame.
