@@ -33,8 +33,8 @@ export function migrateCatalog(raw: any): StoredCatalog {
 }
 
 // Lecture seule du stockage local : ne déclenche jamais la découverte des apps.
-export function loadCatalog(store?: Storage): CatalogEntry[] {
-  var raw = loadStored(store).prefs.catalog;
+export function loadCatalog(store?: Storage, startup?: boolean): CatalogEntry[] {
+  var raw = loadStored(store, startup).prefs.catalog;
   if (raw === undefined) return defaultCatalog();
   return migrateCatalog(raw).entries;
 }
