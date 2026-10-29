@@ -21,6 +21,7 @@ export interface PlexArg {
   session?: ServerRef | null;   // null = pas de session ; absent = lue dans le stockage (prefs.plexSession)
   id?: Identity;
   now?: () => number;
+  // startMs : 0 (depuis le début), RESUME (reprendre à la position du serveur) ou une position en ms.
   onPlay?: (item: Item, startMs?: number) => void;
   timers?: Timers;   // connexion par PIN : interrogation périodique ; minuteries du lecteur
   createPlayer?: (o: PlayerOptions) => Player;   // défaut : wrapper AVPlay de tv-core
@@ -29,6 +30,9 @@ export interface PlexArg {
 }
 
 export interface OfficialApp { open(done: (err: Error | null) => void): void; }
+
+// Intention « reprendre » : le lecteur lit la position à jour sur le serveur (la fiche peut être en cache).
+export const RESUME = -1;
 
 export interface Ctx { doc: Document; data: Data; session: ServerRef; nav: Nav; play(item: Item, startMs?: number): void; }
 

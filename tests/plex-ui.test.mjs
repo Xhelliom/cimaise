@@ -714,7 +714,7 @@ test('fiche entamée : Reprendre (avec position, focus initial) et Depuis le dé
   assert.equal(restartBtn(p)[0].textContent, 'Depuis le début');
   assert.equal(byClass(p.el, 'plex-play')[0].className, 'plex-play focus', 'focus initial sur Reprendre');
   p.onKey('enter');
-  assert.deepEqual(played, [['100', 3730000]]);
+  assert.deepEqual(played, [['100', ui.RESUME]], 'intention de reprise : la position vient du serveur');
   p.onKey('right');
   assert.equal(restartBtn(p)[0].className, 'plex-restart focus');
   p.onKey('enter');
@@ -750,9 +750,9 @@ test('épisode entamé dans la liste : Entrée reprend directement ; non entamé
   await flush();
   p.onKey('down'); p.onKey('down');   // boutons → saisons → épisodes
   p.onKey('enter');
-  assert.deepEqual(played, [['211', 754000]], 'reprise directe, sans « Depuis le début » côté liste');
+  assert.deepEqual(played, [['211', ui.RESUME]], 'reprise directe, sans « Depuis le début » côté liste');
   p.onKey('right'); p.onKey('enter');
-  assert.deepEqual(played[1], ['212', 0]);
+  assert.deepEqual(played[1], ['212', ui.RESUME], 'non entamé : le serveur n’a pas de position, départ à zéro');
   p.destroy();
 });
 
@@ -954,4 +954,12 @@ test('diagnostic : la mémoire JS n’apparaît que si le moteur expose performa
   Object.defineProperty(globalThis, 'performance', { value: { memory: { usedJSHeapSize: 52428800 } }, configurable: true });
   try { assert.match(ui.diag.plexReport(), /mémoire JS: 50 Mo/); }
   finally { Object.defineProperty(globalThis, 'performance', had); }
+});
+
+test('fiche d’un film vu en entier (viewOffset >= durée) : un seul bouton Lire', async () => {
+  const d = deps({ onPlay: () => {} });
+  const p = ui.createDetailPanel(d.arg, { ratingKey: '102', type: 'movie', title: 'Film', duration: 7200000, viewOffset: 7200000 });
+  assert.equal(playBtn(p), 'Lire');
+  assert.equal(restartBtn(p).length, 0);
+  p.destroy();
 });

@@ -8,7 +8,7 @@ import { Key } from '../../../tv-core/src/keys';
 import { createPlayer, OpenOptions, Player, Track } from '../../../tv-core/src/player';
 import { langPrefsFor, LangPrefs, rememberSeries } from '../../../tv-core/src/langprefs';
 import { recordMeasure } from '../../../tv-core/src/diag';
-import { Ctx, el, identityOf, PlexArg, realTimers, resolve } from './context';
+import { Ctx, el, identityOf, PlexArg, realTimers, RESUME, resolve } from './context';
 
 var HIDE_MS = 3000;
 var SUB_MS = 3000; // durée d'affichage d'un sous-titre dont AVPlay ne donne pas la durée
@@ -33,7 +33,7 @@ export function cleanSubtitle(text: string): string {
 interface Choice { label: string; apply(): void; }
 type Mode = 'loading' | 'play' | 'error';
 
-// Écran lecteur (HANDOFF §5.4) : démarre directement à `startMs` (0 ou la reprise, choisie par l'appelant), lecture directe par AVPlay (wrapper de tv-core), interface masquée
+// Écran lecteur (HANDOFF §5.4) : démarre directement à `startMs` (0, RESUME ou une position, choisi par l'appelant), lecture directe par AVPlay (wrapper de tv-core), interface masquée
 // au bout de 3 s, ±10 s, pistes, Retour = arrêt propre. Hors TV, le wrapper signale l'absence de webapis : aucune lecture simulée.
 export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): Panel {
   var c = resolve(arg) as Ctx;
@@ -317,7 +317,11 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): P
 
   function prefs(): LangPrefs { return langPrefsFor(seriesKey, arg.store); }
 
-  function begin(): void { start(startMs || 0); }
+  // RESUME : position à jour du serveur (jamais celle, éventuellement en cache, de la fiche) ; un titre vu en entier repart de zéro.
+  function begin(): void {
+    var at = startMs === RESUME ? (full.viewOffset && (!durationMs || full.viewOffset < durationMs) ? full.viewOffset : 0) : startMs || 0;
+    start(at);
+  }
 
   // Fiche à jour directement auprès du serveur (jamais le cache : la reprise vient peut-être d'un autre appareil).
   metaReq = item.type === 'show' || item.type === 'season' ? null : getMetadata(http, identityOf(arg), c.session, item.ratingKey, function (err, v) {

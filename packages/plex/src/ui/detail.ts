@@ -2,7 +2,7 @@ import { Item } from '../api/types';
 import { Panel } from '../../../tv-core/src/router/router';
 import { Key } from '../../../tv-core/src/keys';
 import { createRow, VirtualList } from '../../../tv-core/src/virtual/list';
-import { Ctx, el, PlexArg, realTimers, resolve } from './context';
+import { Ctx, el, PlexArg, realTimers, RESUME, resolve } from './context';
 import { createPlayerPanel } from './player';
 import { recordMeasure } from '../../../tv-core/src/diag';
 import { detailPosterUrl, EPISODE, episodeThumbUrl } from './images';
@@ -93,7 +93,7 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
   // Position de reprise (ms) de l'élément à lire, 0 s'il n'est pas entamé.
   function resumeAt(): number {
     var it = playable();
-    return it && it.viewOffset && it.viewOffset > 0 ? it.viewOffset : 0;
+    return it && it.viewOffset && it.viewOffset > 0 && (!it.duration || it.viewOffset < it.duration) ? it.viewOffset : 0;
   }
 
   var seasonList: VirtualList | null = null, episodeList: VirtualList | null = null;
@@ -109,14 +109,14 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
         var e = episodes[i];
         return e ? { title: (e.index ? e.index + '. ' : '') + e.title, image: episodeThumbUrl(c.session, e) } : null;
       },
-      onSelect: function (i) { startPlay(episodes[i], episodes[i].viewOffset || 0); }
+      onSelect: function (i) { startPlay(episodes[i], RESUME); }
     });
   }
 
   function say(text: string): void { msg.textContent = text; }
 
   // Lire : l'écran lecteur, sauf si l'appelant fournit son propre `onPlay`.
-  // `startMs` : 0 ou la position de reprise ; le lecteur ne pose plus la question.
+  // `startMs` : 0 ou RESUME (le lecteur relit la position sur le serveur) ; le lecteur ne pose plus la question.
   function startPlay(it: Item, startMs: number): void {
     if (arg.onPlay) c.play(it, startMs); else c.nav.push(createPlayerPanel(arg, it, startMs));
   }
@@ -215,7 +215,7 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
         if (k !== 'enter') return false;
         var it = playable();
         if (!it) { say('Chargement de l’épisode…'); return true; }
-        startPlay(it, onRestart ? 0 : resumeAt());
+        startPlay(it, onRestart || !resumeAt() ? 0 : RESUME);
         return true;
       }
       if (zone === 'seasons') {

@@ -803,3 +803,20 @@ test('transcodage : onerror pendant le chargement qui suit un saut lointain → 
   assert.ok(has(s.panel.el, /^Ouvrir Plex officiel$/));
   assert.equal(urls(s, STOP).length, before + 1);
 });
+
+test('reprise : intention RESUME → départ à la position du serveur, pas à celle (en cache) de la fiche', async () => {
+  const s = setup({ meta: withOffset(3082192) });
+  const stale = { ...MOVIE, viewOffset: 100000 };
+  const panel = ui.createPlayerPanel(s.arg, stale, ui.RESUME);
+  await flush();
+  assert.equal(s.player.openOpts.startMs, 3082192);
+  panel.destroy();
+});
+
+test('reprise : RESUME sur un titre dont le serveur n’a plus de position → départ à zéro', async () => {
+  const s = setup({ meta: withOffset(0) });
+  const panel = ui.createPlayerPanel(s.arg, { ...MOVIE, viewOffset: 100000 }, ui.RESUME);
+  await flush();
+  assert.ok(!s.player.openOpts.startMs);
+  panel.destroy();
+});
