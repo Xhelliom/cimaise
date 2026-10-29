@@ -97,8 +97,11 @@ export function createPlayer(opts?: PlayerOptions): Player {
   function fail(e: any): void { if (o.onError) o.onError(toError(e)); }
   function guard(fn: () => void): void { try { fn(); } catch (e) { fail(e); } }
 
+  var gen = 0; // incrémenté à chaque release() : les événements d'un flux fermé sont ignorés
+
   function listener(): any {
-    return {
+    var mine = gen;
+    var l: any = {
       onbufferingstart: function () { if (o.onBuffering) o.onBuffering(true, 0); },
       onbufferingprogress: function (p: number) { if (o.onBuffering) o.onBuffering(true, p); },
       onbufferingcomplete: function () { if (o.onBuffering) o.onBuffering(false, 100); },
@@ -119,6 +122,10 @@ export function createPlayer(opts?: PlayerOptions): Player {
       },
       onsubtitlechange: function (duration: number, text: string) { if (o.onSubtitle) o.onSubtitle(text, duration); }
     };
+    var out: any = {};
+    function wrap(k: string): void { out[k] = function () { if (mine === gen) l[k].apply(l, arguments); }; }
+    for (var k in l) wrap(k);
+    return out;
   }
 
   function bound(ms: number): number {
@@ -192,6 +199,7 @@ export function createPlayer(opts?: PlayerOptions): Player {
   }
 
   function release(): void {
+    gen++;
     if (!opened) return;
     resetSeek();
     opened = false;

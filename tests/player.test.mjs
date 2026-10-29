@@ -364,3 +364,17 @@ test('lecture directe : setTranscode(null) rend les positions d’AVPlay, aucun 
   assert.ok(api.calls.includes('seekTo:90000'));
   assert.deepEqual(far, []);
 });
+
+test('événements d’un flux fermé ignorés (génération), ceux du nouveau flux transmis', () => {
+  const api = fakeApi();
+  const errs = [], ends = [];
+  const p = core.createPlayer({ api, doc: fakeDoc(), onError: (e) => errs.push(e), onEnd: () => ends.push(1) });
+  p.open('http://x/a.m3u8', {}, () => {});
+  const old = api.listener;
+  p.stop(); p.close();
+  p.open('http://x/b.m3u8', {}, () => {});
+  old.onerror('PLAYER_ERROR_CONNECTION_FAILED'); old.onstreamcompleted();
+  assert.equal(errs.length, 0); assert.equal(ends.length, 0);
+  api.listener.onerror('PLAYER_ERROR_CONNECTION_FAILED'); api.listener.onstreamcompleted();
+  assert.equal(errs.length, 1); assert.equal(ends.length, 1);
+});

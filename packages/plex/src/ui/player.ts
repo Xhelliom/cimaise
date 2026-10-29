@@ -223,9 +223,8 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
         state.textContent = 'Sous-titres indisponibles';
         show();
       },
-      // Pendant un rechargement, l'ancien flux peut encore signaler fin ou erreur : sans objet pour le nouveau.
-      onEnd: function () { if (mode !== 'loading') leave(true); },
-      onError: function (e) { if (mode !== 'loading') fail(e); },
+      onEnd: function () { leave(true); },
+      onError: fail,
       onSuspend: function (pos) { suspendPos = pos; leave(false); }
     });
     player = p;

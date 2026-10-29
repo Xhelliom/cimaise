@@ -97,7 +97,7 @@ function fakeTimers() {
 // Faux lecteur AVPlay ; `open` ne répond que si le test l'ordonne (p.ready()).
 function fakePlayer() {
   const p = {
-    calls: [], pos: 0, tracks: [
+    calls: [], gen: 0, pos: 0, tracks: [
       { kind: 'audio', index: 1, info: { language: 'fra' } },
       { kind: 'audio', index: 2, info: { language: 'eng' } },
       { kind: 'text', index: 3, info: { track_lang: 'eng' } },
@@ -108,13 +108,15 @@ function fakePlayer() {
     forward() { p.calls.push('forward'); }, rewind() { p.calls.push('rewind'); },
     seekTo(ms) { p.calls.push('seekTo:' + ms); },
     setTranscode(o, t) { p.transcode = o === null ? null : [o, t]; },
-    stop() { p.calls.push('stop'); }, close() { p.calls.push('close'); }, destroy() { p.calls.push('destroy'); },
+    stop() { p.calls.push('stop'); }, close() { p.gen++; p.calls.push('close'); }, destroy() { p.calls.push('destroy'); },
     getState() { return 'PLAYING'; }, getPosition() { return p.pos; }, getDuration() { return DUR; },
     getTracks() { return p.tracks; },
     selectTrack(k, i) { p.calls.push('select:' + k + i); },
     setSubtitlesVisible(v) { p.calls.push('subs:' + v); },
   };
   p.factory = (o) => { p.events = o; return p; };
+  // Comme le vrai wrapper : les événements d'un flux fermé (close/release) sont ignorés.
+  p.streamEvents = () => { const g = p.gen, w = {}; for (const k of Object.keys(p.events)) w[k] = (...a) => { if (g === p.gen) return p.events[k](...a); }; return w; };
   return p;
 }
 
@@ -773,6 +775,7 @@ for (const [name, fire] of [['onerror', (ev) => ev.onError(new Error('AVPlay : e
     const s = await playing('mkv-h264-dts', {}, { transcode: true });
     s.player.ready();
     s.player.calls.length = 0;
+    const old = s.player.streamEvents();
     const base = s.arg.http, held = [];
     const http = (req, cb) => {
       if (DECISION_URL.test(req.url) && param(req, 'offset') === '3600') { http.calls.push(req); held.push(() => base({ url: req.url, headers: req.headers, method: req.method }, cb)); return { abort() {} }; }
@@ -784,7 +787,7 @@ for (const [name, fire] of [['onerror', (ev) => ev.onError(new Error('AVPlay : e
     await flush();
     assert.ok(s.player.calls.includes('stop') && s.player.calls.includes('close'), 'ancien flux coupé');
     assert.equal(urls(s, STOP).length, 1);
-    fire(s.player.events);                 // l'ancien flux réagit à l'arrêt de sa session
+    fire(old);                             // l'ancien flux réagit à l'arrêt de sa session
     await flush();
     assert.ok(!has(s.panel.el, /Lecture impossible/), 'pas d’écran d’erreur');
     assert.equal(s.pops(), 0, 'le lecteur n’est pas quitté');
@@ -797,3 +800,27 @@ for (const [name, fire] of [['onerror', (ev) => ev.onError(new Error('AVPlay : e
     assert.equal(urls(s, STOP).length, 1);
   });
 }
+
+// Erreur signalée par le seul onerror d'AVPlay pendant prepareAsync (sans rappel d'erreur de prepare) : écran d'erreur, repli, session arrêtée.
+test('transcodage : onerror pendant le premier prepareAsync (sans rappel d’erreur) → erreur, Plex officiel, session arrêtée', async () => {
+  const s = await playing('mkv-h264-dts', {}, { transcode: true, arg: { officialApp: () => ({ open: (d) => d(null) }) } });
+  assert.ok(has(s.panel.el, /Chargement/));
+  s.player.events.onError(new Error('AVPlay : erreur de lecture PLAYER_ERROR_CONNECTION_FAILED'));
+  assert.ok(has(s.panel.el, /Lecture impossible/));
+  assert.ok(has(s.panel.el, /^Ouvrir Plex officiel$/));
+  assert.equal(urls(s, STOP).length, 1);
+});
+
+test('transcodage : onerror pendant le chargement qui suit un saut lointain → erreur, Plex officiel, session arrêtée', async () => {
+  const s = await playing('mkv-h264-dts', {}, { transcode: true, arg: { officialApp: () => ({ open: (d) => d(null) }) } });
+  s.player.ready();
+  s.player.events.onFarSeek(3600000);
+  await flush();
+  assert.equal(param({ url: s.player.url }, 'offset'), '3600');
+  assert.ok(has(s.panel.el, /Chargement/));
+  const before = urls(s, STOP).length;
+  s.player.events.onError(new Error('AVPlay : erreur de lecture PLAYER_ERROR_CONNECTION_FAILED'));
+  assert.ok(has(s.panel.el, /Lecture impossible/));
+  assert.ok(has(s.panel.el, /^Ouvrir Plex officiel$/));
+  assert.equal(urls(s, STOP).length, before + 1);
+});
