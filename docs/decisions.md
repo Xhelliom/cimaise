@@ -196,3 +196,26 @@ de la chaîne de certificats plex.direct par Tizen 5 reste à observer (M3).
 - `/library/recentlyAdded` mélange films, saisons et albums de toutes les bibliothèques (musique hors MVP) : filtrer par `type` côté UI, ou passer par `/hubs/sections/{id}` par bibliothèque.
 - Les entrées de `recentlyAdded` de type `season`/`album` n'ont pas de `Media` : seul un film ou un épisode est lisible.
 - `provides` d'un lecteur peut contenir `client,player` ; le filtre `server` actuel l'écarte correctement.
+
+## Écrans du module Plex (2026-10-29)
+
+**Structure.** `packages/plex/src/ui/` : `home` (rangées En cours / Ajoutés récemment / Bibliothèques, `createRow` de tv-core),
+`library` (grille 6 colonnes, `createGrid`, pages de 36 par `X-Plex-Container-Start/Size`), `detail` (film ou série : saisons en
+pastilles sans image, épisodes 360×203), `data` (cache d'abord, puis réseau), `cache` (une clé Storage par entrée + index,
+durée de vie par type : accueil 5 min, pages 10 min, fiches 30 min, bibliothèques 1 h ; périmé mais < 24 h = affiché pendant la
+mise à jour ; plafond 120 entrées, éviction du plus ancien, stockage plein toléré), `images` (240×360, 360×540, 360×203, toujours
+`/photo/:/transcode`). CSS `packages/plex/src/plex.css` (importé par `style.css`, +~2,5 Ko dans `app.css`). `plex.js` : 18,7 Ko (chunk différé).
+tv-core : `VirtualList.release()/restore()` (images retirées en quittant l'écran, rendues au retour).
+
+**Session.** Lue dans `prefs.plexSession` (`{uri, token}`) du stockage `cimaise.v1`. La connexion par PIN n'est pas dans ces écrans :
+sans session, le panneau le dit. L'aperçu (`npm run dev`) écrit cette session depuis `.local/plex.env` via `/__mocks/plex-session.js`
+(jamais dans le build ni dans git).
+
+**Mesure dans l'aperçu, contre le vrai serveur** (Chromium 1920×1080 en conteneur, LAN, 412 films) : Entrée sur « Films » →
+pages de 36 reçues et rendues : **55 à 70 ms** ; 12 premières affiches chargées : **737 ms** la première fois (transcodeur photo
+à froid), **88 ms** ensuite ; réouverture avec cache chaud : **2 à 3 ms**, sans attendre le réseau. Budget M3 (< 1 s avec cache,
+< 2 s sans) tenu **dans Chromium sur PC** ; à refaire sur la Frame. DOM de la grille après 8 lignes : 24 tuiles, 73 nœuds,
+18 images, toutes en `width=240&height=360`.
+
+**Non fait.** Puces de tri, pastilles du haut, repère « non vu » et progression sur les affiches, fond flou de la fiche ;
+lecture AVPlay (message clair), connexion PIN, choix du serveur (le premier du compte).

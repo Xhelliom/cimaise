@@ -11,8 +11,8 @@
 .plex-grid{left:96px;top:170px;width:1824px;height:910px}
 .plex-row .vlayer,.plex-grid .vlayer{margin:30px 0 0 24px}
 .vtile .vimg{display:block;width:240px;height:360px;border-radius:12px;background:#2b2b2e;transition:transform .2s ease}
-.vtile .vlabel{position:absolute;left:0;top:372px;width:240px;font-size:28px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:rgba(255,255,255,.9)}
-.plex-row .vtile.focus .vimg,.plex-grid .vtile.focus .vimg{transform:scale(1.1);box-shadow:0 0 0 6px rgba(255,255,255,.92);position:relative;z-index:1}
+.vtile .vlabel{position:absolute;left:0;top:392px;width:240px;font-size:28px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:rgba(255,255,255,.9)}
+.plex-row .vtile.focus .vimg,.plex-grid .vtile.focus .vimg,.plex-episodes.on .vtile.focus .vimg{transform:scale(1.1);box-shadow:0 0 0 6px rgba(255,255,255,.92);position:relative;z-index:1}
 .plex-row:not(.on) .vtile.focus .vimg{transform:none;box-shadow:none}
 /* Bibliothèques : aplat avec le titre dans la tuile (aucune image) */
 .plex-hub:last-child .vimg{display:none}

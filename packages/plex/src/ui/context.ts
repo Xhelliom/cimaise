@@ -30,8 +30,6 @@ export function storedSession(store?: Storage): ServerRef | null {
   return s && typeof s.uri === 'string' && typeof s.token === 'string' ? { uri: s.uri, token: s.token } : null;
 }
 
-function onTv(): boolean { return typeof window !== 'undefined' && typeof (window as any).tizen !== 'undefined'; }
-
 export function resolve(arg: PlexArg): Ctx | null {
   var session = arg.session === undefined ? storedSession(arg.store) : arg.session;
   if (!session) return null;
@@ -75,6 +73,7 @@ export function openable(it: Item): Item | null {
   return null;
 }
 
+// Dans l'aperçu, les mocks définissent `tizen` : impossible d'y distinguer la TV, le message vaut donc pour les deux.
 export function playMessage(): string {
-  return onTv() ? 'Lecture : AVPlay n’est pas encore branché (après le jalon M1).' : 'Lecture impossible hors TV : AVPlay n’existe que sur la Frame.';
+  return 'Lecture : AVPlay n’est pas encore branché (jalon M1, sur la TV uniquement).';
 }
