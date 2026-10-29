@@ -38,6 +38,8 @@ export interface Media {
   id: number; container?: string; videoCodec?: string; audioCodec?: string; videoProfile?: string; width?: number; height?: number;
   bitrate?: number; audioChannels?: number; Part?: Part[];
 }
+// Marqueur (?includeMarkers=1) : type « intro » ou « credits », bornes en ms. Absent de la réponse quand l'épisode n'en a pas.
+export interface Marker { type: string; startTimeOffset: number; endTimeOffset: number; final?: boolean; }
 export interface Item {
   ratingKey: string; title: string; type: string; thumb?: string; art?: string; summary?: string;
   duration?: number; viewOffset?: number; viewCount?: number; index?: number; leafCount?: number; viewedLeafCount?: number;
@@ -47,6 +49,7 @@ export interface Item {
   // Saisons (recentlyAdded) : série parente.
   parentRatingKey?: string; parentThumb?: string;
   Media?: Media[];
+  Marker?: Marker[];
   // Série interrogée avec ?includeOnDeck=1 : l'épisode « à suivre » du serveur.
   OnDeck?: { Metadata?: Item | Item[] };
 }

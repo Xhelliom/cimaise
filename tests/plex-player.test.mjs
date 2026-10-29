@@ -59,7 +59,7 @@ function fakeHttp(meta) {
   const calls = [];
   const http = (req, cb) => {
     calls.push(req);
-    const body = /\/library\/metadata\/\d+$/.test(req.url) ? meta() : '';
+    const body = /\/library\/metadata\/\d+(\?[^/]*)?$/.test(req.url) ? meta() : '';
     setImmediate(() => cb(null, { status: 200, body }));
     return { abort() {} };
   };
@@ -74,7 +74,8 @@ const withOffset = (off) => () => {
   return JSON.stringify(j);
 };
 const param = (req, k) => new URL(req.url).searchParams.get(k);
-const flush = () => new Promise((r) => setTimeout(r, 10));
+// Laisse passer 10 ms puis vide les setImmediate en attente (les réponses du faux serveur) : un tour lent de la boucle ne fait plus échouer les tests.
+const flush = () => new Promise((r) => setTimeout(() => { let n = 0; const go = () => (++n < 6 ? setImmediate(go) : r()); setImmediate(go); }, 10));
 
 function fakeTimers() {
   let now = 0, id = 0; const q = [];
@@ -251,7 +252,7 @@ test('Entrée = pause + barre visible, focus sur Lecture/Pause ; Entrée sur le 
   assert.deepEqual(ctl(s.panel).map((n) => n.textContent)[0], 'Pause');
 });
 
-test('Haut ou Bas ouvrent la barre, focus sur la rangée de boutons ; emplacement « Épisode suivant » réservé, non focalisable', async () => {
+test('Haut ou Bas ouvrent la barre, focus sur la rangée de boutons ; pas d’emplacement vide pour « Épisode suivant » (film)', async () => {
   for (const key of ['up', 'down']) {
     const s = await started();
     s.player.ready(); s.player.calls.length = 0;
@@ -260,7 +261,7 @@ test('Haut ou Bas ouvrent la barre, focus sur la rangée de boutons ; emplacemen
     assert.deepEqual(s.player.calls, [], 'la lecture continue');
     assert.deepEqual(focused(s.panel), ['Pause']);
     assert.ok(!trackFocused(s.panel));
-    assert.equal(byClass(s.panel.el, 'plex-pl-next').length, 1, 'emplacement réservé');
+    assert.equal(byClass(s.panel.el, 'plex-pl-next').length, 0, 'aucun emplacement vide');
     for (let i = 0; i < 6; i++) s.panel.onKey('right');
     assert.deepEqual(focused(s.panel), ['Sous-titres'], 'le focus s’arrête au dernier bouton réel');
   }
