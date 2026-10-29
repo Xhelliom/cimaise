@@ -1,11 +1,11 @@
 /* Accueil Dock v2 (home.css) : un seul fichier, la police Outfit est copiée dans dist/fonts/ par le build. */
 @import "../../../packages/launcher/src/home/home.css";
+@import "../../../packages/plex/src/plex.css";
 html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:#0b0b0d;color:#fff;font:300 36px/1 sans-serif}
 /* Premier affichage en police système : Outfit n'est demandée qu'après (body.late), @font-face ne télécharge qu'au premier usage. */
 body .home{font-family:sans-serif}
 body.late .home{font-family:Outfit,sans-serif}
 /* Panneaux chargés à la demande */
-.plex-panel{position:absolute;left:120px;top:100px;font-size:48px}
 .exit-confirm{position:absolute;left:0;top:380px;width:1920px;text-align:center}
 .exit-confirm button{margin:0 24px;height:96px;padding:0 64px;border:0;border-radius:48px;font:500 40px sans-serif;background:rgba(255,255,255,.1);color:#fff}
 .exit-confirm button.focus{background:#fff;color:#111}

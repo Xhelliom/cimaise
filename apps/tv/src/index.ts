@@ -18,7 +18,9 @@ var home = createHome({
   catalog: catalog,
   openInternal: function (id) {
     if (id !== 'plex') { toggleDiag(); return; }
-    router.pushLazy(plex, function (m) { return m.createPanel(); });
+    router.pushLazy(plex, function (m) {
+      return m.createPanel({ nav: { push: function (p: Panel) { router.push(p); }, pop: function () { router.pop(); } } });
+    });
   },
   // Lancement impossible (pas d'ID relevé, hors TV…) : l'écran de diagnostic caché s'ouvre (horodatages).
   onError: function () { toggleDiag(); },

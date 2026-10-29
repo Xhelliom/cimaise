@@ -9,6 +9,27 @@ const root = fileURLToPath(new URL('../../', import.meta.url));
 const bundle = async (entry, extra = {}) =>
   (await build({ absWorkingDir: root, entryPoints: [entry], bundle: true, write: false, format: 'iife', logLevel: 'silent', ...extra })).outputFiles[0].text;
 
+// Session Plex de l'aperçu : le jeton vit dans .local/plex.env (jamais dans git). Ce script, servi en local seulement,
+// l'écrit dans le stockage de l'app comme le fera la connexion par PIN. Sans plex.env : vide, le module Plex le dit.
+let plexSession;
+const plexSessionScript = async () => {
+  plexSession ??= (async () => {
+    try {
+      const { call, loadClient, loadEnv, nodeHttp } = await import('../plex/lib.mjs');
+      const env = loadEnv(), api = await loadClient();
+      const id = { clientId: env.PLEX_CLIENT_ID, product: 'Cimaise', version: '0.0.0', platform: 'Tizen', device: 'Frame' };
+      const [, servers] = await call((cb) => api.getServers(nodeHttp, id, env.PLEX_TOKEN, cb));
+      const server = servers.find((x) => x.owned) ?? servers[0];
+      const [err, ref] = await call((cb) => api.chooseConnection(nodeHttp, id, server, cb));
+      if (err) throw err;
+      return `try{var k='cimaise.v1',d=JSON.parse(localStorage.getItem(k)||'null')||{version:1,prefs:{}};d.prefs=d.prefs||{};d.prefs.plexSession=${JSON.stringify(ref)};d.prefs.plexClientId=${JSON.stringify(env.PLEX_CLIENT_ID)};localStorage.setItem(k,JSON.stringify(d));}catch(e){}`;
+    } catch (e) {
+      return `console.warn(${JSON.stringify('[aperçu] pas de session Plex : ' + String(e.message).replace(/\S{24,}/g, '…'))});`;
+    }
+  })();
+  return [await plexSession, 'text/javascript'];
+};
+
 const SHELL = `<!doctype html>
 <html lang="fr"><head><meta charset="utf-8"><title>cimaise — aperçu</title>
 <style>
@@ -25,9 +46,10 @@ html,body{margin:0;height:100%;background:#111;overflow:hidden}
 const routes = {
   '/': async () => [SHELL, 'text/html'],
   '/__mocks/mocks.js': async () => [await bundle('mocks/src/index.ts'), 'text/javascript'],
+  '/__mocks/plex-session.js': plexSessionScript,
   '/__mocks/preview.js': async () => [await bundle('mocks/src/preview.ts'), 'text/javascript'],
   '/app/index.html': async () => [
-    readFileSync(`${root}apps/tv/index.html`, 'utf8').replace('<head>', '<head>\n<script src="/__mocks/mocks.js"></script>'),
+    readFileSync(`${root}apps/tv/index.html`, 'utf8').replace('<head>', '<head>\n<script src="/__mocks/mocks.js"></script>\n<script src="/__mocks/plex-session.js"></script>'),
     'text/html',
   ],
   '/app/app.js': async () => [await bundle('apps/tv/src/index.ts'), 'text/javascript'],
