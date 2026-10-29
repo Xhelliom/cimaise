@@ -100,3 +100,17 @@ sur une piste non française.
   ou des fiches réelles choisies par l'audit (par identifiant, jamais par titre dans le dépôt) ?
 - Acceptes-tu de retravailler les fichiers (DTS → AC3, AVI, AV1) côté homelab (option 4), ou l'app doit-elle tout absorber ?
 - Le serveur Plex a-t-il un transcodage matériel ? Il décide si l'AV1 4K (4 films) est tenable ou doit rester sur l'app officielle.
+
+## Premier transcodage réel, audio seul (2026-10-29, `scripts/plex/capture-transcode.mjs`)
+
+Écriture serveur assumée : une session de transcodage, arrêtée aussitôt (`/video/:/transcode/universal/stop` → 200).
+Film MKV H.264 + DTS (dca) à 8,8 Mb/s.
+
+- **Décision.** Sans `X-Plex-Client-Profile-Name`, le serveur répond `400 Bad Request` (HTML) à toute requête, quels que soient les autres paramètres.
+  Avec `Generic` seul : `generalDecisionCode 2000`, `transcodeDecisionCode 4005` « No conversion profile found for protocol hls ».
+  Il faut en plus `X-Plex-Client-Profile-Extra=add-transcode-target(type=videoProfile&context=streaming&protocol=hls&container=mpegts&videoCodec=h264,hevc&audioCodec=aac,ac3)` :
+  réponse `200`, `generalDecisionCode 1001` « Direct play not available; Conversion OK. » (pas 1000), avec `Metadata[0].Media[0].Part[0].Stream`.
+- **Vidéo copiée.** Un `maxVideoBitrate` (même 20 000 kb/s pour une source à 8,8 Mb/s) ou une `videoResolution` fait ré-encoder la vidéo (`videoDecision=transcode`,
+  vitesse 2,5×). Sans eux : `videoDecision=copy`, `audioDecision=transcode`, DTS → AAC 5.1, vitesse 4–9×. Le client les omet donc pour un transcodage audio seul.
+- **Flux.** `start.m3u8` : liste de variantes (`application/vnd.apple.mpegurl`) pointant `session/<id>/base/index.m3u8`, segments MPEG-TS de 1 s.
+- **À observer sur la Frame** : lecture, avance/recul, reprise, progression et arrêt de la session à la sortie.

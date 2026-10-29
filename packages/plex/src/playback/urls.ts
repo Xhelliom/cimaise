@@ -40,21 +40,29 @@ export function isAudioOnlyTranscode(plan: PlaybackPlan): boolean {
   return true;
 }
 
+// Sans profil client le transcodeur répond « 400 Bad Request » (HTML) à toute décision ; avec « Generic » seul, « 4005 : no conversion profile
+// found for protocol hls » (vérifié sur le serveur). Le profil étendu déclare donc la cible HLS/MPEG-TS que la Frame lit : H.264/HEVC copiés,
+// audio AAC ou AC3.
+var CLIENT_PROFILE = 'Generic';
+var CLIENT_PROFILE_EXTRA = 'add-transcode-target(type=videoProfile&context=streaming&protocol=hls&container=mpegts&videoCodec=h264,hevc&audioCodec=aac,ac3)';
+
 // Paramètres communs de la décision et du flux HLS. directStream=1 : le transcodeur ne retouche que les pistes qui l'exigent.
 // offset : secondes, la session démarre à cette position (reprise, saut lointain).
-function transcodeQuery(id: Identity, server: ServerRef, plan: PlaybackPlan, session: string, offsetMs: number): string {
+export function transcodeQuery(id: Identity, server: ServerRef, plan: PlaybackPlan, session: string, offsetMs: number): string {
   var burn = plan.subtitleMode === 'burned' && plan.subtitle;
-  var m = plan.media;
+  var m = plan.media, copy = isAudioOnlyTranscode(plan) && (!m.bitrate || m.bitrate <= MAX_VIDEO_BITRATE);
+  // Vérifié sur le serveur : un plafond maxVideoBitrate (même au-dessus du débit de la source) ou une videoResolution fait ré-encoder la vidéo.
+  // Pour un transcodage audio seul, on les omet : la session reçoit alors videoDecision=copy.
+  var cap: Array<[string, string | number]> = copy ? [] : [['maxVideoBitrate', MAX_VIDEO_BITRATE], ['videoResolution', m.width && m.height ? m.width + 'x' + m.height : '1920x1080']];
   return query([
     ['path', '/library/metadata/' + plan.ratingKey], ['mediaIndex', plan.mediaIndex], ['partIndex', 0],
     ['protocol', 'hls'], ['fastSeek', 1], ['directPlay', 0], ['directStream', 1], ['location', 'lan'],
     ['audioStreamID', plan.audio ? plan.audio.id : 0],
     ['subtitles', burn ? 'burn' : 'none'], ['subtitleStreamID', burn ? plan.subtitle!.id : 0],
-    ['maxVideoBitrate', MAX_VIDEO_BITRATE], ['videoResolution', m.width && m.height ? m.width + 'x' + m.height : '1920x1080'],
     ['offset', Math.max(0, Math.floor(offsetMs / 1000))], ['session', session],
     ['X-Plex-Client-Identifier', id.clientId], ['X-Plex-Product', id.product], ['X-Plex-Version', id.version],
-    ['X-Plex-Platform', id.platform], ['X-Plex-Device', id.device], ['X-Plex-Token', server.token]
-  ]);
+    ['X-Plex-Platform', id.platform], ['X-Plex-Device', id.device], ['X-Plex-Client-Profile-Name', CLIENT_PROFILE], ['X-Plex-Client-Profile-Extra', CLIENT_PROFILE_EXTRA], ['X-Plex-Token', server.token]
+  ].concat(cap) as Array<[string, string | number]>);
 }
 
 // Message lisible pour un échec du transcodeur : serveur occupé, refus, autre. Jamais l'adresse du serveur.
@@ -74,8 +82,8 @@ export function stopTranscode(http: Http, id: Identity, server: ServerRef, sessi
 }
 
 // Demande la décision du transcodeur universel, puis donne l'URL du flux HLS à passer à AVPlay.
-// Forme de la réponse (generalDecisionCode) : documentation communautaire, NON vérifiée sur le serveur (la décision crée une session côté serveur,
-// interdit pendant la vérification en lecture seule) ; à confirmer à la première lecture transcodée (M4).
+// Réponse réelle (tests/fixtures/plex/transcode-decision.json) : generalDecisionCode 1001 « Conversion OK » (1000 = lecture directe possible),
+// ≥ 2000 = refus (4005 sans cible HLS). Le flux principal est une liste de variantes (session/<id>/base/index.m3u8, segments MPEG-TS de 1 s).
 export function requestTranscode(http: Http, id: Identity, server: ServerRef, plan: PlaybackPlan, session: string, cb: Callback<{ url: string; audioOnly: boolean }>, offsetMs?: number) {
   if (plan.mode !== 'transcode') { cb(new Error('plan de lecture directe : pas de transcodage à demander')); return null; }
   try { assertPlexDirect(server); } catch (e) { cb(e as Error); return null; }
