@@ -13,3 +13,9 @@ Fait : .wgt construit et signé, installé (« install completed », app présen
 Non fait : lecture d'un film DTS, saut avant/arrière, sortie, reprise, progression. Raison précise : ces critères ne se voient que sur l'écran de la TV,
 Stéphane n'a pas répondu à la demande d'observation, et le relevé serveur ne montre aucune session Cimaise. Rien n'est déduit du SDK.
 Reste : Stéphane lit un film DTS (étapes sur la carte), puis on consigne ses observations et les lignes du script dans docs/plex-audit.md et on corrige ce qui casse.
+
+## Correctif de packaging (message de l'orchestrateur)
+Le premier .wgt (410 Ko) avait été empaqueté depuis apps/tv (sources + build/, app.js/app.css absents) : chargement infini sur la Frame.
+Bonne commande : `npm run build && bash scripts/tizen/package.sh apps/tv/dist` (puis install.sh, launch.sh). Contenu vérifié avant installation :
+app.js, app.css, plex.js, settings.js, index.html, local-config.js (exige .local/ha.env), config.xml, icon.png, logos/, fonts/ à la racine, ni src/ ni build/, 148 Ko.
+Réinstallé et relancé ; attente de la confirmation visuelle de Stéphane (accueil), puis de l'essai DTS (Bohemian Rhapsody).
