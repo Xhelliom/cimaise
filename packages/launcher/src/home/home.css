@@ -32,6 +32,9 @@
 .home.rangee .tuile+.tuile{margin-left:40px}
 /* La tuile est la marque : logo large centré (64 % de la largeur, 60 % de la hauteur), sans cadre ni arrondi ; le fond de la tuile est le fond du logo. */
 .home .tuile img{width:64%;height:60%;object-fit:contain}
+/* Mention sous le logo (Plex officiel) : le logo remonte, la mention se pose en bas de la tuile. */
+.home .tuile img.avec-mention{height:48%;margin-bottom:36px}
+.home .tuile .mention{position:absolute;left:0;right:0;bottom:18px;font-size:24px;letter-spacing:.14em;text-transform:uppercase;opacity:.75}
 /* Tuiles à l'écran 5 / 6 : même ratio 378 × 216, le logo suit la tuile en %, le nom est réduit ; rayons concentriques avec le bac. Aucun asset en plus. */
 .home.n5 .rail{grid-template-columns:repeat(5,1fr)}
 .home.n5 .tuile{height:168px;border-radius:32px;font-size:38px}

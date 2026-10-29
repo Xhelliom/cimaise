@@ -8,14 +8,20 @@ import { CatalogEntry } from '../src/catalog/model';
 var hud = document.getElementById('hud')!;
 var catalog: CatalogEntry[] = [
   { id: 'cimaise.plex', name: 'Plex intégré', color: '#e5a00d', type: 'interne' },
-  { id: 'fake.plex-officiel', name: 'Plex', color: '#5a5a5f', type: 'tv' },
+  { id: 'fake.plex-officiel', name: 'Plex officiel', color: '#3a3d42', type: 'tv' },
   { id: 'fake.netflix', name: 'Netflix', color: '#e50914', type: 'tv' },
   { id: 'fake.youtube', name: 'YouTube', color: '#c4302b', type: 'tv' },
   { id: 'disney', name: 'Disney+', color: '#113ccf', type: 'tv' },
-  { id: 'canal', name: 'Canal+', color: '#5a5a5f', type: 'tv' },
+  { id: 'canal', name: 'Canal+', color: '#2b2b2e', type: 'tv' },
   { id: 'prime', name: 'Prime Video', color: '#1f8a5b', type: 'tv' },
-  { id: 'arte', name: 'Arte', color: '#d6336c', type: 'tv' }
+  { id: 'molotov', name: 'Molotov', color: '#d6336c', type: 'tv' },
+  { id: 'arte', name: 'Arte', color: '#d6336c', type: 'tv' },
+  { id: 'smarthub', name: 'Smart Hub', color: '#1428a0', type: 'tv' }
 ];
+
+// ?from=N : n'affiche que les apps à partir de la N-ième (captures du Dock par morceaux)
+var from = Number((/[?&]from=(\d+)/.exec(location.search) || [])[1]) || 0;
+catalog = catalog.slice(from);
 
 var router = new Router({ root: document.getElementById('root')!, exit: function () { hud.textContent = 'sortie confirmée'; } });
 var settings = lazy<typeof import('../src/settings/index')>(function (done) { done(require('../src/settings/index')); });
