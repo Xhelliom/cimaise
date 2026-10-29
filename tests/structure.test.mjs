@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
-const workspaces = ['apps/tv', 'apps/blank', 'packages/tv-core', 'packages/launcher', 'packages/plex', 'packages/widgets-bridge', 'mocks', 'scripts'];
+const workspaces = ['apps/tv', 'apps/blank', 'packages/tv-core', 'packages/launcher', 'packages/plex', 'packages/widgets-bridge', 'packages/widgets', 'mocks', 'scripts'];
 
 test('chaque workspace a package.json et src/index.ts (sauf scripts)', () => {
   for (const w of workspaces) {

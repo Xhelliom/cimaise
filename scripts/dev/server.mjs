@@ -30,6 +30,20 @@ const plexSessionScript = async () => {
   return [await plexSession, 'text/javascript'];
 };
 
+// Session Home Assistant de l'aperçu : URL et jeton viennent de .local/ha.env (chemin absolu, ou HA_ENV_FILE), jamais de git
+// ni du build ; le script servi (local seulement) les écrit dans cimaise.v1 sans jamais les afficher.
+const HA_ENV = '/home/swetterwald/git/cimaise/.local/ha.env';
+const haSessionScript = async () => {
+  try {
+    const env = {};
+    for (const l of readFileSync(process.env.HA_ENV_FILE || HA_ENV, 'utf8').split('\n')) { const i = l.indexOf('='); if (i > 0) env[l.slice(0, i).trim()] = l.slice(i + 1).trim(); }
+    if (!env.HA_URL || !env.HA_TOKEN) throw new Error('HA_URL ou HA_TOKEN absent');
+    return [`try{var k='cimaise.v1',d=JSON.parse(localStorage.getItem(k)||'null')||{version:1,prefs:{}};d.prefs=d.prefs||{};d.prefs.haUrl=${JSON.stringify(env.HA_URL)};d.prefs.haToken=${JSON.stringify(env.HA_TOKEN)};localStorage.setItem(k,JSON.stringify(d));}catch(e){}`, 'text/javascript'];
+  } catch (e) {
+    return [`console.warn('[aperçu] pas de session Home Assistant (ha.env illisible ou incomplet)');`, 'text/javascript'];
+  }
+};
+
 const SHELL = `<!doctype html>
 <html lang="fr"><head><meta charset="utf-8"><title>cimaise — aperçu</title>
 <style>
@@ -47,9 +61,10 @@ const routes = {
   '/': async () => [SHELL, 'text/html'],
   '/__mocks/mocks.js': async () => [await bundle('mocks/src/index.ts'), 'text/javascript'],
   '/__mocks/plex-session.js': plexSessionScript,
+  '/__mocks/ha-session.js': haSessionScript,
   '/__mocks/preview.js': async () => [await bundle('mocks/src/preview.ts'), 'text/javascript'],
   '/app/index.html': async () => [
-    readFileSync(`${root}apps/tv/index.html`, 'utf8').replace('<head>', '<head>\n<script src="/__mocks/mocks.js"></script>\n<script src="/__mocks/plex-session.js"></script>'),
+    readFileSync(`${root}apps/tv/index.html`, 'utf8').replace('<head>', '<head>\n<script src="/__mocks/mocks.js"></script>\n<script src="/__mocks/plex-session.js"></script>\n<script src="/__mocks/ha-session.js"></script>'),
     'text/html',
   ],
   '/app/app.js': async () => [await bundle('apps/tv/src/index.ts'), 'text/javascript'],
