@@ -107,6 +107,7 @@ function fakePlayer() {
     play() { p.calls.push('play'); }, pause() { p.calls.push('pause'); },
     forward() { p.calls.push('forward'); }, rewind() { p.calls.push('rewind'); },
     seekTo(ms) { p.calls.push('seekTo:' + ms); },
+    holdSeek(on) { p.hold = on; if (!on) p.calls.push('cancel'); }, commitSeek() { p.calls.push('commit'); }, cancelSeek() { p.calls.push('cancel'); },
     setTranscode(o, t) { p.transcode = o === null ? null : [o, t]; },
     stop() { p.calls.push('stop'); }, close() { p.gen++; p.calls.push('close'); }, destroy() { p.calls.push('destroy'); },
     getState() { return 'PLAYING'; }, getPosition() { return p.pos; }, getDuration() { return DUR; },
@@ -178,83 +179,226 @@ test('reprise : sans position transmise, le lecteur démarre à zéro même si l
   panel.destroy();
 });
 
-test('contrôles : ±10 s, Entrée et touches média pour pause / lecture', async () => {
-  const s = await started();
-  s.player.ready(); s.player.calls.length = 0;
-  s.panel.onKey('left'); s.panel.onKey('right');
-  assert.deepEqual(s.player.calls, ['rewind', 'forward']);
-  s.player.calls.length = 0;
-  s.panel.onKey('enter');
-  assert.deepEqual(s.player.calls, ['pause']);
-  s.panel.onKey('enter');
-  assert.deepEqual(s.player.calls, ['pause', 'play']);
-  s.panel.onKey('pause'); s.panel.onKey('play');
-  s.panel.onKey('playpause'); s.panel.onKey('playpause');
-  assert.deepEqual(s.player.calls.slice(2), ['pause', 'play', 'pause', 'play']);
-  s.player.calls.length = 0;
-  s.panel.onKey('rewind'); s.panel.onKey('forward');
-  assert.deepEqual(s.player.calls, ['rewind', 'forward']);
-});
+const ctl = (panel) => byClass(panel.el, 'plex-pl-ctl').filter((n) => !n.classList.contains('plex-pl-next'));
+const focused = (panel) => ctl(panel).filter((n) => n.classList.contains('focus')).map((n) => n.textContent);
+const jump = (panel) => byClass(panel.el, 'plex-pl-jump')[0];
+const cursor = (panel) => byClass(panel.el, 'plex-pl-cursor')[0];
+const trackFocused = (panel) => byClass(panel.el, 'plex-pl-track')[0].classList.contains('focus');
+const barOn = (panel) => ui_of(panel).classList.contains('on');
+const jumpOn = (panel) => jump(panel).classList.contains('on');
 
-test('interface : barre (transform), temps, masquage après 3 s, réaffichage à la touche, jamais masquée en pause', async () => {
+test('lecture : rien à l’écran, Gauche / Droite = sauts directs (avance accélérée du lecteur) sans ouvrir la barre', async () => {
   const s = await started();
   s.player.ready();
-  const bar = byClass(s.panel.el, 'plex-pl-bar')[0];
-  s.player.pos = DUR / 4;
-  s.player.events.onTime(DUR / 4);
-  assert.equal(bar.style.transform, 'scaleX(0.25)');
-  assert.ok(has(s.panel.el, /^00:25:41 \/ 01:42:44$/), texts(s.panel.el).join('|'));
-  assert.ok(ui_of(s.panel).classList.contains('on'), 'visible au début');
-  s.timers.advance(2900);
-  assert.ok(ui_of(s.panel).classList.contains('on'));
-  s.timers.advance(200);
-  assert.ok(!ui_of(s.panel).classList.contains('on'), 'masquée après 3 s');
-  s.panel.onKey('right');
-  assert.ok(ui_of(s.panel).classList.contains('on'), 'réaffichée par une touche');
-  s.panel.onKey('enter');   // pause
-  s.timers.advance(10000);
-  assert.ok(ui_of(s.panel).classList.contains('on'), 'en pause elle reste');
-  s.panel.onKey('enter');   // lecture
-  s.timers.advance(3100);
-  assert.ok(!ui_of(s.panel).classList.contains('on'));
+  s.timers.advance(5000);
+  assert.ok(!barOn(s.panel), 'rien à l’écran pendant la lecture');
+  s.player.calls.length = 0;
+  s.panel.onKey('left'); s.panel.onKey('right');
+  assert.deepEqual(s.player.calls, ['rewind', 'forward']);
+  assert.ok(!barOn(s.panel), 'la barre de progression ne s’ouvre pas');
+  s.panel.onKey('rewind'); s.panel.onKey('forward');
+  assert.deepEqual(s.player.calls.slice(2), ['rewind', 'forward']);
+  assert.ok(!s.player.hold, 'barre fermée : le saut part tout seul');
 });
 
-test('pistes : Haut ouvre le choix audio / sous-titres, setSelectTrack via le lecteur, sous-titres désactivables', async () => {
+test('barre fermée : indicateur discret du cumul (« +10 s », « +1 min 50 », « −… »), heure visée dessous, disparaît après le saut', async () => {
+  const s = await started();
+  s.player.ready();
+  s.player.pos = 600000;
+  const J = jump(s.panel);
+  assert.ok(!jumpOn(s.panel));
+  s.player.events.onSeekPending(610000, 10000);
+  assert.ok(jumpOn(s.panel) && !barOn(s.panel));
+  assert.equal(byClass(J, 'plex-pl-jump-sum')[0].textContent, '+10 s');
+  assert.match(byClass(J, 'plex-pl-jump-to')[0].textContent, /00:10:10/);
+  s.player.events.onSeekPending(630000, 10000);
+  assert.equal(byClass(J, 'plex-pl-jump-sum')[0].textContent, '+30 s');
+  s.player.events.onSeekPending(710000, 30000);
+  assert.equal(byClass(J, 'plex-pl-jump-sum')[0].textContent, '+1 min 50');
+  assert.match(byClass(J, 'plex-pl-jump-to')[0].textContent, /30 s/, 'pas courant');
+  s.player.events.onSeekPending(null);
+  assert.ok(!jumpOn(s.panel), 'disparaît après le saut');
+  s.player.events.onSeekPending(590000, -10000);
+  assert.equal(byClass(J, 'plex-pl-jump-sum')[0].textContent, '−10 s');
+  assert.ok(!barOn(s.panel));
+});
+
+test('barre fermée : Retour pendant la rafale l’annule (sans quitter), Retour ensuite quitte', async () => {
   const s = await started();
   s.player.ready(); s.player.calls.length = 0;
-  s.panel.onKey('up');
+  s.panel.onKey('right');
+  s.player.events.onSeekPending(610000, 10000);
+  s.panel.onKey('back');
+  assert.ok(s.player.calls.includes('cancel'));
+  assert.equal(s.pops(), 0);
+  s.player.events.onSeekPending(null);
+  s.panel.onKey('back');
+  assert.equal(s.pops(), 1);
+});
+
+test('Entrée = pause + barre visible, focus sur Lecture/Pause ; Entrée sur le bouton reprend', async () => {
+  const s = await started();
+  s.player.ready(); s.player.calls.length = 0;
+  s.panel.onKey('enter');
+  assert.deepEqual(s.player.calls, ['pause']);
+  assert.ok(barOn(s.panel));
+  assert.deepEqual(focused(s.panel), ['Lecture']);
+  assert.deepEqual(ctl(s.panel).map((n) => n.textContent), ['Lecture', 'Audio', 'Sous-titres']);
+  s.timers.advance(10000);
+  assert.ok(barOn(s.panel), 'en pause la barre reste');
+  s.panel.onKey('enter');
+  assert.deepEqual(s.player.calls, ['pause', 'play']);
+  assert.deepEqual(ctl(s.panel).map((n) => n.textContent)[0], 'Pause');
+});
+
+test('Haut ou Bas ouvrent la barre, focus sur la rangée de boutons ; emplacement « Épisode suivant » réservé, non focalisable', async () => {
+  for (const key of ['up', 'down']) {
+    const s = await started();
+    s.player.ready(); s.player.calls.length = 0;
+    s.panel.onKey(key);
+    assert.ok(barOn(s.panel));
+    assert.deepEqual(s.player.calls, [], 'la lecture continue');
+    assert.deepEqual(focused(s.panel), ['Pause']);
+    assert.ok(!trackFocused(s.panel));
+    assert.equal(byClass(s.panel.el, 'plex-pl-next').length, 1, 'emplacement réservé');
+    for (let i = 0; i < 6; i++) s.panel.onKey('right');
+    assert.deepEqual(focused(s.panel), ['Sous-titres'], 'le focus s’arrête au dernier bouton réel');
+  }
+});
+
+test('Retour : ferme la barre, puis quitte le lecteur au second appui', async () => {
+  const s = await started();
+  s.player.ready();
+  s.panel.onKey('down');
+  s.panel.onKey('back');
+  assert.ok(!barOn(s.panel));
+  assert.equal(s.pops(), 0);
+  s.panel.onKey('back');
+  assert.equal(s.pops(), 1);
+});
+
+test('barre : masquage après 4 s sans touche, relancé par une touche, jamais pendant un sous-menu ni en pause', async () => {
+  const s = await started();
+  s.player.ready();
+  s.panel.onKey('down');
+  s.timers.advance(3900);
+  assert.ok(barOn(s.panel));
+  s.panel.onKey('right'); // une touche relance les 4 s
+  s.timers.advance(3900);
+  assert.ok(barOn(s.panel));
+  s.timers.advance(200);
+  assert.ok(!barOn(s.panel), 'masquée après 4 s');
+  s.panel.onKey('down'); s.panel.onKey('right'); s.panel.onKey('enter'); // sous-menu Audio
+  assert.ok(byClass(s.panel.el, 'plex-pl-menu')[0].classList.contains('on'));
+  s.timers.advance(20000);
+  assert.ok(barOn(s.panel) && byClass(s.panel.el, 'plex-pl-menu')[0].classList.contains('on'), 'sous-menu ouvert : pas de masquage');
+  s.panel.onKey('back');
+  assert.ok(barOn(s.panel), 'Retour ferme le sous-menu seulement');
+  assert.equal(s.pops(), 0);
+  s.timers.advance(4100);
+  assert.ok(!barOn(s.panel), 'sous-menu refermé : le masquage reprend');
+});
+
+test('barre : temps écoulé, restant, « Se termine à HH h MM », progression en transform', async () => {
+  const start = new Date(2026, 0, 1, 20, 0, 0).getTime();
+  const s = await started({ arg: { now: () => start } });
+  s.player.ready();
+  s.player.events.onTime(DUR / 4);
+  assert.equal(byClass(s.panel.el, 'plex-pl-bar')[0].style.transform, 'scaleX(0.25)');
+  assert.ok(has(s.panel.el, /^00:25:41$/), texts(s.panel.el).join('|'));
+  assert.ok(has(s.panel.el, /^−01:17:03$/));
+  // reste 4 623 s (1 h 17 min 03) → 21 h 17
+  assert.ok(has(s.panel.el, /^Se termine à 21 h 17$/), texts(s.panel.el).join('|'));
+});
+
+test('sous-menu Audio : langue, codec, piste active cochée ; Haut/Bas, Entrée choisit et le ferme', async () => {
+  const s = await started();
+  s.player.ready(); s.player.calls.length = 0;
+  openSub(s.panel, 'audio');
   const menu = byClass(s.panel.el, 'plex-pl-menu')[0];
   assert.ok(menu.classList.contains('on'));
   assert.ok(has(menu, /fra/) && has(menu, /eng/));
-  assert.ok(has(menu, /Désactivés/));
-  s.timers.advance(5000);
-  assert.ok(menu.classList.contains('on'), 'le menu n’est pas masqué par la minuterie');
-  // ordre : audio fra, audio eng, [sous-titres] Désactivés, text eng
+  assert.ok(!has(menu, /^Aucun$/), 'pas d’« Aucun » pour l’audio');
   s.panel.onKey('down');
   s.panel.onKey('enter');
   assert.deepEqual(s.player.calls, ['select:audio2']);
-  assert.ok(!menu.classList.contains('on'), 'menu refermé après le choix');
-  s.player.calls.length = 0;
-  s.panel.onKey('up');
-  for (let i = 0; i < 3; i++) s.panel.onKey('down');
-  s.panel.onKey('enter');
-  // Piste choisie : AVPlay réveillé (sinon aucun onsubtitlechange), le texte s'affiche dans la page.
+  assert.ok(!menu.classList.contains('on'), 'sous-menu refermé après le choix');
+  assert.ok(barOn(s.panel), 'la barre reste');
+});
+
+test('sous-menu Sous-titres : « Aucun » inclus, choix en place, texte rendu puis effacé', async () => {
+  const s = await started();
+  s.player.ready(); s.player.calls.length = 0;
+  openSub(s.panel, 'sub');
+  const menu = byClass(s.panel.el, 'plex-pl-menu')[0];
+  assert.ok(has(menu, /^✓ Aucun$/) || has(menu, /^Aucun$/));
+  // ordre : Aucun, text eng
+  s.panel.onKey('down'); s.panel.onKey('enter');
   assert.deepEqual(s.player.calls, ['select:text3', 'subs:true']);
   s.player.events.onSubtitle('Texte', 1000);
   assert.equal(byClass(s.panel.el, 'plex-pl-sub')[0].textContent, 'Texte');
-  s.panel.onKey('up');
-  for (let i = 0; i < 2; i++) s.panel.onKey('down');
-  s.panel.onKey('enter');
+  openSub(s.panel, 'sub');
+  s.panel.onKey('enter'); // Aucun
   assert.equal(byClass(s.panel.el, 'plex-pl-sub')[0].textContent, '');
 });
 
-test('Retour pendant le menu de pistes ferme le menu seulement', async () => {
+test('focus sur la barre de progression (Haut depuis les boutons) : même saut, vidéo continue, rien ne part tout seul', async () => {
+  const s = await started();
+  s.player.ready(); s.player.calls.length = 0;
+  s.panel.onKey('down');
+  s.panel.onKey('up');
+  assert.ok(trackFocused(s.panel));
+  assert.deepEqual(focused(s.panel), []);
+  assert.equal(s.player.hold, true, 'le lecteur garde la cible au lieu de sauter');
+  s.panel.onKey('right'); s.panel.onKey('right');
+  assert.deepEqual(s.player.calls, ['forward', 'forward'], 'mêmes touches, même accélération (côté lecteur)');
+  assert.ok(!s.player.calls.includes('pause'), 'la vidéo continue');
+  // position visée affichée : curseur et heure au-dessus
+  s.player.events.onSeekPending(DUR / 2, 10000);
+  assert.equal(cursor(s.panel).style.transform, 'translateX(840px)');
+  assert.match(byClass(s.panel.el, 'plex-pl-cursor-time')[0].textContent, /^00:51:22$/);
+  assert.ok(!jumpOn(s.panel), 'l’indicateur discret est réservé à la barre fermée');
+  assert.equal(byClass(s.panel.el, 'plex-pl-preview').length, 1, 'emplacement de l’aperçu réservé');
+  s.timers.advance(20000);
+  assert.ok(barOn(s.panel), 'cible en attente : la barre ne se masque pas');
+  s.player.calls.length = 0;
+  s.panel.onKey('enter');
+  assert.deepEqual(s.player.calls, ['commit'], 'Entrée confirme : un seul saut');
+  s.player.events.onSeekPending(null);
+  assert.ok(barOn(s.panel), 'la barre reste affichée après le saut');
+});
+
+test('focus sur la barre de progression : Retour annule la cible (la barre reste), Retour ensuite ferme la barre', async () => {
   const s = await started();
   s.player.ready();
-  s.panel.onKey('up');
+  s.panel.onKey('down'); s.panel.onKey('up');
+  s.panel.onKey('right');
+  s.player.events.onSeekPending(DUR / 2, 10000);
+  s.player.calls.length = 0;
   s.panel.onKey('back');
+  assert.deepEqual(s.player.calls, ['cancel']);
+  s.player.events.onSeekPending(null);
+  assert.ok(barOn(s.panel) && trackFocused(s.panel));
+  assert.ok(!cursor(s.panel).classList.contains('on'), 'curseur effacé');
   assert.equal(s.pops(), 0);
-  assert.ok(!byClass(s.panel.el, 'plex-pl-menu')[0].classList.contains('on'));
+  s.panel.onKey('back');
+  assert.ok(!barOn(s.panel));
+  assert.equal(s.pops(), 0);
+  assert.equal(s.player.hold, false);
+});
+
+test('focus sur la barre : Bas revient aux boutons (cible abandonnée) ; Entrée sans cible = pause', async () => {
+  const s = await started();
+  s.player.ready(); s.panel.onKey('down'); s.panel.onKey('up');
+  s.player.calls.length = 0;
+  s.panel.onKey('enter');
+  assert.deepEqual(s.player.calls, ['pause']);
+  s.panel.onKey('right');
+  s.player.calls.length = 0;
+  s.panel.onKey('down');
+  assert.deepEqual(s.player.calls, ['cancel']);
+  assert.ok(!trackFocused(s.panel));
+  assert.equal(s.player.hold, false);
 });
 
 test('Retour : arrêt propre (timeline stopped, stop/close du lecteur) et retour à la fiche', async () => {
@@ -453,6 +597,14 @@ async function playing(name, prefs, over = {}) {
 }
 const subLine = (panel) => byClass(panel.el, 'plex-pl-sub')[0];
 const menuTexts = (panel) => byClass(byClass(panel.el, 'plex-pl-menu')[0], 'plex-pl-opt').map((o) => o.textContent);
+// Ouvre le sous-menu (barre fermée ou ouverte) : Bas → rangée de boutons, 3× Gauche → Lecture/Pause, puis Droite jusqu'au bouton.
+function openSub(panel, kind) {
+  panel.onKey('down');
+  for (let i = 0; i < 3; i++) panel.onKey('left');
+  panel.onKey('right'); if (kind === 'sub') panel.onKey('right');
+  panel.onKey('enter');
+}
+function choose(panel, kind, re) { openSub(panel, kind); pick(panel, re); }
 // Descend jusqu'à l'entrée de menu dont le texte correspond, puis Entrée.
 function pick(panel, re) {
   const opts = menuTexts(panel), i = opts.findIndex((t) => re.test(t));
@@ -543,12 +695,17 @@ test('PGS / VobSub / ASS : transcodage avec sous-titres incrustés, demandé au 
 test('menu des pistes : audio et sous-titres avec langue, codec et « forcés », piste courante marquée', async () => {
   const s = await playing('mkv-h264-ac3-srt-force', {});
   s.player.ready();
-  s.panel.onKey('up');
+  openSub(s.panel, 'audio');
+  const a = menuTexts(s.panel);
+  assert.ok(a.some((t) => /^✓ Français · AC3/.test(t)), a.join(' | '));
+  assert.ok(a.some((t) => /^Anglais · AC3/.test(t)));
+  assert.ok(!a.some((t) => /SRT|Aucun/.test(t)), 'audio seulement');
+  s.panel.onKey('back');
+  openSub(s.panel, 'sub');
   const m = menuTexts(s.panel);
-  assert.ok(m.some((t) => /Audio · Français · AC3/.test(t) && /●/.test(t)), m.join(' | '));
-  assert.ok(m.some((t) => /Audio · Anglais · AC3/.test(t) && !/●/.test(t)));
-  assert.ok(m.some((t) => /Sous-titres · Français · SRT · forcés/.test(t) && /●/.test(t)), 'forcé actif seul par défaut');
-  assert.ok(m.some((t) => /Sous-titres · Désactivés/.test(t)));
+  assert.ok(m.some((t) => /^✓ Français · SRT · forcés/.test(t)), 'forcé actif seul par défaut : ' + m.join(' | '));
+  assert.ok(m.some((t) => /^Aucun$/.test(t)));
+  assert.ok(!m.some((t) => /AC3/.test(t)), 'sous-titres seulement');
 });
 
 test('menu : sous-titres forcés actifs seuls (sélection interne + affichage) sans rien demander', async () => {
@@ -564,13 +721,11 @@ test('menu : changer de sous-titre interne en direct se fait en place (setSelect
   const s = await playing('mkv-h264-ac3-srt-force', {});
   s.player.tracks = [{ kind: 'audio', index: 1, info: {} }, { kind: 'audio', index: 2, info: {} }, { kind: 'text', index: 3, info: {} }, { kind: 'text', index: 4, info: {} }];
   s.player.ready(); s.player.calls.length = 0;
-  s.panel.onKey('up');
-  pick(s.panel, /Sous-titres · Français · SRT$/);
+  choose(s.panel, 'sub', /Français · SRT$/);
   assert.deepEqual(s.player.calls.filter((c) => c !== 'subs:true'), ['select:text4']);
   s.player.events.onSubtitle('Texte', 1000);
   assert.equal(subLine(s.panel).textContent, 'Texte');
-  s.panel.onKey('up');
-  pick(s.panel, /Désactivés/);
+  choose(s.panel, 'sub', /Aucun/);
   assert.equal(subLine(s.panel).textContent, '', 'désactivés : ligne effacée');
   s.player.events.onSubtitle('Encore', 1000);
   assert.equal(subLine(s.panel).textContent, '');
@@ -579,8 +734,7 @@ test('menu : changer de sous-titre interne en direct se fait en place (setSelect
 test('menu : choisir un SRT externe relance le flux à la position courante avec le fichier de sous-titres', async () => {
   const s = await playing('mkv-h264-ac3-pgs', {});
   s.player.ready(); s.player.pos = 321000; s.player.calls.length = 0;
-  s.panel.onKey('up');
-  pick(s.panel, /Sous-titres · Français · SRT · externe/);
+  choose(s.panel, 'sub', /Français · SRT · externe/);
   assert.ok(s.player.calls.includes('open'), s.player.calls.join());
   assert.equal(s.player.openOpts.startMs, 321000);
   assert.ok(s.player.openOpts.subtitleUrl);
@@ -591,8 +745,7 @@ test('menu : choisir un SRT externe relance le flux à la position courante avec
 test('menu : choisir un sous-titre PGS relance en transcodage incrusté à la position courante', async () => {
   const s = await playing('mkv-h264-ac3-pgs', {}, { transcode: true });
   s.player.ready(); s.player.pos = 100000; s.player.calls.length = 0;
-  s.panel.onKey('up');
-  pick(s.panel, /Sous-titres · Anglais · PGS · incrustés/);
+  choose(s.panel, 'sub', /Anglais · PGS · incrustés/);
   await flush();
   const req = s.arg.http.calls.filter((c) => /transcode\/universal\/decision/.test(c.url)).pop();
   assert.ok(req, 'décision demandée');
@@ -606,8 +759,8 @@ test('menu : choisir un sous-titre PGS relance en transcodage incrusté à la po
 test('séries : le choix de piste est retenu pour les autres épisodes (langue, pas identifiant de piste)', async () => {
   const s = await playing('mkv-h264-ac3-srt-force', {}, { item: EPISODE });
   s.player.ready();
-  s.panel.onKey('up'); pick(s.panel, /Audio · Anglais/);
-  s.panel.onKey('up'); pick(s.panel, /Sous-titres · Français · SRT$/);
+  choose(s.panel, 'audio', /Anglais/);
+  choose(s.panel, 'sub', /Français · SRT$/);
   assert.deepEqual(storedPrefs(s.arg.store).plexSeries['900'], { audioLang: 'eng', subLang: 'fra' });
   // Autre épisode de la même série : mêmes choix sans toucher au menu.
   const t = setup({ meta: () => sample('mkv-h264-ac3-srt-force'), arg: { store: s.arg.store } });
@@ -628,11 +781,11 @@ test('séries : le choix de piste est retenu pour les autres épisodes (langue, 
 test('séries : désactiver les sous-titres est retenu aussi ; un film ne laisse aucune mémoire de série', async () => {
   const s = await playing('mkv-h264-ac3-srt-force', {}, { item: EPISODE });
   s.player.ready();
-  s.panel.onKey('up'); pick(s.panel, /Désactivés/);
+  choose(s.panel, 'sub', /Aucun/);
   assert.equal(storedPrefs(s.arg.store).plexSeries['900'].subLang, '');
   const m = await playing('mkv-h264-ac3-srt-force', {});
   m.player.ready();
-  m.panel.onKey('up'); pick(m.panel, /Audio · Anglais/);
+  choose(m.panel, 'audio', /Anglais/);
   assert.equal(storedPrefs(m.arg.store).plexSeries, undefined);
 });
 
@@ -675,6 +828,7 @@ test('transcodage : lecture directe → aucune session, aucun arrêt, pas d’en
 
 test('transcodage : la timeline indique la session de transcodage au serveur', async () => {
   const s = await playing('mkv-h264-dts', {}, { transcode: true });
+  await flush();
   s.player.ready();
   const session = param(urls(s, DECISION_URL)[0], 'session');
   const t = s.arg.http.timelines();
@@ -819,4 +973,45 @@ test('reprise : RESUME sur un titre dont le serveur n’a plus de position → d
   await flush();
   assert.ok(!s.player.openOpts.startMs);
   panel.destroy();
+});
+
+test('rafale lancée pendant qu’un saut est en vol : le cumul part de la cible, pas de la position AVPlay', async () => {
+  const s = await started();
+  s.player.ready();
+  s.player.pos = 600000;
+  const J = jump(s.panel);
+  // 1re rafale terminée : le seek (vers 620 s) est en vol, AVPlay est encore à 600 s.
+  s.player.events.onSeekPending(610000, 10000);
+  s.player.events.onSeekPending(620000, 10000);
+  s.player.events.onSeekPending(null);
+  // 2e rafale : tv-core part de la cible en vol (620 s) → 630 s au premier appui.
+  s.player.events.onSeekPending(630000, 10000);
+  assert.equal(byClass(J, 'plex-pl-jump-sum')[0].textContent, '+10 s');
+  s.player.events.onSeekPending(650000, 20000);
+  assert.equal(byClass(J, 'plex-pl-jump-sum')[0].textContent, '+30 s');
+});
+
+test('barre ouverte en pause : « Se termine à » recalculé chaque minute, arrêté à la reprise et à la fermeture', async () => {
+  let now = new Date(2026, 0, 1, 20, 0, 0).getTime();
+  const s = await started({ arg: { now: () => now } });
+  s.player.ready();
+  s.player.events.onTime(DUR / 4); // reste 1 h 17 min 03 → 21 h 17
+  s.panel.onKey('enter'); // pause + barre
+  assert.ok(has(s.panel.el, /^Se termine à 21 h 17$/));
+  now += 60000;
+  s.timers.advance(60000);
+  assert.ok(has(s.panel.el, /^Se termine à 21 h 18$/), texts(s.panel.el).join('|'));
+  now += 60000;
+  s.timers.advance(60000);
+  assert.ok(has(s.panel.el, /^Se termine à 21 h 19$/));
+  s.panel.onKey('enter'); // reprise : plus de minuterie
+  now += 120000;
+  s.timers.advance(120000);
+  assert.ok(!has(s.panel.el, /^Se termine à 21 h 21$/), 'reprise : plus de recalcul');
+  s.panel.onKey('enter'); // pause à nouveau, puis fermeture
+  s.panel.onKey('back');
+  assert.ok(!barOn(s.panel));
+  now += 60000;
+  s.timers.advance(60000);
+  assert.ok(!has(s.panel.el, /^Se termine à 21 h 22$/), 'barre fermée : minuterie arrêtée');
 });
