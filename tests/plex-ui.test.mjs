@@ -291,6 +291,61 @@ test('quitter un écran (suspend) libère les images ; au retour (resume) elles 
   assert.equal(srcs(p.el).length, before);
 });
 
+// ---- retour de lecture : les panneaux rechargent depuis le serveur --------------------------------------------
+const reqs = (http, re) => http.calls.filter((c) => re.test(c.url)).length;
+const sharedData = (d) => ui.createData(d.arg.http, ID, SERVER, ui.createCache({ store: d.arg.store, ns: SERVER.uri, now: d.arg.now }));
+
+test('retour de lecture : l’accueil redemande « En cours » au serveur et le réaffiche', async () => {
+  let deck = fx('ondeck');
+  const d = deps({ http: fakeHttp([[/\/library\/onDeck/, () => deck], ...serverRoutes()]) });
+  const p = ui.createHomePanel(d.arg);
+  await flush();
+  assert.equal(reqs(d.arg.http, /\/library\/onDeck/), 1);
+  assert.ok(texts(p.el).some((t) => /Titre de série 1/.test(t)));
+
+  p.suspend();
+  deck = JSON.stringify({ MediaContainer: { size: 1, Metadata: [{ ratingKey: '777', type: 'movie', title: 'Film repris', thumb: '/library/metadata/777/thumb/1' }] } });
+  sharedData(d).progressed({ ratingKey: '300', type: 'episode' }, 42000, false);
+  p.resume();
+  await flush();
+  assert.equal(reqs(d.arg.http, /\/library\/onDeck/), 2, 'redemandé au retour');
+  assert.ok(texts(p.el).some((t) => /Film repris/.test(t)), 'nouvelle rangée affichée');
+});
+
+test('retour de lecture : la fiche film affiche la nouvelle position (Reprendre, barre)', async () => {
+  const d = deps();
+  const movie = { ratingKey: '100', type: 'movie', title: 'Titre de film 1', thumb: '/library/metadata/100/thumb/1700000000' };
+  const p = ui.createDetailPanel(d.arg, movie);
+  await flush();
+  assert.equal(byClass(p.el, 'plex-play')[0].textContent, 'Lire');
+  const bar = byClass(p.el, 'plex-prog-bar')[0];
+  assert.equal(bar.style.transform, 'scaleX(0)');
+
+  p.suspend();
+  sharedData(d).progressed(movie, 3082192, false);   // moitié de 6164384 ms
+  p.resume();
+  await flush();
+  assert.equal(byClass(p.el, 'plex-play')[0].textContent, 'Reprendre');
+  assert.equal(bar.style.transform, 'scaleX(0.5)');
+});
+
+test('retour de lecture : la fiche série recharge les épisodes de la saison courante', async () => {
+  const d = deps();
+  const show = { ratingKey: '200', type: 'show', title: 'Titre de série 1', thumb: '/library/metadata/200/thumb/1700000000' };
+  const p = ui.createDetailPanel(d.arg, show);
+  await flush();
+  const seasonKids = () => reqs(d.arg.http, /\/library\/metadata\/500\/children/);
+  assert.equal(seasonKids(), 1, 'épisodes de la saison 500 chargés une fois');
+  assert.equal(reqs(d.arg.http, /\/library\/metadata\/200$/), 1);
+
+  p.suspend();
+  sharedData(d).progressed({ ratingKey: '9', type: 'episode', parentRatingKey: '500', grandparentRatingKey: '200' }, 42000, false);
+  p.resume();
+  await flush();
+  assert.equal(seasonKids(), 2, 'épisodes de la saison courante redemandés');
+  assert.equal(reqs(d.arg.http, /\/library\/metadata\/200$/), 2, 'fiche de la série redemandée');
+});
+
 test('Retour dépile fiche → grille → accueil par le routeur ; l’écran dépilé n’a plus aucune image', async () => {
   const root = makeDoc().createElement('div');
   const router = new ui.Router({ root, exit() {}, createExitConfirm: () => ({ el: makeDoc().createElement('div') }) });

@@ -28,7 +28,7 @@ export interface Part { id: number; key: string; duration?: number; }
 export interface Media { id: number; container?: string; videoCodec?: string; audioCodec?: string; Part?: Part[]; }
 export interface Item {
   ratingKey: string; title: string; type: string; thumb?: string; art?: string; summary?: string;
-  duration?: number; viewOffset?: number; index?: number; leafCount?: number; viewedLeafCount?: number;
+  duration?: number; viewOffset?: number; viewCount?: number; index?: number; leafCount?: number; viewedLeafCount?: number;
   year?: number;
   // Épisodes (onDeck, children) : série et saison parentes.
   grandparentTitle?: string; grandparentRatingKey?: string; grandparentThumb?: string; parentTitle?: string; parentIndex?: number;

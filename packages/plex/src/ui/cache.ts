@@ -6,6 +6,7 @@ export interface Cached<T> { value: T; fresh: boolean; }
 export interface Cache {
   get<T>(key: string, ttlMs?: number): Cached<T> | null;
   set(key: string, value: any): void;
+  remove(key: string): void;
 }
 
 var IDX = 'cimaise.plex.idx';
@@ -53,6 +54,12 @@ export function createCache(o: CacheOptions): Cache {
         return null;
       }
       return { value: e.v, fresh: age <= (ttlMs === undefined ? 5 * 60000 : ttlMs) };
+    },
+    remove: function (key: string): void {
+      var fk = full(key), idx = readIndex();
+      drop(fk);
+      idx.keys = idx.keys.filter(function (k) { return k[0] !== fk; });
+      writeIndex(idx);
     },
     set: function (key: string, value: any): void {
       var idx = readIndex(), t = now(), fk = full(key);

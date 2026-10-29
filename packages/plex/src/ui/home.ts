@@ -92,7 +92,12 @@ export function createHomePanel(arg: PlexArg): Panel {
   var libs = addHub('Bibliothèques', function (s: Section) { return { title: s.title, image: null }; }, function (s: Section) {
     c.nav.push(createLibraryPanel(arg, { key: s.key, title: s.title }));
   });
-  cancels.push(c.data.onDeck(function (l) { setItems(onDeck, l); }, fail));
+  var deckCancel: (() => void) | null = null;
+  function loadDeck(): void {
+    if (deckCancel) deckCancel();
+    deckCancel = c.data.onDeck(function (l) { setItems(onDeck, l); }, fail);
+  }
+  loadDeck();
   cancels.push(c.data.recent(function (l) { setItems(recent, l); }, fail));
   cancels.push(c.data.sections(function (l) { setItems(libs, l); }, fail));
 
@@ -107,7 +112,7 @@ export function createHomePanel(arg: PlexArg): Panel {
       return false;
     },
     suspend: function () { held = true; for (var i = 0; i < hubs.length; i++) hubs[i].list.release(); },
-    resume: function () { held = false; for (var i = 0; i < hubs.length; i++) hubs[i].list.restore(); relayout(); },
-    destroy: function () { for (var i = 0; i < cancels.length; i++) cancels[i](); for (var j = 0; j < hubs.length; j++) hubs[j].list.release(); }
+    resume: function () { held = false; for (var i = 0; i < hubs.length; i++) hubs[i].list.restore(); relayout(); loadDeck(); },
+    destroy: function () { if (deckCancel) deckCancel(); for (var i = 0; i < cancels.length; i++) cancels[i](); for (var j = 0; j < hubs.length; j++) hubs[j].list.release(); }
   };
 }
