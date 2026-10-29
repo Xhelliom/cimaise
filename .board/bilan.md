@@ -1,9 +1,8 @@
-# Bilan — écran Réglages du launcher
-Fait : packages/launcher/src/settings (model.ts pur, screen.ts, index.ts), tests/settings.test.mjs. `npm run check` vert (108 tests).
-- Retrait, réordonnancement (saisie + haut/bas), couleur (palette de 8), ajout depuis la découverte (id, nom, icône) : testés.
-- Découverte seulement sur Entrée du bouton ; l'erreur (ex. NO_TIZEN) s'affiche telle quelle.
-- Module non importé par l'index du launcher : absent du bundle initial (testé). Charge par `createSettings(opts)` via le routeur.
-Non fait / hypothèses :
-- Le catalogue (AppEntry) et `listInstalledApps` n'existaient pas dans le dépôt : injectés par `SettingsOptions` (listInstalledApps à rappels, onChange pour persister). La carte de branchement devra les fournir.
-- Pas de rendu visuel publié (aucune capture faite) ; styles injectés par le module (<style>) au premier affichage.
-- apps/tv non touché.
+# Bilan — catalogue d'apps et lancement via l'adaptateur
+Fait :
+- tv-core/device.ts : `launchApp(id, onOk, onErr)` (launch, repli launchAppControl) et `listInstalledApps(onOk, onErr)` (getAppsInfo → id, nom, icône). NO_TIZEN hors TV, NO_APP_ID si ID vide, LAUNCH_FAILED / LIST_FAILED ; aucun succès simulé.
+- packages/launcher/src/catalog (model, defaults, store, index) : CatalogEntry {id, name, color, icon?, type 'interne'|'tv', todo?}, catalogue par défaut (Plex intégré, Plex officiel, Netflix, YouTube, Disney+, Canal+, Smart Hub) avec IDs TV vides marqués « ID à relever en M0 », persistance dans `cimaise.v1` (prefs.catalog versionné, migration v0 → v1), addApp / removeApp / moveApp, `launchEntry` (erreur claire sans ID).
+- Tests : tests/catalog.test.mjs (nouveau), 2 tests ajoutés dans tests/tv-core.test.mjs. `npm run check` vert (131 tests).
+Non fait / à noter :
+- Le catalogue n'est pas exporté par l'index du launcher (noms `DiscoveredApp` en conflit avec settings/model.ts, bundle initial inchangé) et l'écran Réglages / l'accueil ne l'utilisent pas encore : branchement = autre carte (settings/model.ts garde son propre AppEntry avec `tint`).
+- Aucun rendu visuel : rien à publier.
