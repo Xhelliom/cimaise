@@ -190,7 +190,10 @@ export function createHome(opts: HomeOptions): HomePanel {
       var k = knownApp(catalog[i].name), bg = k && k.logoUrl ? k.bg : catalog[i].color;
       t.style.background = bg;
       t.style.color = tileInk(bg);
-      applyIcon(doc, t, catalog[i].icon || '', catalog[i].name, catalog[i].name, k ? k.logoUrl : undefined);
+      // Sans logo large : le nom, jamais l'icône carrée de la TV (sauf app sans nom).
+      if (k && k.logoUrl) applyIcon(doc, t, catalog[i].icon || '', catalog[i].name, catalog[i].name, k.logoUrl);
+      else if (catalog[i].name) t.textContent = catalog[i].name;
+      else applyIcon(doc, t, catalog[i].icon || '', '', '?');
       tiles.push(t);
       rail.appendChild(t);
     }

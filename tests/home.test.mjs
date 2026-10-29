@@ -483,6 +483,14 @@ test('Dock : logo large de la bibliothèque d’abord, icône TV en dernier reco
   assert.equal(c.textContent, 'Ma super app', 'nom en grand, pas une initiale');
 });
 
+test('Dock : app inconnue avec icône TV → son nom, aucune <img> (l’icône carrée n’est pas chargée)', () => {
+  const { p } = mount({ catalog: [{ id: 'x', name: 'Ma super app', color: '#8a3ffc', type: 'tv', icon: 'file:///tv/x.png' }] });
+  const [x] = byClass(p.el, 'tuile');
+  assert.equal(x.children.length, 0);
+  assert.equal(x.textContent, 'Ma super app');
+  assert.equal(x.style.background, '#8a3ffc');
+});
+
 test('Dock : la tuile prend le fond naturel du logo ; sans logo, la couleur de l’app', () => {
   const { p } = mount({ catalog: [...kcat, { id: 'h', name: 'Smart Hub', color: '#5a5a5f', type: 'tv' }] });
   const [n, d, c, h] = byClass(p.el, 'tuile');

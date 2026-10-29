@@ -29,7 +29,7 @@ var CSS =
   '.reglages .ligne{position:absolute;left:0;width:1200px;box-sizing:border-box;display:flex;align-items:center;height:96px;padding:0 24px;border-radius:28px;font-size:34px;font-weight:300;color:rgba(255,255,255,.7)}' +
   '.reglages .ligne.focus{background:rgba(255,255,255,.1);color:#fff}' +
   '.reglages .ligne.saisie{background:rgba(255,255,255,.2)}' +
-  '.reglages .tuile{width:112px;height:64px;margin-right:28px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:500;overflow:hidden}' +
+  '.reglages .tuile{width:112px;height:64px;margin-right:28px;border-radius:16px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:20px;line-height:1.1;font-weight:500;overflow:hidden}' +
   '.reglages .tuile img{width:80%;height:80%;object-fit:contain}' +
   '.reglages .nom{flex:1;min-width:0}' +
   '.reglages .nom .desc{margin-top:6px;font-size:22px;color:rgba(255,255,255,.5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
@@ -75,7 +75,10 @@ export function createSettings(opts: SettingsOptions): Panel {
     var k = knownApp(name);
     if (k && k.logoUrl) t.style.background = k.bg;
     else if (tint) t.style.background = tint;
-    applyIcon(doc, t, icon || '', name, monogram(name), k ? k.logoUrl : undefined);
+    // Sans logo large : le nom, jamais l'icône carrée de la TV (sauf app sans nom).
+    if (k && k.logoUrl) applyIcon(doc, t, icon || '', name, monogram(name), k.logoUrl);
+    else if (name) t.textContent = name;
+    else applyIcon(doc, t, icon || '', '', monogram(name));
     return t;
   }
 
