@@ -157,9 +157,7 @@ export function createHome(opts: HomeOptions): HomePanel {
       var t = div('tuile');
       t.style.background = catalog[i].color;
       t.style.color = tileInk(catalog[i].color);
-      if (catalog[i].icon) {
-        applyIcon(doc, t, catalog[i].icon as string, catalog[i].name, catalog[i].name ? catalog[i].name.charAt(0).toUpperCase() : '?');
-      } else t.textContent = catalog[i].name ? catalog[i].name.charAt(0).toUpperCase() : '?';
+      applyIcon(doc, t, catalog[i].icon || '', catalog[i].name, catalog[i].name ? catalog[i].name.charAt(0).toUpperCase() : '?');
       tiles.push(t);
       rail.appendChild(t);
     }

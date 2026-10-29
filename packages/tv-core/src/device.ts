@@ -1,3 +1,4 @@
+import { noteIcon } from './diag';
 // Seul point d'appel à tizen.* / webapis : tout le reste du code passe par ici.
 export class DeviceError extends Error {
   code: string;
@@ -61,6 +62,7 @@ export function listInstalledApps(onOk: (apps: InstalledApp[]) => void, onErr?: 
   tizen.application.getAppsInfo(function (list: any[]) {
     var out: InstalledApp[] = [];
     for (var i = 0; i < list.length; i++) {
+      if (list[i].show) noteIcon(list[i].name, list[i].iconPath);
       if (list[i].show) out.push({ id: list[i].id, name: list[i].name, icon: list[i].iconPath });
     }
     out.sort(function (a, b) {

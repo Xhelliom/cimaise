@@ -64,9 +64,7 @@ export function createSettings(opts: SettingsOptions): Panel {
   function tile(name: string, tint: string | null, icon?: string): HTMLElement {
     var t = div('tuile');
     if (tint) t.style.background = tint;
-    if (icon) {
-      applyIcon(doc, t, icon, name, monogram(name));
-    } else t.textContent = monogram(name);
+    applyIcon(doc, t, icon || '', name, monogram(name));
     return t;
   }
 

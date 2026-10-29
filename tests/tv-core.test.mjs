@@ -344,3 +344,27 @@ test('icônes : illisible -> image retirée, monogramme affiché, échec tracé'
   core.applyIcon(iconDoc(), vide, '', 'Z', 'Z');
   assert.equal(vide.textContent, 'Z');
 });
+
+test('icônes : pas de doublon après plusieurs rendus, iconPath vide tracé', () => {
+  for (let i = 0; i < 5; i++) core.applyIcon(iconDoc(), iconTile(), '/opt/dup.png', 'Dup', 'D');
+  assert.equal(core.iconReport().split('\n').filter((l) => l.startsWith('Dup ')).length, 1);
+  const t = iconTile();
+  core.applyIcon(iconDoc(), t, '', 'SansIcone', 'S');
+  core.applyIcon(iconDoc(), t, undefined, 'SansIcone', 'S');
+  assert.equal(t.textContent, 'S');
+  assert.equal(core.iconReport().split('\n').filter((l) => /^SansIcone \[vide\] \(vide\)$/.test(l)).length, 1);
+});
+
+test('icônes : toute app découverte est tracée, rapport plafonné', () => {
+  globalThis.window = { tizen: { application: {
+    getAppsInfo: (ok) => ok([{ id: 'x', name: 'Decouverte', iconPath: '/opt/d.png', show: true }, { id: 'y', name: 'DecouverteVide', show: true }]),
+  } } };
+  try { core.listInstalledApps(() => {}); } finally { delete globalThis.window; }
+  const r = core.iconReport();
+  assert.match(r, /Decouverte \[\?\] \/opt\/d\.png/);
+  assert.match(r, /DecouverteVide \[vide\]/);
+  for (let i = 0; i < 60; i++) core.applyIcon(iconDoc(), iconTile(), '/p' + i, 'A' + i, 'A');
+  const lines = core.iconReport().split('\n');
+  assert.ok(lines.length <= 23);
+  assert.match(lines[lines.length - 1], /^\+ \d+ autres$/);
+});

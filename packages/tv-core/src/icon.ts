@@ -14,10 +14,11 @@ export function iconCandidates(path: string): string[] {
 // Résultat consigné dans le diagnostic (touche 0).
 export function applyIcon(doc: Document, tile: HTMLElement, path: string, label: string, fallback: string): void {
   var cands = iconCandidates(path);
+  var rec = noteIcon(label, path);
   if (!cands.length) { tile.textContent = fallback; return; }
   var img: any = doc.createElement('img');
   var n = 0;
-  var rec = noteIcon(label, path);
+  rec.status = '?';
   img.onload = function () { rec.status = 'ok'; rec.url = cands[n]; };
   img.onerror = function () {
     n++;
