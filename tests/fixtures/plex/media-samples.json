@@ -1,0 +1,1155 @@
+[
+  {
+    "name": "mkv-hevc-hdr10",
+    "MediaContainer": {
+      "size": 1,
+      "Metadata": [
+        {
+          "ratingKey": "100",
+          "key": "/library/metadata/100",
+          "type": "movie",
+          "title": "Titre de film 1",
+          "duration": 6560387,
+          "Media": [
+            {
+              "container": "mkv",
+              "videoCodec": "hevc",
+              "audioCodec": "ac3",
+              "videoProfile": "main 10",
+              "width": 3832,
+              "height": 1596,
+              "bitrate": 25170,
+              "audioChannels": 6,
+              "duration": 6560387,
+              "id": 1100,
+              "Part": [
+                {
+                  "id": 1200,
+                  "key": "/library/parts/1200/1700000000/file.mkv",
+                  "duration": 6560387,
+                  "container": "mkv",
+                  "videoProfile": "main 10",
+                  "Stream": [
+                    {
+                      "streamType": 1,
+                      "codec": "hevc",
+                      "index": 0,
+                      "languageCode": "eng",
+                      "default": true,
+                      "profile": "main 10",
+                      "bitDepth": 10,
+                      "colorTrc": "smpte2084",
+                      "width": 3832,
+                      "height": 1596,
+                      "DOVIPresent": true,
+                      "DOVIProfile": 8,
+                      "id": 1300
+                    },
+                    {
+                      "streamType": 2,
+                      "codec": "ac3",
+                      "index": 1,
+                      "languageCode": "fra",
+                      "default": true,
+                      "channels": 6,
+                      "id": 1301
+                    },
+                    {
+                      "streamType": 2,
+                      "codec": "ac3",
+                      "index": 2,
+                      "languageCode": "fra",
+                      "channels": 6,
+                      "id": 1302
+                    },
+                    {
+                      "streamType": 2,
+                      "codec": "eac3",
+                      "index": 3,
+                      "languageCode": "eng",
+                      "selected": true,
+                      "channels": 6,
+                      "profile": "dolby digital plus + dolby atmos",
+                      "id": 1303
+                    },
+                    {
+                      "streamType": 3,
+                      "codec": "srt",
+                      "index": 4,
+                      "languageCode": "fra",
+                      "default": true,
+                      "forced": true,
+                      "id": 1304
+                    },
+                    {
+                      "streamType": 3,
+                      "codec": "srt",
+                      "index": 5,
+                      "languageCode": "fra",
+                      "selected": true,
+                      "id": 1305
+                    },
+                    {
+                      "streamType": 3,
+                      "codec": "srt",
+                      "index": 6,
+                      "languageCode": "fra",
+                      "id": 1306
+                    },
+                    {
+                      "streamType": 3,
+                      "codec": "srt",
+                      "index": 7,
+                      "languageCode": "fra",
+                      "id": 1307
+                    },
+                    {
+                      "streamType": 3,
+                      "codec": "srt",
+                      "index": 8,
+                      "languageCode": "eng",
+                      "id": 1308
+                    },
+                    {
+                      "streamType": 3,
+                      "codec": "srt",
+                      "index": 9,
+                      "languageCode": "eng",
+                      "hearingImpaired": true,
+                      "id": 1309
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "mkv-h264-ac3-ass",
+    "MediaContainer": {
+      "size": 1,
+      "Metadata": [
+        {
+          "ratingKey": "101",
+          "key": "/library/metadata/101",
+          "type": "movie",
+          "title": "Titre de film 2",
+          "duration": 7404576,
+          "Media": [
+            {
+              "container": "mkv",
+              "videoCodec": "h264",
+              "audioCodec": "ac3",
+              "videoProfile": "main",
+              "width": 1280,
+              "height": 528,
+              "bitrate": 2652,
+              "audioChannels": 6,
+              "duration": 7404576,
+              "id": 2100,
+              "Part": [
+                {
+                  "id": 2200,
+                  "key": "/library/parts/2200/1700000000/file.mkv",
+                  "duration": 7404576,
+                  "container": "mkv",
+                  "videoProfile": "main",
+                  "Stream": [
+                    {
+                      "streamType": 1,
+                      "codec": "h264",
+                      "index": 0,
+                      "languageCode": "ita",
+                      "default": true,
+                      "profile": "main",
+                      "bitDepth": 8,
+                      "colorTrc": "bt709",
+                      "width": 1280,
+                      "height": 528,
+                      "id": 2300
+                    },
+                    {
+                      "streamType": 2,
+                      "codec": "ac3",
+                      "index": 1,
+                      "languageCode": "ita",
+                      "default": true,
+                      "selected": true,
+                      "channels": 6,
+                      "id": 2301
+                    },
+                    {
+                      "streamType": 2,
+                      "codec": "ac3",
+                      "index": 2,
+                      "languageCode": "eng",
+                      "channels": 6,
+                      "id": 2302
+                    },
+                    {
+                      "streamType": 3,
+                      "codec": "ass",
+                      "index": 3,
+                      "languageCode": "ita",
+                      "default": true,
+                      "forced": true,
+                      "id": 2303
+                    },
+                    {
+                      "streamType": 3,
+                      "codec": "ass",
+                      "index": 4,
+                      "languageCode": "ita",
+                      "id": 2304
+                    },
+                    {
+                      "streamType": 3,
+                      "codec": "ass",
+                      "index": 5,
+                      "languageCode": "eng",
+                      "id": 2305
+                    },
+                    {
+                      "streamType": 3,
+                      "codec": "srt",
+                      "languageCode": "eng",
+                      "selected": true,
+                      "format": "srt",
+                      "id": 2306,
+                      "key": "/library/streams/2306"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "mkv-h264-dts",
+    "MediaContainer": {
+      "size": 1,
+      "Metadata": [
+        {
+          "ratingKey": "102",
+          "key": "/library/metadata/102",
+          "type": "movie",
+          "title": "Titre de film 3",
+          "duration": 7382379,
+          "Media": [
+            {
+              "container": "mkv",
+              "videoCodec": "h264",
+              "audioCodec": "dca",
+              "videoProfile": "high",
+              "width": 1920,
+              "height": 808,
+              "bitrate": 10159,
+              "audioChannels": 6,
+              "duration": 7382379,
+              "id": 3100,
+              "Part": [
+                {
+                  "id": 3200,
+                  "key": "/library/parts/3200/1700000000/file.mkv",
+                  "duration": 7382379,
+                  "container": "mkv",
+                  "videoProfile": "high",
+                  "Stream": [
+                    {
+                      "streamType": 1,
+                      "codec": "h264",
+                      "index": 0,
+                      "languageCode": "eng",
+                      "default": true,
+                      "profile": "high",
+                      "bitDepth": 8,
+                      "width": 1920,
+                      "height": 808,
+                      "id": 3300
+                    },
+                    {
+                      "streamType": 2,
+                      "codec": "dca",
+                      "index": 1,
+                      "languageCode": "eng",
+                      "default": true,
+                      "selected": true,
+                      "channels": 6,
+                      "profile": "dts",
+                      "id": 3301
+                    },
+                    {
+                      "streamType": 3,
+                      "codec": "srt",
+                      "index": 2,
+                      "languageCode": "eng",
+                      "id": 3302
+                    },
+                    {
+                      "streamType": 3,
+                      "codec": "srt",
+                      "languageCode": "fra",
+                      "selected": true,
+                      "format": "srt",
+                      "id": 3303,
+                      "key": "/library/streams/3303"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "mp4-h264-aac",
+    "MediaContainer": {
+      "size": 1,
+      "Metadata": [
+        {
+          "ratingKey": "103",
+          "key": "/library/metadata/103",
+          "type": "movie",
+          "title": "Titre de film 4",
+          "duration": 6200784,
+          "Media": [
+            {
+              "container": "mp4",
+              "videoCodec": "h264",
+              "audioCodec": "aac",
+              "videoProfile": "high",
+              "width": 1920,
+              "height": 824,
+              "bitrate": 2731,
+              "audioChannels": 6,
+              "duration": 6200784,
+              "id": 4100,
+              "Part": [
+                {
+                  "id": 4200,
+                  "key": "/library/parts/4200/1700000000/file.mp4",
+                  "duration": 6200784,
+                  "container": "mp4",
+                  "videoProfile": "high",
+                  "Stream": [
+                    {
+                      "streamType": 1,
+                      "codec": "h264",
+                      "index": 0,
+                      "default": true,
+                      "profile": "high",
+                      "bitDepth": 8,
+                      "width": 1920,
+                      "height": 824,
+                      "id": 4300
+                    },
+                    {
+                      "streamType": 2,
+                      "codec": "aac",
+                      "index": 1,
+                      "languageCode": "eng",
+                      "default": true,
+                      "selected": true,
+                      "channels": 6,
+                      "profile": "lc",
+                      "id": 4301
+                    },
+                    {
+                      "streamType": 3,
+                      "codec": "srt",
+                      "languageCode": "eng",
+                      "format": "srt",
+                      "id": 4302,
+                      "key": "/library/streams/4302"
+                    },
+                    {
+                      "streamType": 3,
+                      "codec": "srt",
+                      "languageCode": "fra",
+                      "selected": true,
+                      "format": "srt",
+                      "id": 4303,
+                      "key": "/library/streams/4303"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "mkv-h264-ac3-srt-externe",
+    "MediaContainer": {
+      "size": 1,
+      "Metadata": [
+        {
+          "ratingKey": "104",
+          "key": "/library/metadata/104",
+          "type": "movie",
+          "title": "Titre de film 5",
+          "duration": 5439810,
+          "Media": [
+            {
+              "container": "mkv",
+              "videoCodec": "h264",
+              "audioCodec": "ac3",
+              "videoProfile": "high",
+              "width": 1920,
+              "height": 1040,
+              "bitrate": 3813,
+              "audioChannels": 6,
+              "duration": 5439810,
+              "id": 5100,
+              "Part": [
+                {
+                  "id": 5200,
+                  "key": "/library/parts/5200/1700000000/file.mkv",
+                  "duration": 5439810,
+                  "container": "mkv",
+                  "videoProfile": "high",
+                  "Stream": [
+                    {
+                      "streamType": 1,
+                      "codec": "h264",
+                      "index": 0,
+                      "languageCode": "eng",
+                      "default": true,
+                      "profile": "high",
+                      "bitDepth": 8,
+                      "colorTrc": "bt709",
+                      "width": 1920,
+                      "height": 1040,
+                      "id": 5300
+                    },
+                    {
+                      "streamType": 2,
+                      "codec": "ac3",
+                      "index": 1,
+                      "languageCode": "fra",
+                      "default": true,
+                      "selected": true,
+                      "channels": 6,
+                      "id": 5301
+                    },
+                    {
+                      "streamType": 2,
+                      "codec": "ac3",
+                      "index": 2,
+                      "languageCode": "eng",
+                      "channels": 6,
+                      "id": 5302
+                    },
+                    {
+                      "streamType": 3,
+                      "codec": "srt",
+                      "index": 3,
+                      "languageCode": "fra",
+                      "id": 5303
+                    },
+                    {
+                      "streamType": 3,
+                      "codec": "srt",
+                      "index": 4,
+                      "languageCode": "fra",
+                      "id": 5304
+                    },
+                    {
+                      "streamType": 3,
+                      "codec": "srt",
+                      "index": 5,
+                      "languageCode": "fra",
+                      "id": 5305
+                    },
+                    {
+                      "streamType": 3,
+                      "codec": "srt",
+                      "languageCode": "eng",
+                      "format": "srt",
+                      "id": 5306,
+                      "key": "/library/streams/5306"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "avi-mpeg4-mp3",
+    "MediaContainer": {
+      "size": 1,
+      "Metadata": [
+        {
+          "ratingKey": "105",
+          "key": "/library/metadata/105",
+          "type": "movie",
+          "title": "Titre de film 6",
+          "duration": 7678929,
+          "Media": [
+            {
+              "container": "avi",
+              "videoCodec": "mpeg4",
+              "audioCodec": "mp3",
+              "videoProfile": "advanced simple",
+              "width": 720,
+              "height": 304,
+              "bitrate": 1535,
+              "audioChannels": 2,
+              "duration": 7678929,
+              "id": 6100,
+              "Part": [
+                {
+                  "id": 6200,
+                  "key": "/library/parts/6200/1700000000/file.avi",
+                  "duration": 7678929,
+                  "container": "avi",
+                  "videoProfile": "advanced simple",
+                  "Stream": [
+                    {
+                      "streamType": 1,
+                      "codec": "mpeg4",
+                      "index": 0,
+                      "profile": "advanced simple",
+                      "bitDepth": 8,
+                      "width": 720,
+                      "height": 304,
+                      "id": 6300
+                    },
+                    {
+                      "streamType": 2,
+                      "codec": "mp3",
+                      "index": 1,
+                      "selected": true,
+                      "channels": 2,
+                      "id": 6301
+                    },
+                    {
+                      "streamType": 3,
+                      "codec": "srt",
+                      "languageCode": "eng",
+                      "selected": true,
+                      "format": "srt",
+                      "id": 6302,
+                      "key": "/library/streams/6302"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "mkv-hevc-eac3-srt-interne-et-externe",
+    "MediaContainer": {
+      "size": 1,
+      "Metadata": [
+        {
+          "ratingKey": "106",
+          "key": "/library/metadata/106",
+          "type": "movie",
+          "title": "Titre de film 7",
+          "duration": 7185792,
+          "Media": [
+            {
+              "container": "mkv",
+              "videoCodec": "hevc",
+              "audioCodec": "eac3",
+              "videoProfile": "main",
+              "width": 3840,
+              "height": 1600,
+              "bitrate": 17158,
+              "audioChannels": 6,
+              "duration": 7185792,
+              "id": 7100,
+              "Part": [
+                {
+                  "id": 7200,
+                  "key": "/library/parts/7200/1700000000/file.mkv",
+                  "duration": 7185792,
+                  "container": "mkv",
+                  "videoProfile": "main",
+                  "Stream": [
+                    {
+                      "streamType": 1,
+                      "codec": "hevc",
+                      "index": 0,
+                      "languageCode": "eng",
+                      "default": true,
+                      "forced": true,
+                      "profile": "main",
+                      "bitDepth": 8,
+                      "colorTrc": "bt709",
+                      "width": 3840,
+                      "height": 1600,
+                      "id": 7300
+                    },
+                    {
+                      "streamType": 2,
+                      "codec": "eac3",
+                      "index": 1,
+                      "languageCode": "eng",
+                      "default": true,
+                      "selected": true,
+                      "forced": true,
+                      "channels": 6,
+                      "profile": "dolby digital plus + dolby atmos",
+                      "id": 7301
+                    },
+                    {
+                      "streamType": 2,
+                      "codec": "eac3",
+                      "index": 2,
+                      "languageCode": "eng",
+                      "channels": 6,
+                      "id": 7302
+                    },
+                    {
+                      "streamType": 2,
+                      "codec": "eac3",
+                      "index": 3,
+                      "languageCode": "spa",
+                      "channels": 6,
+                      "id": 7303
+                    },
+                    {
+                      "streamType": 3,
+                      "codec": "srt",
+                      "index": 4,
+                      "languageCode": "eng",
+                      "id": 7304
+                    },
+                    {
+                      "streamType": 3,
+                      "codec": "srt",
+                      "index": 5,
+                      "languageCode": "spa",
+                      "id": 7305
+                    },
+                    {
+                      "streamType": 3,
+                      "codec": "srt",
+                      "index": 6,
+                      "languageCode": "fra",
+                      "selected": true,
+                      "id": 7306
+                    },
+                    {
+                      "streamType": 3,
+                      "codec": "srt",
+                      "languageCode": "eng",
+                      "format": "srt",
+                      "id": 7307,
+                      "key": "/library/streams/7307"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "mkv-h264-ac3-vobsub",
+    "MediaContainer": {
+      "size": 1,
+      "Metadata": [
+        {
+          "ratingKey": "107",
+          "key": "/library/metadata/107",
+          "type": "movie",
+          "title": "Titre de film 8",
+          "duration": 4657472,
+          "Media": [
+            {
+              "container": "mkv",
+              "videoCodec": "h264",
+              "audioCodec": "ac3",
+              "videoProfile": "high",
+              "width": 1918,
+              "height": 1036,
+              "bitrate": 3608,
+              "audioChannels": 6,
+              "duration": 4657472,
+              "id": 8100,
+              "Part": [
+                {
+                  "id": 8200,
+                  "key": "/library/parts/8200/1700000000/file.mkv",
+                  "duration": 4657472,
+                  "container": "mkv",
+                  "videoProfile": "high",
+                  "Stream": [
+                    {
+                      "streamType": 1,
+                      "codec": "h264",
+                      "index": 0,
+                      "languageCode": "eng",
+                      "default": true,
+                      "profile": "high",
+                      "bitDepth": 8,
+                      "colorTrc": "bt709",
+                      "width": 1918,
+                      "height": 1036,
+                      "id": 8300
+                    },
+                    {
+                      "streamType": 2,
+                      "codec": "ac3",
+                      "index": 1,
+                      "languageCode": "eng",
+                      "channels": 6,
+                      "id": 8301
+                    },
+                    {
+                      "streamType": 2,
+                      "codec": "aac",
+                      "index": 2,
+                      "languageCode": "fra",
+                      "default": true,
+                      "selected": true,
+                      "channels": 2,
+                      "profile": "lc",
+                      "id": 8302
+                    },
+                    {
+                      "streamType": 3,
+                      "codec": "vobsub",
+                      "index": 3,
+                      "languageCode": "eng",
+                      "default": true,
+                      "id": 8303
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "mkv-h264-ac3-pgs",
+    "MediaContainer": {
+      "size": 1,
+      "Metadata": [
+        {
+          "ratingKey": "108",
+          "key": "/library/metadata/108",
+          "type": "movie",
+          "title": "Titre de film 9",
+          "duration": 7591798,
+          "Media": [
+            {
+              "container": "mkv",
+              "videoCodec": "h264",
+              "audioCodec": "ac3",
+              "videoProfile": "high",
+              "width": 1920,
+              "height": 800,
+              "bitrate": 1736,
+              "audioChannels": 6,
+              "duration": 7591798,
+              "id": 9100,
+              "Part": [
+                {
+                  "id": 9200,
+                  "key": "/library/parts/9200/1700000000/file.mkv",
+                  "duration": 7591798,
+                  "container": "mkv",
+                  "videoProfile": "high",
+                  "Stream": [
+                    {
+                      "streamType": 1,
+                      "codec": "h264",
+                      "index": 0,
+                      "languageCode": "eng",
+                      "default": true,
+                      "profile": "high",
+                      "bitDepth": 8,
+                      "colorTrc": "bt709",
+                      "width": 1920,
+                      "height": 800,
+                      "id": 9300
+                    },
+                    {
+                      "streamType": 2,
+                      "codec": "ac3",
+                      "index": 1,
+                      "languageCode": "eng",
+                      "default": true,
+                      "selected": true,
+                      "channels": 6,
+                      "id": 9301
+                    },
+                    {
+                      "streamType": 3,
+                      "codec": "pgs",
+                      "index": 2,
+                      "languageCode": "eng",
+                      "default": true,
+                      "id": 9302
+                    },
+                    {
+                      "streamType": 3,
+                      "codec": "pgs",
+                      "index": 3,
+                      "languageCode": "eng",
+                      "id": 9303
+                    },
+                    {
+                      "streamType": 3,
+                      "codec": "pgs",
+                      "index": 4,
+                      "languageCode": "eng",
+                      "id": 9304
+                    },
+                    {
+                      "streamType": 3,
+                      "codec": "srt",
+                      "languageCode": "fra",
+                      "selected": true,
+                      "format": "srt",
+                      "id": 9305,
+                      "key": "/library/streams/9305"
+                    },
+                    {
+                      "streamType": 3,
+                      "codec": "srt",
+                      "languageCode": "fra",
+                      "format": "srt",
+                      "id": 9306,
+                      "key": "/library/streams/9306"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "mkv-h264-ac3-srt-force",
+    "MediaContainer": {
+      "size": 1,
+      "Metadata": [
+        {
+          "ratingKey": "109",
+          "key": "/library/metadata/109",
+          "type": "movie",
+          "title": "Titre de film 10",
+          "duration": 7920334,
+          "Media": [
+            {
+              "container": "mkv",
+              "videoCodec": "h264",
+              "audioCodec": "ac3",
+              "videoProfile": "high",
+              "width": 1920,
+              "height": 1040,
+              "bitrate": 3498,
+              "audioChannels": 6,
+              "duration": 7920334,
+              "id": 10100,
+              "Part": [
+                {
+                  "id": 10200,
+                  "key": "/library/parts/10200/1700000000/file.mkv",
+                  "duration": 7920334,
+                  "container": "mkv",
+                  "videoProfile": "high",
+                  "Stream": [
+                    {
+                      "streamType": 1,
+                      "codec": "h264",
+                      "index": 0,
+                      "languageCode": "eng",
+                      "default": true,
+                      "profile": "high",
+                      "bitDepth": 8,
+                      "colorTrc": "bt709",
+                      "width": 1920,
+                      "height": 1040,
+                      "id": 10300
+                    },
+                    {
+                      "streamType": 2,
+                      "codec": "ac3",
+                      "index": 1,
+                      "languageCode": "fra",
+                      "default": true,
+                      "selected": true,
+                      "channels": 6,
+                      "id": 10301
+                    },
+                    {
+                      "streamType": 2,
+                      "codec": "ac3",
+                      "index": 2,
+                      "languageCode": "eng",
+                      "channels": 6,
+                      "id": 10302
+                    },
+                    {
+                      "streamType": 3,
+                      "codec": "srt",
+                      "index": 3,
+                      "languageCode": "fra",
+                      "default": true,
+                      "selected": true,
+                      "forced": true,
+                      "id": 10303
+                    },
+                    {
+                      "streamType": 3,
+                      "codec": "srt",
+                      "index": 4,
+                      "languageCode": "fra",
+                      "id": 10304
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "mkv-h264-truehd-pgs",
+    "MediaContainer": {
+      "size": 1,
+      "Metadata": [
+        {
+          "ratingKey": "110",
+          "key": "/library/metadata/110",
+          "type": "movie",
+          "title": "Titre de film 11",
+          "duration": 8359424,
+          "Media": [
+            {
+              "container": "mkv",
+              "videoCodec": "h264",
+              "audioCodec": "truehd",
+              "videoProfile": "high",
+              "width": 1920,
+              "height": 1080,
+              "bitrate": 16430,
+              "audioChannels": 8,
+              "duration": 8359424,
+              "id": 11100,
+              "Part": [
+                {
+                  "id": 11200,
+                  "key": "/library/parts/11200/1700000000/file.mkv",
+                  "duration": 8359424,
+                  "container": "mkv",
+                  "videoProfile": "high",
+                  "Stream": [
+                    {
+                      "streamType": 1,
+                      "codec": "h264",
+                      "index": 3,
+                      "languageCode": "eng",
+                      "default": true,
+                      "profile": "high",
+                      "bitDepth": 8,
+                      "colorTrc": "bt709",
+                      "width": 1920,
+                      "height": 1080,
+                      "id": 11300
+                    },
+                    {
+                      "streamType": 2,
+                      "codec": "truehd",
+                      "index": 1,
+                      "languageCode": "eng",
+                      "default": true,
+                      "selected": true,
+                      "channels": 8,
+                      "profile": "dolby truehd + dolby atmos",
+                      "bitDepth": 24,
+                      "id": 11301
+                    },
+                    {
+                      "streamType": 2,
+                      "codec": "ac3",
+                      "index": 2,
+                      "languageCode": "eng",
+                      "channels": 6,
+                      "id": 11302
+                    },
+                    {
+                      "streamType": 3,
+                      "codec": "pgs",
+                      "index": 0,
+                      "languageCode": "eng",
+                      "default": true,
+                      "id": 11303
+                    },
+                    {
+                      "streamType": 3,
+                      "codec": "srt",
+                      "languageCode": "eng",
+                      "format": "srt",
+                      "id": 11304,
+                      "key": "/library/streams/11304"
+                    },
+                    {
+                      "streamType": 3,
+                      "codec": "srt",
+                      "languageCode": "fra",
+                      "selected": true,
+                      "format": "srt",
+                      "id": 11305,
+                      "key": "/library/streams/11305"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "mkv-av1-opus",
+    "MediaContainer": {
+      "size": 1,
+      "Metadata": [
+        {
+          "ratingKey": "111",
+          "key": "/library/metadata/111",
+          "type": "movie",
+          "title": "Titre de film 12",
+          "duration": 6489316,
+          "Media": [
+            {
+              "container": "mkv",
+              "videoCodec": "av1",
+              "audioCodec": "opus",
+              "videoProfile": "main",
+              "width": 1920,
+              "height": 1080,
+              "bitrate": 4741,
+              "audioChannels": 6,
+              "duration": 6489316,
+              "id": 12100,
+              "Part": [
+                {
+                  "id": 12200,
+                  "key": "/library/parts/12200/1700000000/file.mkv",
+                  "duration": 6489316,
+                  "container": "mkv",
+                  "videoProfile": "main",
+                  "Stream": [
+                    {
+                      "streamType": 1,
+                      "codec": "av1",
+                      "index": 0,
+                      "languageCode": "eng",
+                      "default": true,
+                      "profile": "main",
+                      "bitDepth": 10,
+                      "colorTrc": "bt709",
+                      "width": 1920,
+                      "height": 1080,
+                      "id": 12300
+                    },
+                    {
+                      "streamType": 2,
+                      "codec": "opus",
+                      "index": 1,
+                      "languageCode": "fra",
+                      "selected": true,
+                      "channels": 6,
+                      "id": 12301
+                    },
+                    {
+                      "streamType": 2,
+                      "codec": "opus",
+                      "index": 2,
+                      "languageCode": "eng",
+                      "default": true,
+                      "channels": 6,
+                      "id": 12302
+                    },
+                    {
+                      "streamType": 2,
+                      "codec": "opus",
+                      "index": 3,
+                      "languageCode": "eng",
+                      "channels": 2,
+                      "id": 12303
+                    },
+                    {
+                      "streamType": 3,
+                      "codec": "srt",
+                      "index": 4,
+                      "languageCode": "fra",
+                      "default": true,
+                      "id": 12304
+                    },
+                    {
+                      "streamType": 3,
+                      "codec": "pgs",
+                      "index": 5,
+                      "languageCode": "fra",
+                      "hearingImpaired": true,
+                      "id": 12305
+                    },
+                    {
+                      "streamType": 3,
+                      "codec": "pgs",
+                      "index": 6,
+                      "languageCode": "fra",
+                      "id": 12306
+                    },
+                    {
+                      "streamType": 3,
+                      "codec": "pgs",
+                      "index": 7,
+                      "languageCode": "eng",
+                      "id": 12307
+                    },
+                    {
+                      "streamType": 3,
+                      "codec": "srt",
+                      "languageCode": "fra",
+                      "format": "srt",
+                      "id": 12308,
+                      "key": "/library/streams/12308"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+]

@@ -24,8 +24,17 @@ export interface Connection { uri: string; local: boolean; relay: boolean; }
 export interface Server { name: string; accessToken: string; owned: boolean; connections: Connection[]; }
 
 export interface Section { key: string; title: string; type: string; }
-export interface Part { id: number; key: string; duration?: number; }
-export interface Media { id: number; container?: string; videoCodec?: string; audioCodec?: string; Part?: Part[]; }
+// Piste d'une partie (/library/metadata/{id}) : streamType 1 = vidéo, 2 = audio, 3 = sous-titres. key n'existe que pour un sous-titre externe.
+export interface Stream {
+  id: number; streamType: number; codec?: string; index?: number; languageCode?: string; default?: boolean; selected?: boolean; forced?: boolean;
+  key?: string; format?: string; channels?: number; profile?: string; bitDepth?: number; colorTrc?: string; width?: number; height?: number;
+  DOVIPresent?: boolean; DOVIProfile?: number; hearingImpaired?: boolean;
+}
+export interface Part { id: number; key: string; duration?: number; container?: string; Stream?: Stream[]; }
+export interface Media {
+  id: number; container?: string; videoCodec?: string; audioCodec?: string; videoProfile?: string; width?: number; height?: number;
+  bitrate?: number; audioChannels?: number; Part?: Part[];
+}
 export interface Item {
   ratingKey: string; title: string; type: string; thumb?: string; art?: string; summary?: string;
   duration?: number; viewOffset?: number; viewCount?: number; index?: number; leafCount?: number; viewedLeafCount?: number;
