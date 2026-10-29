@@ -4,7 +4,17 @@
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
-TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
+TMP="$(mktemp -d)"
+EXTRA_CLEAN=()
+# Les .wgt déjà produits par l'opérateur dans dist/ sont mis à l'abri, puis restaurés à la sortie.
+mkdir -p "$REPO/dist" "$TMP/dist-keep"
+for f in "$REPO"/dist/*.wgt; do [ -e "$f" ] && mv "$f" "$TMP/dist-keep/"; done
+cleanup() {
+  rm -f "$REPO"/dist/*.wgt; rm -rf "${EXTRA_CLEAN[@]}"
+  for f in "$TMP"/dist-keep/*.wgt; do [ -e "$f" ] && mv "$f" "$REPO/dist/"; done
+  rm -rf "$TMP"
+}
+trap cleanup EXIT
 FAILS=0
 ok()   { echo "ok   - $1"; }
 fail() { echo "FAIL - $1"; FAILS=$((FAILS+1)); }
@@ -98,7 +108,7 @@ grep -q "10.9.8.7:26101" "$TMP/docker.log" && ok "IP/port lus depuis .local" || 
 grep -q "^SDB .* shell 0 was_execute cimaise001.Cimaise" "$TMP/docker.log" && ok "launch" || fail "launch"
 
 # 6. install : succès, puis échec si « install completed » absent, puis repli vd_appinstall
-mkdir -p "$REPO/dist"; touch "$REPO/dist/zz-test.wgt"; trap 'rm -rf "$TMP" "$REPO/dist/zz-test.wgt"' EXIT
+mkdir -p "$REPO/dist"; touch "$REPO/dist/zz-test.wgt"
 "$HERE/install.sh" "$REPO/dist/zz-test.wgt" >/dev/null 2>&1 && ok "install nominal" || fail "install nominal"
 FAKE_INSTALL_OUT="transfer only" FAKE_VD_OUT="failed" "$HERE/install.sh" "$REPO/dist/zz-test.wgt" >/dev/null 2>&1 \
   && fail "install sans « install completed » doit échouer" || ok "install sans « install completed » échoue"
@@ -129,7 +139,7 @@ check "install (repli) : push dans le même conteneur" same_container "push /wor
 check "install (repli) : vd_appinstall dans le même conteneur" same_container "shell 0 vd_appinstall"
 
 # 7. package : refuse un dossier sans config.xml, sinon appelle tizen package -s <profil>
-mkdir -p "$REPO/apps/_t"; trap 'rm -rf "$TMP" "$REPO/dist/zz-test.wgt" "$REPO/apps/_t"' EXIT
+mkdir -p "$REPO/apps/_t"; EXTRA_CLEAN+=("$REPO/apps/_t")
 "$HERE/package.sh" apps/_t >/dev/null 2>&1 && fail "package sans config.xml" || ok "package sans config.xml échoue"
 touch "$REPO/apps/_t/config.xml"
 "$HERE/package.sh" apps/_t >/dev/null 2>&1   # échoue faute de .wgt produit par le faux docker : normal

@@ -7,6 +7,8 @@
 - `install.sh` : refuse avec un message clair tout .wgt au nom hors `[A-Za-z0-9._-]`, avant tout appel à la TV.
 - `scripts/tizen/test.sh` : cas du repli vd_appinstall forcé (commande journalisée sans caractère spécial), refus du nom non sûr, test 7 bis mis à jour.
 - docs/decisions.md : phrase sur les tests corrigée.
+- `scripts/tizen/test.sh` isolé : les `dist/*.wgt` existants sont mis à l'abri dans le TMP puis restaurés à la sortie (une seule trap `cleanup`) ; vérifié avec un `dist/keep.wgt` factice qui survit.
+- `package.sh` échoue au lieu d'écraser si le nom sûr existe déjà (plus de `mv -f`).
 - `scripts/tizen/test.sh` vert ; `npm run check` vert (180 pass).
 
 **Non fait / à confirmer**
