@@ -1,3 +1,7 @@
-# Bilan — grille du Dock + mode une rangée
-Fait : mode Grille (défaut) où descendre sous la 1re rangée fait remonter la page par transform (en-tête dehors, titre/description compacts, bac à 170 px, 3 rangées entières, rangée focalisée toujours entière) ; mode « Une rangée » (rail en translateX, tuile focalisée entière, suivante esquissée à droite) ; option « Affichage de l'accueil » en haut de Réglages (Haut depuis Découvrir ; Entrée/←/→ bascule) ; préférence prefs.homeMode dans cimaise.v1 (inconnu → grille) ; défaut des coins : marge 44 px, bac 64 px, rayons concentriques, aucune tuile de bord ne déborde. Tests : 4/10/20 apps dans les deux modes, défilement de page, persistance, coins, réglage. npm run check vert (328+ tests). Aperçu : ?mode=rangee sur /demo/home.
-Pas fait : mesure sur la TV (latence, fluidité du défilement de page) à faire par Stéphane ; l'en-tête sort entièrement (pas de version compactée).
+# Bilan
+
+**Fait** : le chunk Réglages transmet désormais le mode de l'accueil. `SettingsArg` déclare `mode?: HomeMode` et `onMode?`, et `createPanel` les passe à `createSettings` (apps/tv/src/chunks/settings.ts). Sur la TV, la ligne « Affichage de l'accueil » reflète le mode courant, et la basculer appelle `saveHomeMode` puis `home.setMode`.
+
+**Test** : tests/app.test.mjs passe par le vrai chunk. Il ouvre les Réglages, bascule la ligne Affichage, vérifie que `prefs.homeMode` vaut `rangee` dans `cimaise.v1` et que l'accueil passe en `rangee`. Il rouvre les Réglages (« Une rangée » affiché), rebascule, et contrôle le retour à `grille`. Le test échoue sans le correctif. `npm run check` : 329/329.
+
+**Reste** : rien sur cette carte.

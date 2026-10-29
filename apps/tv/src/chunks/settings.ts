@@ -1,6 +1,7 @@
 import { Panel } from '../../../../packages/tv-core/src/router/router';
 import { createSettings } from '../../../../packages/launcher/src/settings';
 import { AppEntry, DiscoveredApp } from '../../../../packages/launcher/src/settings/model';
+import { HomeMode } from '../../../../packages/launcher/src/home/model';
 import { CatalogEntry } from '../../../../packages/launcher/src/catalog/model';
 
 // Les Réglages travaillent sur AppEntry (teinte) ; le catalogue persisté est un CatalogEntry (couleur, type, rappel).
@@ -8,6 +9,8 @@ import { CatalogEntry } from '../../../../packages/launcher/src/catalog/model';
 export interface SettingsArg {
   catalog: CatalogEntry[];
   listInstalledApps: (ok: (apps: DiscoveredApp[]) => void, fail: (err: Error) => void) => void;
+  mode?: HomeMode;
+  onMode?: (mode: HomeMode) => void;
   onChange: (catalog: CatalogEntry[]) => void;
   onClose: () => void;
 }
@@ -42,6 +45,8 @@ function createPanel(arg: SettingsArg): Panel {
       current = next;
       arg.onChange(next);
     },
+    mode: arg.mode,
+    onMode: arg.onMode,
     onClose: arg.onClose
   });
 }
