@@ -1,12 +1,8 @@
-# Bilan — pastille Smart Hub + indicateur Réseau
+# Bilan — mesures Plex dans le diagnostic
 
-Fait :
-- Pastille Smart Hub : lance l'app cible des préférences (`prefs.smartHubApp`, vide par défaut, aucun ID en dur), repli `hide()` vers le Smart Hub.
-- Réseau : plus de pastille ; alerte « Réseau coupé » non focalisable, visible seulement si coupé, par événement (`webapis.network`), cachée hors TV.
-- Privilège `network.public` déclaré ; méthode, sources et réserves dans `docs/decisions.md`.
-- `npm run check` : 359 tests verts.
-
-Pas fait / à valider sur la TV (non lancé) :
-- Que `hide()` ramène bien au Smart Hub (source : forum, pas la doc officielle).
-- Quelle app cible convient (Eden ?) ; aucun écran de réglage pour poser l'ID (hors carte).
-- Privilège `network.public` et délai de détection (30-40 s si le routeur tombe).
+Fait : durées « bibliothèque (cache) », « bibliothèque (réseau) », « fiche », « lecture (Entrée → 1re image) » (10 dernières, min/médiane/max)
+dans la section « Plex » du diagnostic (touche 0), plus « mémoire JS » si `performance.memory` existe. Aucune minuterie, aucune requête.
+Marques dans packages/plex/src/ui/{library,detail,player}.ts ; stockage et rapport dans packages/tv-core/src/diag.ts.
+Non fait : les valeurs réelles sur la TV (à relever par Stéphane, touche 0, puis à consigner dans docs/tv-status.md).
+Choix : « cache » = réponse rendue pendant l'appel (même périmée) ; « 1re image » = 1er `oncurrentplaytime` AVPlay ;
+avec question de reprise, la durée part du choix. playback/ et le wrapper AVPlay non touchés.

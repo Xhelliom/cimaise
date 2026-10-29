@@ -27,11 +27,46 @@ export function keyLatency(clock?: () => number, raf?: (fn: () => void) => void)
   r(function () { r!(function () { recordLatency(c() - t0); }); });
 }
 
+// Mesures nommées (module Plex) : les 10 dernières durées par type, min/médiane/max. Aucune minuterie : on soustrait deux horodatages.
+export var MEASURE_KEEP = 10;
+export var MEASURE_LABELS: { [kind: string]: string } = {
+  'biblio-cache': 'bibliothèque (cache)',
+  'biblio-reseau': 'bibliothèque (réseau)',
+  'fiche': 'fiche',
+  'lecture': 'lecture (Entrée → 1re image)'
+};
+var measures: { [kind: string]: number[] } = {};
+export function resetMeasures(): void { measures = {}; }
+export function recordMeasure(kind: string, ms: number): void {
+  var l = measures[kind] || (measures[kind] = []);
+  l.push(ms < 0 ? 0 : ms);
+  if (l.length > MEASURE_KEEP) l.shift();
+}
+export function measureStats(kind: string): { n: number; min: number; median: number; max: number } | null {
+  var l = measures[kind];
+  if (!l || !l.length) return null;
+  var s = l.slice().sort(function (a, b) { return a - b; });
+  var m = Math.floor(s.length / 2);
+  return { n: s.length, min: s[0], median: s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2), max: s[s.length - 1] };
+}
+// Section « Plex » du diagnostic. La mémoire n'est donnée que si le moteur l'expose (performance.memory).
+export function plexReport(): string {
+  var lines: string[] = [];
+  for (var k in MEASURE_LABELS) if (MEASURE_LABELS.hasOwnProperty(k)) {
+    var st = measureStats(k);
+    lines.push(MEASURE_LABELS[k] + ': ' + (st ? 'min ' + st.min + ' / méd ' + st.median + ' / max ' + st.max + ' ms (' + st.n + ')' : '—'));
+  }
+  var mem: any = typeof performance !== 'undefined' ? (performance as any).memory : null;
+  if (mem && typeof mem.usedJSHeapSize === 'number') lines.push('mémoire JS: ' + Math.round(mem.usedJSHeapSize / 1048576) + ' Mo');
+  return lines.join('\n');
+}
+
 export function report(): string {
   var base = marks.scriptLoaded, lines: string[] = [];
   for (var k in marks) if (marks.hasOwnProperty(k)) lines.push(k + ': +' + (marks[k] - base) + ' ms');
   var st = latencyStats();
   if (st) lines.push('latence touche→frame: min ' + st.min + ' / méd ' + st.median + ' / max ' + st.max + ' ms (' + st.n + ')');
+  lines.push('Plex', plexReport());
   lines.push('userAgent: ' + (typeof navigator !== 'undefined' ? navigator.userAgent : '(absent)'));
   return lines.join('\n');
 }

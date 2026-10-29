@@ -4,6 +4,7 @@ import { Key } from '../../../tv-core/src/keys';
 import { createRow, VirtualList } from '../../../tv-core/src/virtual/list';
 import { Ctx, el, PlexArg, realTimers, resolve } from './context';
 import { createPlayerPanel } from './player';
+import { recordMeasure } from '../../../tv-core/src/diag';
 import { detailPosterUrl, EPISODE, episodeThumbUrl } from './images';
 
 type Zone = 'play' | 'seasons' | 'episodes';
@@ -53,6 +54,7 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
   var cancels: Array<() => void> = [], epCancel: (() => void) | null = null;
   var zone: Zone = 'play';
   var held = false;
+  var t0 = Date.now(), measured = false;   // mesure (diagnostic) : ouverture → fiche complète affichée
 
   function paint(): void {
     title.textContent = item.title;
@@ -142,6 +144,7 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
         if (next && next.type === 'episode') target = next; else if (!next && target && !(target.ratingKey && episodes.length)) target = null;
       }
       paint();
+      if (!measured) { measured = true; recordMeasure('fiche', Date.now() - t0); }
     }, undefined, stub.type === 'show');
   }
   loadMeta();

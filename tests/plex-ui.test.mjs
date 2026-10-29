@@ -17,7 +17,7 @@ before(async () => {
   assert.equal(t.status, 0, t.stdout + t.stderr);
   const out = join(dir, 'ui.cjs');
   await build({
-    stdin: { resolveDir: es5, contents: "export * from './plex/src/index.js'; export { Router } from './tv-core/src/router/index.js';" },
+    stdin: { resolveDir: es5, contents: "export * from './plex/src/index.js'; export { Router } from './tv-core/src/router/index.js'; export * as diag from './tv-core/src/diag.js';" },
     bundle: true, format: 'cjs', target: 'es5', outfile: out, logLevel: 'warning',
   });
   ui = createRequire(import.meta.url)(out);
@@ -726,4 +726,97 @@ test('fiche série : la saison suit le focus après 300 ms, sans Entrée', async
   pending[0].fn();
   await flush();
   assert.deepEqual(epTitles(p), ['1. S501 ép 1', '2. S501 ép 2']);
+});
+
+// ---- mesures de performance (diagnostic, touche 0) -----------------------------------------------------------
+function withClock(fn) {
+  const real = Date.now; let t = 5000;
+  Date.now = () => t;
+  const clock = { set: (v) => { t = v; } };
+  return fn(clock).finally(() => { Date.now = real; });
+}
+
+test('mesures : bibliothèque sans cache → « réseau », avec cache → « cache », dans les 10 dernières', async () => {
+  await withClock(async (clock) => {
+    ui.diag.resetMeasures();
+    const store = memStore();
+    const first = deps({ store, http: fakeHttp(serverRoutes().map((r) => [r[0], r[1]])) });
+    clock.set(1000);
+    const slow = { ...first.arg.http };
+    const p = ui.createLibraryPanel(first.arg, { key: '1', title: 'Films' });
+    clock.set(1400); await tick(); await tick();
+    const net = ui.diag.measureStats('biblio-reseau');
+    assert.equal(net.n, 1);
+    assert.equal(net.min, 400);
+    assert.equal(ui.diag.measureStats('biblio-cache'), null);
+    p.destroy();
+    clock.set(2000);
+    const d = deps({ store, http: fakeHttp([], { silent: true }) });
+    clock.set(2000);
+    ui.createLibraryPanel(d.arg, { key: '1', title: 'Films' });
+    assert.equal(ui.diag.measureStats('biblio-cache').n, 1);
+    assert.equal(ui.diag.measureStats('biblio-cache').max, 0);
+    assert.equal(ui.diag.measureStats('biblio-reseau').n, 1, 'une seule mesure par ouverture');
+  });
+});
+
+test('mesures : une seule mesure par ouverture de bibliothèque, pas une par page', async () => {
+  ui.diag.resetMeasures();
+  const d = deps();
+  const p = ui.createLibraryPanel(d.arg, { key: '1', title: 'Films' });
+  await tick(); await tick();
+  for (let k = 0; k < 40; k++) { p.onKey('down'); await tick(); }
+  const n = (ui.diag.measureStats('biblio-reseau') || { n: 0 }).n + (ui.diag.measureStats('biblio-cache') || { n: 0 }).n;
+  assert.equal(n, 1);
+  p.destroy();
+});
+
+test('mesures : ouverture d’une fiche = création → métadonnées complètes affichées, une fois', async () => {
+  await withClock(async (clock) => {
+    ui.diag.resetMeasures();
+    const d = deps();
+    clock.set(1000);
+    const p = ui.createDetailPanel(d.arg, { ratingKey: '100', type: 'movie', title: 'Titre de film 1', thumb: '/t' });
+    assert.equal(ui.diag.measureStats('fiche'), null, 'pas avant l’arrivée de la fiche');
+    clock.set(1250); await tick(); await tick();
+    assert.deepEqual(ui.diag.measureStats('fiche'), { n: 1, min: 250, median: 250, max: 250 });
+    p.destroy();
+  });
+});
+
+test('mesures : aucune mesure n’ajoute de requête ni de minuterie', async () => {
+  const d = deps();
+  const base = deps();
+  const realSet = global.setTimeout; let timers = 0;
+  const p = ui.createDetailPanel(d.arg, { ratingKey: '100', type: 'movie', title: 'T', thumb: '/t' });
+  await tick(); await tick();
+  const q = ui.createDetailPanel(base.arg, { ratingKey: '100', type: 'movie', title: 'T', thumb: '/t' });
+  await tick(); await tick();
+  assert.equal(d.arg.http.calls.length, base.arg.http.calls.length);
+  assert.ok(d.arg.http.calls.every((c) => !/measure|diag/i.test(c.url)));
+  const src = readFileSync('packages/tv-core/src/diag.ts', 'utf8');
+  const plexSrc = ['library', 'detail', 'player'].map((n) => readFileSync('packages/plex/src/ui/' + n + '.ts', 'utf8')).join('\n');
+  assert.ok(!/setTimeout|setInterval|requestAnimationFrame/.test(src.slice(src.indexOf('Mesures nommées'), src.indexOf('export function report'))));
+  assert.ok(!/recordMeasure[^;]*setTimeout/.test(plexSrc));
+  p.destroy(); q.destroy();
+});
+
+test('diagnostic : section Plex avec min/médiane/max des 10 dernières mesures', () => {
+  ui.diag.resetMeasures();
+  for (let i = 1; i <= 12; i++) ui.diag.recordMeasure('fiche', i * 100); // les 10 derniers : 300..1200
+  assert.deepEqual(ui.diag.measureStats('fiche'), { n: 10, min: 300, median: 750, max: 1200 });
+  const r = ui.diag.report();
+  assert.match(r, /Plex\n/);
+  assert.match(r, /fiche: min 300 \/ méd 750 \/ max 1200 ms \(10\)/);
+  assert.match(r, /bibliothèque \(cache\): —/);
+  assert.match(r, /bibliothèque \(réseau\): —/);
+  assert.match(r, /lecture \(Entrée → 1re image\): —/);
+});
+
+test('diagnostic : la mémoire JS n’apparaît que si le moteur expose performance.memory', () => {
+  assert.doesNotMatch(ui.diag.plexReport(), /mémoire/);
+  const had = Object.getOwnPropertyDescriptor(globalThis, 'performance');
+  Object.defineProperty(globalThis, 'performance', { value: { memory: { usedJSHeapSize: 52428800 } }, configurable: true });
+  try { assert.match(ui.diag.plexReport(), /mémoire JS: 50 Mo/); }
+  finally { Object.defineProperty(globalThis, 'performance', had); }
 });
