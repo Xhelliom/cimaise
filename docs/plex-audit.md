@@ -120,10 +120,11 @@ Film MKV H.264 + DTS (dca) à 8,8 Mb/s.
 **Observé physiquement par Stéphane :**
 - le film se lance et se lit, le son est bon (DTS → AAC, vidéo copiée) ;
 - avancer et reculer de 10 s fonctionnent ;
+- **progression : la position quittée sur la Frame apparaît sur un autre appareil Plex** ;
 - quitter puis rouvrir le film : la reprise fonctionne ;
 - **défaut : l'image est étirée sur tout l'écran** au lieu d'avoir des bandes noires en haut et en bas.
 
-**Non testé :** la progression vue depuis un autre appareil Plex ; l'arrêt de la session à la sortie (le relevé `watch-transcode.mjs` n'a montré aucune
+**Non testé :** l'arrêt de la session à la sortie (le relevé `watch-transcode.mjs` n'a montré aucune
 session Cimaise : il tournait sur un cycle expiré ou n'a pas capté l'essai, à refaire) ; le saut long ; la lecture directe d'un film 2.39.
 
 **Correctif (non encore revu sur la TV) :** AVPlay étire l'image au rectangle de `setDisplayRect`. Le lecteur appelle maintenant
@@ -131,3 +132,9 @@ session Cimaise : il tournait sur un cycle expiré ou n'a pas capté l'essai, à
 (non fatal si absent). Le nom de la constante vient de la doc Samsung, de mémoire : à confirmer par l'effet à l'écran.
 Rapport d'aspect du flux : la liste de variantes du transcodeur annonce `RESOLUTION=1920x808`, identique au fichier source (pas de SAR/DAR modifié
 côté serveur). Paquet refait depuis `apps/tv/dist` (148 Ko, contenu vérifié) et réinstallé ; à revoir : Bohemian Rhapsody et un film 2.39 en lecture directe.
+
+**Défaut observé par Stéphane : image figée autour du menu Sous-titres** (Bohemian Rhapsody, HLS). Elle est repartie après un saut en arrière.
+Cause NON établie (on ne sait pas si le menu a seulement été ouvert ou si une piste a été choisie). Lecture du code, sans correction :
+- ouvrir le menu ne touche pas à AVPlay (`openMenu` peint seulement la liste du plan) ; choisir une piste relance le flux (`relaunch` : « Chargement… », arrêt de l'ancienne session, nouvelle décision) ;
+- en revanche Entrée (ou Pause) met la lecture en **pause** et ouvre la barre (`playKey`) : si Stéphane a atteint le bouton Sous-titres ainsi, l'image figée est la pause, et le saut arrière l'a peut-être relancée.
+À départager avec Stéphane : touche utilisée pour ouvrir la barre (Entrée ou Haut/Bas), présence du mot « Pause » à l'écran, piste choisie ou non. Le relevé serveur n'a rien capté à ce moment.
