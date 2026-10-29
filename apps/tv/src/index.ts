@@ -3,7 +3,7 @@
 // puis (setTimeout 0) police décorative et touches média.
 import { mark, toggleDiag, keyLatency, normalizeKey, hasTizen, registerKeys, REGISTER_KEYS, listInstalledApps } from '../../../packages/tv-core/src/index';
 import { Router, lazy, chunkLoader, Panel } from '../../../packages/tv-core/src/index';
-import { createHome, loadHomeMode, saveHomeMode } from '../../../packages/launcher/src/home';
+import { createHome, loadHomeMode, saveHomeMode, loadHomeTiles, saveHomeTiles } from '../../../packages/launcher/src/home';
 import { loadCatalog, saveCatalog, launchEntry } from '../../../packages/launcher/src/catalog';
 
 interface Chunk { createPanel(arg?: any): Panel; }
@@ -14,10 +14,12 @@ var settings = lazy<Chunk>(chunkLoader('settings'));
 
 var catalog = loadCatalog();
 var mode = loadHomeMode();
+var tiles = loadHomeTiles();
 
 var home = createHome({
   catalog: catalog,
   mode: mode,
+  tiles: tiles,
   openInternal: function (id) {
     if (id !== 'plex') { home.notify('Module inconnu : ' + id); return; }
     router.pushLazy(plex, function (m) {
@@ -47,6 +49,12 @@ var home = createHome({
           mode = next;
           try { saveHomeMode(mode); } catch (e) { /* stockage refusé : valable pour cette session */ }
           home.setMode(mode);
+        },
+        tiles: tiles,
+        onTiles: function (next: number) {
+          tiles = next;
+          try { saveHomeTiles(tiles); } catch (e) { /* stockage refusé : valable pour cette session */ }
+          home.setTiles(tiles);
         },
         listInstalledApps: listInstalledApps,
         onChange: function (next: typeof catalog) {

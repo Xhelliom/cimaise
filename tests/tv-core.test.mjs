@@ -47,16 +47,23 @@ function memStore(initial) {
   return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)) };
 }
 
-test('stockage : migre un schéma v0 vers v1', () => {
+test('stockage : migre un schéma v0 vers la version courante (tuiles à 4 par défaut)', () => {
   const s = memStore({ 'cimaise.v1': JSON.stringify({ layout: 'dock', clock24: true }) });
-  assert.deepEqual(core.loadStored(s), { version: 1, prefs: { layout: 'dock', clock24: true } });
+  assert.deepEqual(core.loadStored(s), { version: 2, prefs: { layout: 'dock', clock24: true, homeTiles: 4 } });
   core.saveStored(core.loadStored(s), s);
-  assert.equal(JSON.parse(s.getItem('cimaise.v1')).version, 1);
+  assert.equal(JSON.parse(s.getItem('cimaise.v1')).version, 2);
 });
 
-test('stockage : vide ou JSON corrompu → v1 vide', () => {
-  assert.deepEqual(core.loadStored(memStore()), { version: 1, prefs: {} });
-  assert.deepEqual(core.loadStored(memStore({ 'cimaise.v1': '{oops' })), { version: 1, prefs: {} });
+test('stockage : migre un schéma v1 vers v2 sans toucher aux préférences existantes', () => {
+  const s = memStore({ 'cimaise.v1': JSON.stringify({ version: 1, prefs: { homeMode: 'rangee', plexToken: 'T' } }) });
+  assert.deepEqual(core.loadStored(s), { version: 2, prefs: { homeMode: 'rangee', plexToken: 'T', homeTiles: 4 } });
+  const kept = memStore({ 'cimaise.v1': JSON.stringify({ version: 1, prefs: { homeTiles: 6 } }) });
+  assert.equal(core.loadStored(kept).prefs.homeTiles, 6, 'une valeur déjà présente est conservée');
+});
+
+test('stockage : vide ou JSON corrompu → version courante vide', () => {
+  assert.deepEqual(core.loadStored(memStore()), { version: 2, prefs: {} });
+  assert.deepEqual(core.loadStored(memStore({ 'cimaise.v1': '{oops' })), { version: 2, prefs: {} });
 });
 
 test('adaptateur : erreur explicite quand tizen est absent', () => {

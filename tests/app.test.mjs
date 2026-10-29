@@ -226,14 +226,30 @@ test('Réglages → accueil : la ligne Affichage bascule en une rangée, persist
   const a = boot();
   await openSettings(a);
   assert.ok(texts(find(a.root, 'reglages')[0]).includes('Grille'));
-  a.key(UP); a.key(OK); // ligne « Affichage de l’accueil »
+  a.key(UP); a.key(UP); a.key(OK); // ligne « Affichage de l’accueil »
   assert.ok(texts(find(a.root, 'reglages')[0]).includes('Une rangée'));
   assert.equal(JSON.parse(a.store['cimaise.v1']).prefs.homeMode, 'rangee');
   a.key(BACK);
   assert.equal(find(a.root, 'home')[0].className.split(' ')[1], 'rangee');
-  a.key(UP); a.key(OK); await a.tick(); // les Réglages reprennent le mode courant
+  a.key(UP); a.key(UP); a.key(OK); await a.tick(); // les Réglages reprennent le mode courant
   assert.ok(texts(find(a.root, 'reglages')[0]).includes('Une rangée'));
-  a.key(UP); a.key(OK); a.key(BACK);
+  a.key(UP); a.key(UP); a.key(OK); a.key(BACK);
   assert.equal(JSON.parse(a.store['cimaise.v1']).prefs.homeMode, 'grille');
   assert.equal(find(a.root, 'home')[0].className.split(' ')[1], 'grille');
+});
+
+test('Réglages → accueil : « Tuiles à l’écran » appliqué tout de suite, persisté dans cimaise.v1, repris à la réouverture', async () => {
+  const a = boot();
+  await openSettings(a);
+  a.key(UP); // ligne « Tuiles à l’écran »
+  a.key(RIGHT); a.key(RIGHT);
+  assert.ok(texts(find(a.root, 'reglages')[0]).includes('6'));
+  assert.equal(JSON.parse(a.store['cimaise.v1']).prefs.homeTiles, 6);
+  a.key(BACK);
+  assert.ok(find(a.root, 'home')[0].className.split(' ').includes('n6'));
+  a.key(UP); a.key(OK); await a.tick();
+  assert.ok(texts(find(a.root, 'reglages')[0]).includes('6'), 'les Réglages reprennent la valeur courante');
+  a.key(UP); a.key(LEFT); a.key(LEFT); a.key(BACK);
+  assert.equal(JSON.parse(a.store['cimaise.v1']).prefs.homeTiles, 4);
+  assert.ok(!find(a.root, 'home')[0].className.split(' ').some((c) => /^n\d$/.test(c)));
 });

@@ -11,6 +11,8 @@ export interface SettingsArg {
   listInstalledApps: (ok: (apps: DiscoveredApp[]) => void, fail: (err: Error) => void) => void;
   mode?: HomeMode;
   onMode?: (mode: HomeMode) => void;
+  tiles?: number;
+  onTiles?: (n: number) => void;
   onChange: (catalog: CatalogEntry[]) => void;
   onClose: () => void;
 }
@@ -47,6 +49,8 @@ function createPanel(arg: SettingsArg): Panel {
     },
     mode: arg.mode,
     onMode: arg.onMode,
+    tiles: arg.tiles,
+    onTiles: arg.onTiles,
     onClose: arg.onClose
   });
 }

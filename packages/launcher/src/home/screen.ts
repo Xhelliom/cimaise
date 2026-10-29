@@ -5,7 +5,7 @@ import { Panel } from '../../../tv-core/src/router/router';
 import { launchApp as deviceLaunch } from '../../../tv-core/src/device';
 import { CatalogEntry } from '../catalog/model';
 import { knownApp } from '../catalog/known-apps';
-import { greeting, formatClock, formatDate, tintGradient, tileInk, COLS, railOffset, pageShift, rowOffset, HomeMode, DEFAULT_MODE } from './model';
+import { greeting, formatClock, formatDate, tintGradient, tileInk, railOffset, pageShift, rowOffset, HomeMode, DEFAULT_MODE, normalizeTiles } from './model';
 
 export type PastilleName = 'reglages' | 'smarthub' | 'reseau';
 
@@ -20,12 +20,14 @@ export interface HomeOptions {
   now?: () => Date;
   timer?: { set: (fn: () => void, ms: number) => any; clear: (h: any) => void };
   mode?: HomeMode;   // défaut : grille
+  tiles?: number;    // tuiles à l'écran : 4 (défaut), 5 ou 6
   doc?: Document;
 }
 
 export interface HomePanel extends Panel {
   setCatalog(catalog: CatalogEntry[]): void;
   setMode(mode: HomeMode): void;
+  setTiles(n: number): void;
   notify(text: string): void;   // petit message à l'écran (disparaît seul)
 }
 
@@ -59,6 +61,7 @@ export function createHome(opts: HomeOptions): HomePanel {
 
   // Structure de la maquette : 2 calques de teinte, en-tête, pastilles, titre, bac (clip) > rail (défile).
   var mode: HomeMode = opts.mode || DEFAULT_MODE;
+  var per = normalizeTiles(opts.tiles);
   var el = div('home');
   var layers = [div('fond on'), div('fond')];
   var salut = div('salut'), horloge = div('horloge'), date = div('date');
@@ -90,7 +93,7 @@ export function createHome(opts: HomeOptions): HomePanel {
   el.appendChild(message);
 
   var tiles: HTMLElement[] = [];
-  var grid = new Focus(0, COLS);
+  var grid = new Focus(0, per);
   var chips = new Focus(PASTILLES.length, PASTILLES.length);
   var zone: 'tiles' | 'pastilles' = 'tiles';
   var shownKey = '';
@@ -152,15 +155,15 @@ export function createHome(opts: HomeOptions): HomePanel {
     }
     // Grille : la page remonte dès la 2e rangée ; une rangée : le rail défile en x. Seuls transform et classe changent.
     var idx = zone === 'tiles' && tiles.length ? grid.index : 0;
-    var row = mode === 'grille' ? Math.floor(idx / COLS) : 0;
-    var key = mode + row + ':' + idx;
+    var row = mode === 'grille' ? Math.floor(idx / per) : 0;
+    var key = mode + per + ':' + row + ':' + idx;
     if (key !== shownKey) {
       shownKey = key;
-      var hcls = 'home ' + mode + (pageShift(row) ? ' defile' : '');
+      var hcls = homeClass(row);
       if (el.className !== hcls) el.className = hcls;
       rail.style.transform = mode === 'grille'
-        ? 'translateY(' + -railOffset(row) + 'px)'
-        : 'translateX(' + -rowOffset(idx, tiles.length) + 'px)';
+        ? 'translateY(' + -railOffset(row, per) + 'px)'
+        : 'translateX(' + -rowOffset(idx, tiles.length, per) + 'px)';
     }
     var known = zone === 'tiles' && catalog[grid.index] ? knownApp(catalog[grid.index].name) : null;
     if (desc.textContent !== (known ? known.desc : '')) desc.textContent = known ? known.desc : '';
@@ -174,7 +177,10 @@ export function createHome(opts: HomeOptions): HomePanel {
   // Ordre : icône de la TV, logo de la bibliothèque (par nom), monogramme. Le logo ne se charge qu'à l'affichage.
   function logoOf(name: string): string | undefined { var k = knownApp(name); return k ? k.logoUrl : undefined; }
 
-  function cols(): number { return mode === 'grille' ? COLS : Math.max(1, catalog.length); }
+  function cols(): number { return mode === 'grille' ? per : Math.max(1, catalog.length); }
+
+  // 4 tuiles = style de base (aucune classe) ; 5 et 6 ajoutent n5 / n6 (tailles dans home.css).
+  function homeClass(row: number): string { return 'home ' + mode + (per !== 4 ? ' n' + per : '') + (pageShift(row) ? ' defile' : ''); }
 
   function buildTiles(): void {
     while (rail.firstChild) rail.removeChild(rail.firstChild);
@@ -236,7 +242,7 @@ export function createHome(opts: HomeOptions): HomePanel {
     return true;
   }
 
-  el.className = 'home ' + mode;
+  el.className = homeClass(0);
   buildTiles();
   refresh();
   paint();
@@ -256,6 +262,14 @@ export function createHome(opts: HomeOptions): HomePanel {
       mode = m;
       grid.cols = cols();
       grid.index = 0;
+      shownKey = '';
+      paint();
+    },
+    setTiles: function (n: number) {
+      n = normalizeTiles(n);
+      if (n === per) return;
+      per = n;
+      grid.cols = cols();
       shownKey = '';
       paint();
     },
