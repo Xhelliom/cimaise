@@ -2,7 +2,7 @@ import { Item } from '../api/types';
 import { Panel } from '../../../tv-core/src/router/router';
 import { Key } from '../../../tv-core/src/keys';
 import { createRow, VirtualList } from '../../../tv-core/src/virtual/list';
-import { Ctx, el, PlexArg, realTimers, resolve } from './context';
+import { Ctx, el, PlexArg, realTimers, RESUME, resolve } from './context';
 import { createPlayerPanel } from './player';
 import { recordMeasure } from '../../../tv-core/src/diag';
 import { detailPosterUrl, EPISODE, episodeThumbUrl } from './images';
@@ -23,7 +23,13 @@ function progress(it: Item): number {
   return it.duration && it.viewOffset ? Math.min(1, it.viewOffset / it.duration) : 0;
 }
 
-// Fiche film ou série : affiche, titre, méta, Lire/Reprendre, résumé ; pour une série, saisons puis épisodes.
+// Position de reprise d'une pastille : « 12:34 » ou « 1:02:10 ».
+function clock(ms: number): string {
+  var s = Math.floor(ms / 1000), h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, ss = s % 60;
+  return (h ? h + ':' + (m < 10 ? '0' : '') : '') + m + ':' + (ss < 10 ? '0' : '') + ss;
+}
+
+// Fiche film ou série : affiche, titre, méta, Lire ou Reprendre + Depuis le début, résumé ; pour une série, saisons puis épisodes.
 // `stub` (déjà connu par la liste) s'affiche tout de suite ; la fiche complète le remplace à son arrivée.
 // `focus` : épisode visé (ouvert depuis « En cours ») ; sinon, pour une série, Lire = l'épisode « à suivre » du serveur,
 // à défaut le premier. Le lecteur ne reçoit jamais une série ni une saison.
@@ -39,13 +45,16 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
   var prog = el(doc, 'plex-prog');
   var bar = el(doc, 'plex-prog-bar');
   prog.appendChild(bar);
+  var btns = el(doc, 'plex-btns');
   var play = el(doc, 'plex-play', 'Lire');
+  var restart = el(doc, 'plex-restart', 'Depuis le début');
+  btns.appendChild(play);
   var summary = el(doc, 'plex-dsummary', '');
   var msg = el(doc, 'plex-msg', '');
   var seasonsBox = el(doc, 'plex-seasons');
   var epTitle = el(doc, 'plex-ep-title', '');
   var episodesBox = el(doc, 'plex-episodes');
-  var parts = [poster, title, meta, prog, play, summary, seasonsBox, epTitle, episodesBox, msg];
+  var parts = [poster, title, meta, prog, btns, summary, seasonsBox, epTitle, episodesBox, msg];
   for (var p = 0; p < parts.length; p++) root.appendChild(parts[p]);
 
   var seasons: Item[] = [], episodes: Item[] = [];
@@ -54,6 +63,7 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
   var cancels: Array<() => void> = [], epCancel: (() => void) | null = null;
   var zone: Zone = 'play';
   var held = false;
+  var onRestart = false;   // focus sur « Depuis le début » plutôt que sur Lire/Reprendre
   var t0 = Date.now(), measured = false;   // mesure (diagnostic) : ouverture → fiche complète affichée
 
   function paint(): void {
@@ -67,13 +77,23 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
     var r = progress(item);
     bar.style.transform = 'scaleX(' + r + ')';
     prog.style.opacity = r > 0 ? '1' : '0';
-    if (stub.type === 'show') {
-      var ep = target;
-      var se = ep && ep.parentIndex !== undefined && ep.index !== undefined ? ' S' + ep.parentIndex + ' E' + ep.index : '';
-      play.textContent = (ep && ep.viewOffset ? 'Reprendre' : 'Lire') + se;
-    } else play.textContent = r > 0 && r < 1 ? 'Reprendre' : 'Lire';
+    var off = resumeAt();
+    var ep = stub.type === 'show' ? target : null;
+    var se = ep && ep.parentIndex !== undefined && ep.index !== undefined ? ' S' + ep.parentIndex + ' E' + ep.index : '';
+    play.textContent = (off ? 'Reprendre' : 'Lire') + se + (off ? ' · ' + clock(off) : '');
+    if (off && !restart.parentNode) btns.appendChild(restart);
+    if (!off && restart.parentNode) { btns.removeChild(restart); onRestart = false; }
     if (!held) { var u = detailPosterUrl(c.session, item); if (u) poster.setAttribute('src', u); }
-    play.className = zone === 'play' ? 'plex-play focus' : 'plex-play';
+    play.className = zone === 'play' && !onRestart ? 'plex-play focus' : 'plex-play';
+    restart.className = zone === 'play' && onRestart ? 'plex-restart focus' : 'plex-restart';
+  }
+
+  // Ce que lit Lire : l'épisode visé d'une série, sinon la fiche ; null tant que l'épisode n'est pas connu.
+  function playable(): Item | null { return stub.type === 'show' ? target : item; }
+  // Position de reprise (ms) de l'élément à lire, 0 s'il n'est pas entamé.
+  function resumeAt(): number {
+    var it = playable();
+    return it && it.viewOffset && it.viewOffset > 0 && (!it.duration || it.viewOffset < it.duration) ? it.viewOffset : 0;
   }
 
   var seasonList: VirtualList | null = null, episodeList: VirtualList | null = null;
@@ -89,15 +109,16 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
         var e = episodes[i];
         return e ? { title: (e.index ? e.index + '. ' : '') + e.title, image: episodeThumbUrl(c.session, e) } : null;
       },
-      onSelect: function (i) { startPlay(episodes[i]); }
+      onSelect: function (i) { startPlay(episodes[i], RESUME); }
     });
   }
 
   function say(text: string): void { msg.textContent = text; }
 
   // Lire : l'écran lecteur, sauf si l'appelant fournit son propre `onPlay`.
-  function startPlay(it: Item): void {
-    if (arg.onPlay) c.play(it); else c.nav.push(createPlayerPanel(arg, it));
+  // `startMs` : 0 ou RESUME (le lecteur relit la position sur le serveur) ; le lecteur ne pose plus la question.
+  function startPlay(it: Item, startMs: number): void {
+    if (arg.onPlay) c.play(it, startMs); else c.nav.push(createPlayerPanel(arg, it, startMs));
   }
 
   var curSeason: Item | null = null;
@@ -185,9 +206,16 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
       if (k === 'down') { if (at >= z.length - 1) return false; setZone(z[at + 1]); return true; }
       if (k === 'up') { if (at <= 0) return false; setZone(z[at - 1]); return true; }
       if (zone === 'play') {
+        if (k === 'left' || k === 'right') {
+          if (!restart.parentNode || onRestart === (k === 'right')) return false;
+          onRestart = k === 'right';
+          paint();
+          return true;
+        }
         if (k !== 'enter') return false;
-        if (item.type === 'show' && !target) { say('Chargement de l’épisode…'); return true; }
-        startPlay(item.type === 'show' ? target! : item);
+        var it = playable();
+        if (!it) { say('Chargement de l’épisode…'); return true; }
+        startPlay(it, onRestart || !resumeAt() ? 0 : RESUME);
         return true;
       }
       if (zone === 'seasons') {

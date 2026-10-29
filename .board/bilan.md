@@ -1,12 +1,14 @@
-# Bilan — audio et sous-titres : VO sous-titrée, réglages du module Plex
+# Bilan — Reprendre / Depuis le début
 
-## Fait
-- Réglages de langues déplacés des Réglages globaux vers **Plex → Réglages** (4ᵉ rangée de l'accueil Plex, `packages/plex/src/ui/settings.ts`).
-- Migration du schéma `cimaise.v1` v2 → v3 (`plexAudioLang`/`plexSubLang` → `plexLang`, mode `custom`), testée.
-- Modes : « VO sous-titrée » (défaut), « Français si disponible », « Personnalisé » (3 langues audio + 3 de sous-titres ordonnées) ; forcés de la langue de l'audio toujours activés ; SRT préféré à PGS/ASS de même langue (`playback/tracks.ts`).
-- VO : Plex ne fournit pas de langue d'origine (vérifié sur le serveur, lecture seule) → piste audio « default », sinon la première. Règle et limites dans `docs/decisions.md`.
-- Choix manuel par série toujours prioritaire. `npm run check` vert (511 tests).
+**Fait**
+- Fiche entamée : deux boutons « Reprendre S1 E8 · 12:34 » (focus initial) et « Depuis le début » ; sinon un seul « Lire ». Un titre vu en entier (viewOffset >= durée) affiche « Lire » seul (garde rétablie).
+- Le lecteur ne pose plus la question. Il reçoit une intention : 0 (depuis le début), `RESUME` (-1, défini dans `ui/context.ts`) ou une position.
+- Correctif position périmée (option A) : « Reprendre » et Entrée sur un épisode passent `RESUME` ; le lecteur lit le `viewOffset` du `full` qu'il récupère déjà sur le serveur (jamais le cache de la fiche, TTL 30 min). Position serveur ≥ durée ou absente → départ à 0.
+- Commentaire de `player.ts` corrigé.
+- Tests : fiche entamée / non entamée / vue en entier ; lecteur sans question ; cache à 100000 vs serveur à 3082192 → départ à la valeur du serveur ; RESUME sans position serveur → 0.
+- Fixture `ondeck.json` : durée de l'épisode 300 corrigée (438099 → 1438099), la position 600000 la dépassait.
+- `npm run check` vert (515 tests).
 
-## Non fait / à noter
-- Migration : l'ancien « audio X + sous-titres Y toujours » n'existe plus (le mode Personnalisé n'affiche les sous-titres que si l'audio n'est pas compris) ; documenté.
-- Non testé sur la TV (écran Réglages Plex, navigation télécommande) : à valider physiquement.
+**Reste / à noter**
+- Un `onPlay` externe reçoit désormais `RESUME` (-1) au lieu d'une position en ms pour une reprise ; aucun appelant externe n'existe dans le repo.
+- Non vérifié sur la TV.

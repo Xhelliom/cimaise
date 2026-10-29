@@ -400,7 +400,8 @@ test('retour de lecture : la fiche film affiche la nouvelle position (Reprendre,
   sharedData(d).progressed(movie, 3082192, false);   // moitié de 6164384 ms
   p.resume();
   await flush();
-  assert.equal(byClass(p.el, 'plex-play')[0].textContent, 'Reprendre');
+  assert.equal(byClass(p.el, 'plex-play')[0].textContent, 'Reprendre · 51:22');
+  assert.equal(byClass(p.el, 'plex-restart').length, 1);
   assert.equal(bar.style.transform, 'scaleX(0.5)');
 });
 
@@ -693,10 +694,66 @@ test('depuis « En cours » : la fiche de la série garde l’épisode visé et 
   assert.equal(d.pushed.length, 1);
   const detail = d.pushed[0];
   await flush();
-  assert.equal(playBtn(detail), 'Reprendre S1 E8');
+  assert.equal(playBtn(detail), 'Reprendre S1 E8 · 10:00');
   detail.onKey('enter');
   assert.deepEqual(played.map((i) => i.ratingKey), ['300'], 'l’épisode, jamais la série');
   assert.equal(played[0].type, 'episode');
+  assert.equal(played[0].viewOffset, 600000);
+  assert.equal(played.length, 1);
+});
+
+const restartBtn = (p) => byClass(p.el, 'plex-restart');
+
+test('fiche entamée : Reprendre (avec position, focus initial) et Depuis le début côte à côte', async () => {
+  const played = [];
+  const d = deps({ onPlay: (it, ms) => played.push([it.ratingKey, ms]) });
+  const movie = { ratingKey: '100', type: 'movie', title: 'Film', duration: 7200000, viewOffset: 3730000 };
+  const p = ui.createDetailPanel(d.arg, movie);
+  assert.equal(playBtn(p), 'Reprendre · 1:02:10');
+  assert.equal(restartBtn(p).length, 1);
+  assert.equal(restartBtn(p)[0].textContent, 'Depuis le début');
+  assert.equal(byClass(p.el, 'plex-play')[0].className, 'plex-play focus', 'focus initial sur Reprendre');
+  p.onKey('enter');
+  assert.deepEqual(played, [['100', ui.RESUME]], 'intention de reprise : la position vient du serveur');
+  p.onKey('right');
+  assert.equal(restartBtn(p)[0].className, 'plex-restart focus');
+  p.onKey('enter');
+  assert.deepEqual(played[1], ['100', 0]);
+  p.onKey('left');
+  assert.equal(byClass(p.el, 'plex-play')[0].className, 'plex-play focus');
+  p.destroy();
+});
+
+test('fiche non entamée : un seul bouton Lire, pas de Depuis le début', async () => {
+  const played = [];
+  const d = deps({ onPlay: (it, ms) => played.push([it.ratingKey, ms]) });
+  const p = ui.createDetailPanel(d.arg, { ratingKey: '101', type: 'movie', title: 'Film', duration: 7200000 });
+  assert.equal(playBtn(p), 'Lire');
+  assert.equal(restartBtn(p).length, 0);
+  assert.equal(p.onKey('right'), false);
+  p.onKey('enter');
+  assert.deepEqual(played, [['101', 0]]);
+  p.destroy();
+});
+
+test('épisode entamé dans la liste : Entrée reprend directement ; non entamé : départ à zéro', async () => {
+  const played = [];
+  const meta = (l) => JSON.stringify({ MediaContainer: { size: l.length, Metadata: l } });
+  const routes = [
+    [/\/library\/metadata\/200\/children/, meta([{ ratingKey: '210', type: 'season', title: 'Saison 1', index: 1 }])],
+    [/\/library\/metadata\/210\/children/, meta([
+      { ratingKey: '211', type: 'episode', title: 'Un', index: 1, parentIndex: 1, viewOffset: 754000 },
+      { ratingKey: '212', type: 'episode', title: 'Deux', index: 2, parentIndex: 1 }])],
+  ];
+  const d = deps({ onPlay: (it, ms) => played.push([it.ratingKey, ms]), http: fakeHttp([...routes, ...serverRoutes()]) });
+  const p = ui.createDetailPanel(d.arg, { ratingKey: '200', type: 'show', title: 'Série' });
+  await flush();
+  p.onKey('down'); p.onKey('down');   // boutons → saisons → épisodes
+  p.onKey('enter');
+  assert.deepEqual(played, [['211', ui.RESUME]], 'reprise directe, sans « Depuis le début » côté liste');
+  p.onKey('right'); p.onKey('enter');
+  assert.deepEqual(played[1], ['212', ui.RESUME], 'non entamé : le serveur n’a pas de position, départ à zéro');
+  p.destroy();
 });
 
 test('depuis « En cours » : la fiche s’ouvre sur la saison et l’épisode visés', async () => {
@@ -897,4 +954,12 @@ test('diagnostic : la mémoire JS n’apparaît que si le moteur expose performa
   Object.defineProperty(globalThis, 'performance', { value: { memory: { usedJSHeapSize: 52428800 } }, configurable: true });
   try { assert.match(ui.diag.plexReport(), /mémoire JS: 50 Mo/); }
   finally { Object.defineProperty(globalThis, 'performance', had); }
+});
+
+test('fiche d’un film vu en entier (viewOffset >= durée) : un seul bouton Lire', async () => {
+  const d = deps({ onPlay: () => {} });
+  const p = ui.createDetailPanel(d.arg, { ratingKey: '102', type: 'movie', title: 'Film', duration: 7200000, viewOffset: 7200000 });
+  assert.equal(playBtn(p), 'Lire');
+  assert.equal(restartBtn(p).length, 0);
+  p.destroy();
 });

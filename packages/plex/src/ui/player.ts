@@ -8,13 +8,13 @@ import { Key } from '../../../tv-core/src/keys';
 import { createPlayer, OpenOptions, Player, Track } from '../../../tv-core/src/player';
 import { langPrefsFor, LangPrefs, rememberSeries } from '../../../tv-core/src/langprefs';
 import { recordMeasure } from '../../../tv-core/src/diag';
-import { Ctx, el, identityOf, PlexArg, realTimers, resolve } from './context';
+import { Ctx, el, identityOf, PlexArg, realTimers, RESUME, resolve } from './context';
 
 var HIDE_MS = 3000;
 var SUB_MS = 3000; // durée d'affichage d'un sous-titre dont AVPlay ne donne pas la durée
 
 function two(n: number): string { return (n < 10 ? '0' : '') + n; }
-// hh:mm:ss, toujours avec les heures (« Reprendre à 00:51:22 »).
+// hh:mm:ss, toujours avec les heures.
 export function formatTime(ms: number): string {
   var s = Math.max(0, Math.floor(ms / 1000));
   return two(Math.floor(s / 3600)) + ':' + two(Math.floor(s / 60) % 60) + ':' + two(s % 60);
@@ -31,11 +31,11 @@ export function cleanSubtitle(text: string): string {
 }
 
 interface Choice { label: string; apply(): void; }
-type Mode = 'loading' | 'resume' | 'play' | 'error';
+type Mode = 'loading' | 'play' | 'error';
 
-// Écran lecteur (HANDOFF §5.4) : question de reprise, lecture directe par AVPlay (wrapper de tv-core), interface masquée
+// Écran lecteur (HANDOFF §5.4) : démarre directement à `startMs` (0, RESUME ou une position, choisi par l'appelant), lecture directe par AVPlay (wrapper de tv-core), interface masquée
 // au bout de 3 s, ±10 s, pistes, Retour = arrêt propre. Hors TV, le wrapper signale l'absence de webapis : aucune lecture simulée.
-export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
+export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): Panel {
   var c = resolve(arg) as Ctx;
   var doc = c.doc;
   var timers = arg.timers || realTimers();
@@ -72,12 +72,12 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
   var tSession = newTranscodeSession(identityOf(arg)), tActive = false;
   // Sous-titres rendus par la page (AVPlay n'est réveillé que pour une piste choisie) : subsOn = la piste choisie est lue par AVPlay (interne ou externe), pas incrustée.
   var extFailed = false, subsOn = false, subTimer: any = null, seriesKey = item.grandparentRatingKey;
-  // Mesure (diagnostic) : Entrée sur Lire → première image (1er temps de lecture signalé par AVPlay). Avec la question de reprise, part du choix.
+  // Mesure (diagnostic) : Entrée sur Lire → première image (1er temps de lecture signalé par AVPlay).
   var t0 = Date.now(), awaitFrame = false;
   var hideTimer: any = null;
   var metaReq: { abort(): void } | null = null;
   var buttons: Array<{ label: string; run(): void }> = [];
-  var at = 0, resumeAsked = false;
+  var at = 0;
   var choices: Choice[] = [], mi = 0;
 
   function setClass(node: HTMLElement, base: string, on: boolean): void { node.className = on ? base + ' on' : base; }
@@ -183,7 +183,6 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
     if (closed) return;
     mode = 'loading';
     ask('Chargement…', []);
-    if (resumeAsked) t0 = Date.now();
     awaitFrame = true;
     var p = (arg.createPlayer || createPlayer)({
       doc: arg.doc as any,
@@ -318,16 +317,10 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
 
   function prefs(): LangPrefs { return langPrefsFor(seriesKey, arg.store); }
 
+  // RESUME : position à jour du serveur (jamais celle, éventuellement en cache, de la fiche) ; un titre vu en entier repart de zéro.
   function begin(): void {
-    var off = full.viewOffset || 0;
-    if (off > 0) {
-      mode = 'resume';
-      resumeAsked = true;
-      ask(full.title, [
-        { label: 'Reprendre à ' + formatTime(off), run: function () { start(off); } },
-        { label: 'Depuis le début', run: function () { start(0); } }
-      ]);
-    } else start(0);
+    var at = startMs === RESUME ? (full.viewOffset && (!durationMs || full.viewOffset < durationMs) ? full.viewOffset : 0) : startMs || 0;
+    start(at);
   }
 
   // Fiche à jour directement auprès du serveur (jamais le cache : la reprise vient peut-être d'un autre appareil).

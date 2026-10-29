@@ -160,27 +160,22 @@ test('lecture directe : URL de la partie avec le jeton, sans reprise quand viewO
   assert.ok(!s.player.openOpts.startMs);
 });
 
-test('reprise : viewOffset > 0 propose « Reprendre à hh:mm:ss » / « Depuis le début » avant d’ouvrir', async () => {
-  const s = await started({ meta: withOffset(3082192) });
-  assert.deepEqual(s.player.calls, [], 'rien n’est lu avant le choix');
-  assert.ok(has(s.panel.el, /^Reprendre à 00:51:22$/));
-  assert.ok(has(s.panel.el, /^Depuis le début$/));
-  s.panel.onKey('enter');
+test('reprise : le lecteur ne pose plus la question, il démarre à la position de l’appelant', async () => {
+  const s = setup({ meta: withOffset(3082192) });
+  const panel = ui.createPlayerPanel(s.arg, MOVIE, 3082192);
+  await flush();
+  assert.ok(!has(panel.el, /^Reprendre à/) && !has(panel.el, /^Depuis le début$/), 'aucune question');
   assert.equal(s.player.openOpts.startMs, 3082192);
+  panel.destroy();
 });
 
-test('reprise : « Depuis le début » ouvre à zéro', async () => {
-  const s = await started({ meta: withOffset(3082192) });
-  s.panel.onKey('right');
-  s.panel.onKey('enter');
+test('reprise : sans position transmise, le lecteur démarre à zéro même si le serveur a un viewOffset', async () => {
+  const s = setup({ meta: withOffset(3082192) });
+  const panel = ui.createPlayerPanel(s.arg, MOVIE, 0);
+  await flush();
+  assert.ok(!has(panel.el, /^Depuis le début$/));
   assert.ok(!s.player.openOpts.startMs);
-});
-
-test('reprise : Retour pendant la question revient à la fiche sans rien ouvrir', async () => {
-  const s = await started({ meta: withOffset(3082192) });
-  assert.equal(s.panel.onKey('back'), true);
-  assert.equal(s.pops(), 1);
-  assert.deepEqual(s.player.calls.filter((c) => c === 'open'), []);
+  panel.destroy();
 });
 
 test('contrôles : ±10 s, Entrée et touches média pour pause / lecture', async () => {
@@ -431,20 +426,6 @@ test('mesures : Entrée sur Lire → première image (1er onTime après l’ouve
   } finally { Date.now = real; }
 });
 
-test('mesures : avec la question de reprise, la durée part du choix de l’utilisateur', async () => {
-  const real = Date.now; let t = 1000; Date.now = () => t;
-  try {
-    ui.diag.resetMeasures();
-    const s = setup({ meta: withOffset(3000000) });
-    const panel = ui.createPlayerPanel(s.arg, MOVIE);
-    t = 1200; await flush();
-    t = 9000; panel.onKey('enter');            // « Reprendre » choisi 8 s plus tard
-    s.player.ready();
-    t = 9400; s.player.events.onTime(3000000);
-    assert.equal(ui.diag.measureStats('lecture').max, 400);
-    panel.destroy();
-  } finally { Date.now = real; }
-});
 
 // --- Sous-titres et pistes (HANDOFF §5.3–5.4) ------------------------------------------------------------------
 
@@ -728,9 +709,7 @@ test('transcodage : saut lointain → la session est arrêtée puis relancée à
 test('transcodage : reprise à une position → le flux est demandé avec cet offset', async () => {
   const s = setup({ meta: () => { const j = JSON.parse(sample('mkv-h264-dts')); j.MediaContainer.Metadata[0].viewOffset = 1800000; return JSON.stringify(j); } });
   withDecision(s);
-  const panel = ui.createPlayerPanel(s.arg, MOVIE);
-  await flush();
-  panel.onKey('enter');
+  const panel = ui.createPlayerPanel(s.arg, MOVIE, 1800000);
   await flush();
   assert.equal(param(urls(s, DECISION_URL)[0], 'offset'), '1800');
   assert.equal(s.player.transcode[0], 1800000); assert.ok(s.player.transcode[1] > 0);
@@ -823,4 +802,21 @@ test('transcodage : onerror pendant le chargement qui suit un saut lointain → 
   assert.ok(has(s.panel.el, /Lecture impossible/));
   assert.ok(has(s.panel.el, /^Ouvrir Plex officiel$/));
   assert.equal(urls(s, STOP).length, before + 1);
+});
+
+test('reprise : intention RESUME → départ à la position du serveur, pas à celle (en cache) de la fiche', async () => {
+  const s = setup({ meta: withOffset(3082192) });
+  const stale = { ...MOVIE, viewOffset: 100000 };
+  const panel = ui.createPlayerPanel(s.arg, stale, ui.RESUME);
+  await flush();
+  assert.equal(s.player.openOpts.startMs, 3082192);
+  panel.destroy();
+});
+
+test('reprise : RESUME sur un titre dont le serveur n’a plus de position → départ à zéro', async () => {
+  const s = setup({ meta: withOffset(0) });
+  const panel = ui.createPlayerPanel(s.arg, { ...MOVIE, viewOffset: 100000 }, ui.RESUME);
+  await flush();
+  assert.ok(!s.player.openOpts.startMs);
+  panel.destroy();
 });
