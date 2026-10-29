@@ -3,9 +3,12 @@ export interface Identity { clientId: string; product: string; version: string; 
 
 export interface HttpRequest { method: string; url: string; headers: { [k: string]: string }; timeoutMs?: number; }
 export interface HttpResponse { status: number; body: string; }
+export interface HttpBinaryResponse { status: number; body: ArrayBuffer; }
 export interface Abortable { abort(): void; }
 // Transport injectable (XHR sur la TV, faux dans les tests). Rappel à la Node : (erreur, réponse).
 export type Http = (req: HttpRequest, cb: (err: Error | null, res?: HttpResponse) => void) => Abortable;
+// Transport binaire (index de prévisualisation) : même contrat que Http, corps en ArrayBuffer.
+export type HttpBinary = (req: HttpRequest, cb: (err: Error | null, res?: HttpBinaryResponse) => void) => Abortable;
 export type Callback<T> = (err: PlexError | null, value?: T) => void;
 
 export interface PlexError extends Error { status?: number; }
@@ -30,7 +33,7 @@ export interface Stream {
   key?: string; format?: string; channels?: number; profile?: string; bitDepth?: number; colorTrc?: string; width?: number; height?: number;
   DOVIPresent?: boolean; DOVIProfile?: number; hearingImpaired?: boolean; level?: number;
 }
-export interface Part { id: number; key: string; duration?: number; container?: string; Stream?: Stream[]; }
+export interface Part { id: number; key: string; indexes?: string; hasThumbnail?: any; duration?: number; container?: string; Stream?: Stream[]; }
 export interface Media {
   id: number; container?: string; videoCodec?: string; audioCodec?: string; videoProfile?: string; width?: number; height?: number;
   bitrate?: number; audioChannels?: number; Part?: Part[];
