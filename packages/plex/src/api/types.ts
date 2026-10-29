@@ -33,7 +33,7 @@ export interface Stream {
   key?: string; format?: string; channels?: number; profile?: string; bitDepth?: number; colorTrc?: string; width?: number; height?: number;
   DOVIPresent?: boolean; DOVIProfile?: number; hearingImpaired?: boolean; level?: number;
 }
-export interface Part { id: number; key: string; indexes?: string; hasThumbnail?: any; duration?: number; container?: string; Stream?: Stream[]; }
+export interface Part { id: number; key: string; indexes?: string; duration?: number; container?: string; Stream?: Stream[]; }
 export interface Media {
   id: number; container?: string; videoCodec?: string; audioCodec?: string; videoProfile?: string; width?: number; height?: number;
   bitrate?: number; audioChannels?: number; Part?: Part[];

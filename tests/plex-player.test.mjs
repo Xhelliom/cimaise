@@ -1076,7 +1076,7 @@ async function onTrack(over) {
 }
 
 test('aperçu : rien n’est téléchargé tant que le focus n’est pas sur la barre ; chargé à l’entrée, URL du serveur avec jeton', async () => {
-  const p = await onTrack({ flag: { hasThumbnail: '1' } });
+  const p = await onTrack({ flag: { indexes: 'sd' } });
   p.panel.onKey('up'); // barre ouverte, focus sur les boutons
   await flush();
   assert.equal(p.reqs.length, 0);
@@ -1106,7 +1106,7 @@ test('aperçu : une seule image à la fois (la plus proche), URL révoquée au c
 });
 
 test('aperçu : l’index est libéré en quittant la barre, à la fermeture de la barre et en quittant le lecteur', async () => {
-  const p = await onTrack({ flag: { hasThumbnail: 1 } });
+  const p = await onTrack({ flag: { indexes: 'sd' } });
   p.panel.onKey('up'); p.panel.onKey('up');
   await flush();
   p.s.player.events.onSeekPending(11000, 11000);
@@ -1132,7 +1132,7 @@ test('aperçu : l’index est libéré en quittant la barre, à la fermeture de 
 });
 
 test('aperçu : quitter la barre pendant le téléchargement l’interrompt', async () => {
-  const p = previewSetup({ hasThumbnail: '1' }, () => {});
+  const p = previewSetup({ indexes: 'sd' }, () => {});
   const panel = ui.createPlayerPanel(p.s.arg, MOVIE);
   await flush(); p.s.player.ready();
   panel.onKey('up'); panel.onKey('up');
@@ -1153,9 +1153,20 @@ test('aperçu : sans index (part non analysée) aucun téléchargement, seule l�
   assert.ok(!previewOf(p.panel).classList.contains('on'));
 });
 
+test('aperçu : une part avec seulement hasThumbnail (pochette intégrée) ne télécharge rien, heure seule', async () => {
+  const p = await onTrack({ flag: { hasThumbnail: '1' } });
+  p.panel.onKey('up'); p.panel.onKey('up');
+  await flush();
+  p.s.player.events.onSeekPending(61000, 1000);
+  assert.equal(p.reqs.length, 0);
+  assert.equal(p.urls.made.length, 0);
+  assert.equal(byClass(p.panel.el, 'plex-pl-cursor-time')[0].textContent, '00:01:01');
+  assert.ok(!previewOf(p.panel).classList.contains('on'));
+});
+
 test('aperçu : index en erreur ou invalide → repli sur l’heure seule, sans nouvelle tentative pendant le même focus', async () => {
   for (const binary of [(cb) => cb(null, { status: 404, body: new ArrayBuffer(0) }), (cb) => cb(null, { status: 200, body: new ArrayBuffer(100) }), (cb) => cb(new Error('réseau'))]) {
-    const p = await onTrack({ flag: { hasThumbnail: '1' }, binary });
+    const p = await onTrack({ flag: { indexes: 'sd' }, binary });
     p.panel.onKey('up'); p.panel.onKey('up');
     await flush();
     p.s.player.events.onSeekPending(61000, 1000);

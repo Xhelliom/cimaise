@@ -37,9 +37,10 @@ export function bifFrameBytes(b: Bif, ms: number): ArrayBuffer | null {
   return f ? b.buf.slice(f.start, f.end) : null;
 }
 
-// La part annonce un index de prévisualisation (`indexes="sd"` ou `hasThumbnail="1"`) ; sinon seule l'heure visée est affichée.
-export function hasPreviewIndex(part: { indexes?: string; hasThumbnail?: any }): boolean {
-  return part.indexes === 'sd' || part.hasThumbnail === 1 || part.hasThumbnail === '1' || part.hasThumbnail === true;
+// La part annonce un index de prévisualisation (`indexes` : liste séparée par des virgules contenant « sd », ex. « sd,hd »).
+// `hasThumbnail` n'est qu'une pochette intégrée au fichier. Sans index, seule l'heure visée est affichée.
+export function hasPreviewIndex(part: { indexes?: string }): boolean {
+  return typeof part.indexes === 'string' && part.indexes.split(',').some((i) => i.trim() === 'sd');
 }
 
 // Télécharge l'index « sd » de la part (même fichier pour la lecture directe et le transcodage). Retourne de quoi l'interrompre.
