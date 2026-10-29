@@ -100,3 +100,36 @@ test('captures dock v2 publiées (1920×1080)', () => {
     assert.equal(b.readUInt32BE(20), 1080, n);
   }
 });
+
+test('dock v2 : deux appuis rapprochés laissent un seul calque .on, à la couleur de la dernière app', async () => {
+  const { runInNewContext } = await import('node:vm');
+  const h = readFileSync(dir + 'dock.html', 'utf8');
+  const code = h.match(/<script>([\s\S]*?)<\/script>/)[1];
+  const el = (extra = {}) => ({ className: 'fond', style: {}, offsetWidth: 1, attrs: {}, getAttribute(k) { return this.attrs[k]; }, ...extra });
+  const tuiles = [['229,9,20'], ['214,32,31'], ['17,60,207'], ['90,90,95']].map(([rgb]) => el({ className: 'tuile', attrs: { 'data-rgb': rgb, 'data-nom': 'x' } }));
+  const fonds = [el({ className: 'fond on' }), el()];
+  const titre = el({ textContent: '' });
+  let keydown, timers = [], hiddenWrites = [];
+  runInNewContext(code, {
+    document: {
+      querySelectorAll: (q) => (q === '.tuile' ? tuiles : fonds),
+      querySelector: () => titre,
+      addEventListener: (_, fn) => (keydown = fn),
+    },
+    location: { hash: '' },
+    setTimeout: (fn) => timers.push(fn) - 1,
+    clearTimeout: (id) => { timers[id] = null; },
+  });
+  for (const f of fonds) {
+    let bg;
+    Object.defineProperty(f.style, 'background', { get: () => bg, set: (v) => { hiddenWrites.push(f.className.split(' ').includes('on') && f.style.transition !== 'none'); bg = v; } });
+  }
+  keydown({ keyCode: 39 });
+  keydown({ keyCode: 37 });
+  keydown({ keyCode: 37 });
+  for (const fn of timers) fn?.();
+  const on = fonds.filter((f) => f.className.split(' ').includes('on'));
+  assert.equal(on.length, 1);
+  assert.match(on[0].style.background, /rgba\(214,32,31|rgba\(229,9,20/);
+  assert.ok(hiddenWrites.every((v) => !v), 'écriture de couleur sur un calque encore visible');
+});
