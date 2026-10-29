@@ -1,1 +1,1 @@
-{ "id": 1234, "code": "ABCD", "authToken": "FAKE-ACCOUNT-TOKEN", "expiresIn": 1500 }
+{ "id": 1234, "code": "ABCD", "authToken": "FAKE-ACCOUNT-TOKEN", "expiresIn": 900 }

@@ -56,6 +56,7 @@ function boot({ failChunk, stored, launched } = {}) {
   };
   const ctx = vm.createContext({
     document, Date, console, Promise, Error,
+    XMLHttpRequest: function () { this.open = () => {}; this.setRequestHeader = () => {}; this.send = () => {}; this.abort = () => {}; }, // ne répond jamais
     setTimeout: (f, ms) => { timers.push({ f, ms }); return timers.length; },
     clearTimeout: () => {},
     localStorage: { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = v; } },

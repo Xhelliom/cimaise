@@ -316,10 +316,140 @@ test('Retour dépile fiche → grille → accueil par le routeur ; l’écran d�
   assert.equal(root.children[0], home.el);
 });
 
-test('sans session Plex : message clair, pas de requête', () => {
-  const d = deps({ session: null, http: fakeHttp([], { silent: true }) });
+test('sans session Plex : écran de connexion (une seule requête, la création du PIN), pas l’accueil', () => {
+  const d = deps({ session: null, store: memStore(), http: fakeHttp([], { silent: true }) });
   const p = ui.createPlexPanel(d.arg);
-  assert.ok(p.el.classList.contains('plex-panel'));
-  assert.match(texts(p.el).join(' '), /connexion/i);
-  assert.equal(d.arg.http.calls.length, 0);
+  assert.equal(byClass(p.el, 'plex-panel').length, 1);
+  assert.equal(byClass(p.el, 'plex-login').length, 1);
+  assert.match(texts(p.el).join(' '), /plex\.tv/i);
+  assert.equal(d.arg.http.calls.length, 1);
+  assert.match(d.arg.http.calls[0].url, /plex\.tv\/api\/v2\/pins/);
+  p.destroy();
+});
+
+// ---- connexion par PIN et choix du serveur ---------------------------------------------------------------------
+// Minuteries factices : on avance à la main. Le transport répond selon des routes ; le PIN reste « en attente »
+// jusqu'à ce que `state.token` soit posé.
+function fakeTimers() {
+  let t = 0; const q = [];
+  return {
+    now: () => t,
+    setTimeout: (fn, ms) => { const h = { fn, at: t + ms }; q.push(h); return h; },
+    clearTimeout: (h) => { const i = q.indexOf(h); if (i >= 0) q.splice(i, 1); },
+    advance(ms) { t += ms; q.filter((h) => h.at <= t).forEach((h) => { q.splice(q.indexOf(h), 1); h.fn(); }); },
+    pending: () => q.length,
+  };
+}
+const RES = JSON.parse(fx('resources'));
+const ONE = [RES[0]];   // la fixture a deux serveurs : ONE = le cas « un seul, choisi sans demander »
+function loginDeps({ resources = RES, token = null, extra = {} } = {}) {
+  const state = { token: null };
+  const store = extra.store || memStore();
+  const timers = fakeTimers();
+  const routes = [
+    [/plex\.tv\/api\/v2\/pins\?/, fx('pin-create')],
+    [/plex\.tv\/api\/v2\/pins\/1234/, () => (state.token ? JSON.stringify({ id: 1234, code: 'ABCD', authToken: state.token }) : fx('pin-pending'))],
+    [/plex\.tv\/api\/v2\/resources/, JSON.stringify(resources)],
+    [/\/identity$/, '{}'],
+  ];
+  const http = fakeHttp(routes);
+  const popped = [];
+  const d = deps({ store, http, session: undefined, timers, nav: { push() {}, pop: () => popped.push(1) }, ...extra });
+  if (token) { const s = { version: 1, prefs: { plexToken: token } }; store.setItem('cimaise.v1', JSON.stringify(s)); }
+  return { ...d, state, timers, store, http, popped };
+}
+const prefs = (store) => (store.getItem('cimaise.v1') ? JSON.parse(store.getItem('cimaise.v1')).prefs : {});
+const flush = async () => { for (let i = 0; i < 6; i++) await tick(); };
+
+test('connexion : sans token, le code PIN est affiché en grand avec plex.tv/link, rien n’est stocké', async () => {
+  const l = loginDeps();
+  const p = ui.createPlexPanel(l.arg);
+  await flush();
+  assert.ok(texts(p.el).includes('ABCD'));
+  assert.ok(texts(p.el).some((t) => /plex\.tv\/link/.test(t)));
+  assert.equal(byClass(p.el, 'plex-pin').length, 1);
+  assert.equal(prefs(l.store).plexToken, undefined);
+  p.destroy();
+});
+
+test('connexion : Retour annule l’attente — plus de minuterie ni d’interrogation', async () => {
+  const l = loginDeps();
+  const router = new ui.Router({ root: makeDoc().createElement('div'), exit() {} });
+  const p = ui.createPlexPanel(l.arg);
+  router.push({ el: makeDoc().createElement('div') });
+  router.push(p);
+  await flush();
+  assert.equal(l.timers.pending(), 1, 'une interrogation planifiée');
+  assert.equal(router.handleKey('back'), true);
+  assert.equal(l.timers.pending(), 0);
+  const n = l.http.calls.length;
+  l.state.token = 'ACCOUNT-TOK'; l.timers.advance(5000); await flush();
+  assert.equal(l.http.calls.length, n, 'aucune requête après Retour');
+  assert.equal(prefs(l.store).plexToken, undefined);
+});
+
+test('connexion : PIN validé, un seul serveur → choisi sans demander ; token et serveur mémorisés, connexion locale préférée, accueil', async () => {
+  const l = loginDeps({ resources: ONE });
+  const p = ui.createPlexPanel(l.arg);
+  await flush();
+  l.state.token = 'ACCOUNT-TOK';
+  l.timers.advance(2000); await flush(); l.timers.advance(0); await flush();
+  const pr = prefs(l.store);
+  assert.equal(pr.plexToken, 'ACCOUNT-TOK');
+  assert.equal(pr.plexServer, 'Serveur test');
+  assert.equal(pr.plexSession.token, 'FAKE-SERVER-TOKEN');
+  assert.ok(/^https:\/\/192-0-2-10\./.test(pr.plexSession.uri), 'locale choisie : ' + pr.plexSession.uri);
+  assert.equal(l.http.calls.filter((c) => /\/identity$/.test(c.url))[0].url.slice(0, 19), 'https://192-0-2-10.');
+  assert.equal(byClass(p.el, 'plex-hub').length > 0 || byClass(p.el, 'plex-home').length === 1, true, 'accueil monté');
+  p.destroy();
+});
+
+test('connexion : le token n’est jamais écrit dans les logs', async () => {
+  const seen = [];
+  const orig = { log: console.log, warn: console.warn, error: console.error };
+  console.log = console.warn = console.error = (...a) => seen.push(a.join(' '));
+  try {
+    const l = loginDeps({ resources: ONE });
+    const p = ui.createPlexPanel(l.arg);
+    await flush(); l.state.token = 'ACCOUNT-TOK'; l.timers.advance(2000); await flush(); l.timers.advance(0); await flush();
+    p.destroy();
+  } finally { Object.assign(console, orig); }
+  assert.ok(!seen.join('\n').includes('ACCOUNT-TOK'));
+});
+
+test('réouverture : token et session stockés → accueil Plex directement, aucun appel plex.tv', async () => {
+  const store = memStore();
+  store.setItem('cimaise.v1', JSON.stringify({ version: 1, prefs: { plexToken: 'T', plexSession: SERVER, plexServer: 'Serveur test' } }));
+  const d = deps({ store, session: undefined });
+  const p = ui.createPlexPanel(d.arg);
+  await tick(); await tick();
+  assert.equal(byClass(p.el, 'plex-login').length, 0);
+  assert.deepEqual(byClass(p.el, 'plex-hub-title').map((n) => n.textContent), ['En cours', 'Ajoutés récemment', 'Bibliothèques']);
+  assert.ok(!d.arg.http.calls.some((c) => /plex\.tv/.test(c.url)));
+});
+
+test('serveurs : token déjà là et plusieurs serveurs → liste à choisir, choix mémorisé', async () => {
+  const second = { ...RES[0], name: 'Autre serveur', accessToken: 'OTHER-TOKEN' };
+  const l = loginDeps({ resources: [RES[0], second], token: 'ACCOUNT-TOK' });
+  const p = ui.createPlexPanel(l.arg);
+  await flush();
+  assert.equal(l.http.calls.some((c) => /\/pins/.test(c.url)), false, 'pas de PIN : le token est là');
+  const names = byClass(p.el, 'plex-server').map((n) => n.textContent);
+  assert.deepEqual(names, ['Serveur test', 'Autre serveur']);
+  assert.equal(p.onKey('down'), true);
+  assert.equal(p.onKey('enter'), true);
+  await flush(); l.timers.advance(0); await flush();
+  assert.equal(prefs(l.store).plexServer, 'Autre serveur');
+  assert.equal(prefs(l.store).plexSession.token, 'OTHER-TOKEN');
+  p.destroy();
+});
+
+test('serveurs : si une connexion locale ne répond pas, on passe à la suivante', async () => {
+  const l = loginDeps({ resources: ONE, token: 'ACCOUNT-TOK' });
+  const base = l.arg.http;
+  l.arg.http = (req, cb) => (/^https:\/\/192-0-2-10\..*\/identity$/.test(req.url) ? (base.calls.push(req), setImmediate(() => cb(new Error('réseau'))), { abort() {} }) : base(req, cb));
+  const p = ui.createPlexPanel(l.arg);
+  await flush(); await flush();
+  assert.ok(/^https:\/\/203-0-113-5\./.test(prefs(l.store).plexSession.uri));
+  p.destroy();
 });
