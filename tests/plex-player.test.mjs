@@ -448,7 +448,7 @@ test('mesures : avec la question de reprise, la durée part du choix de l’util
 
 // --- Sous-titres et pistes (HANDOFF §5.3–5.4) ------------------------------------------------------------------
 
-const prefsStore = (store, prefs) => store.setItem('cimaise.v1', JSON.stringify({ version: 2, prefs }));
+const prefsStore = (store, prefs) => store.setItem('cimaise.v1', JSON.stringify({ version: 3, prefs }));
 const storedPrefs = (store) => JSON.parse(store.getItem('cimaise.v1')).prefs;
 const DECISION = JSON.stringify({ MediaContainer: { generalDecisionCode: 1000 } });
 // Serveur factice qui accepte aussi la décision de transcodage (journalisée dans http.calls).
@@ -480,8 +480,8 @@ function pick(panel, re) {
   panel.onKey('enter');
 }
 
-test('sous-titres : SRT interne choisi par défaut (langue des Réglages) → setSelectTrack sur la bonne piste AVPlay', async () => {
-  const s = await playing('mkv-h264-ac3-srt-externe', { plexAudioLang: 'eng', plexSubLang: 'fra' });
+test('sous-titres : SRT interne choisi par défaut (choix de la série : audio anglais, sous-titres français) → setSelectTrack sur la bonne piste AVPlay', async () => {
+  const s = await playing('mkv-h264-ac3-srt-externe', { plexSeries: { 900: { audioLang: 'eng', subLang: 'fra' } } }, { item: EPISODE });
   s.player.tracks = [
     { kind: 'audio', index: 1, info: {} }, { kind: 'audio', index: 2, info: {} },
     { kind: 'text', index: 3, info: {} }, { kind: 'text', index: 4, info: {} }, { kind: 'text', index: 5, info: {} },
@@ -494,14 +494,14 @@ test('sous-titres : SRT interne choisi par défaut (langue des Réglages) → se
 });
 
 test('sous-titres : SRT externe → URL du fichier passée à l’ouverture (setExternalSubtitlePath), lecture directe', async () => {
-  const s = await playing('mkv-h264-ac3-pgs', { plexSubLang: 'fra' });
+  const s = await playing('mkv-h264-ac3-pgs', {});
   assert.ok(s.player.url.startsWith(SERVER.uri + '/library/parts/'), s.player.url);
   assert.ok(s.player.openOpts.subtitleUrl.startsWith(SERVER.uri + '/library/streams/'), s.player.openOpts.subtitleUrl);
   assert.equal(new URL(s.player.openOpts.subtitleUrl).searchParams.get('X-Plex-Token'), SERVER.token);
 });
 
 test('sous-titres : rendu maison des événements AVPlay, en bas, nettoyé, effacé à l’expiration, jamais flou', async () => {
-  const s = await playing('mkv-h264-ac3-pgs', { plexSubLang: 'fra' });
+  const s = await playing('mkv-h264-ac3-pgs', {});
   s.player.ready();
   assert.equal(subLine(s.panel).textContent, '');
   s.player.events.onSubtitle('<i>Bonjour</i>\n{\\an8}tout le monde', 2000);
@@ -521,14 +521,14 @@ test('sous-titres : rendu maison des événements AVPlay, en bas, nettoyé, effa
 });
 
 test('sous-titres : rien n’est affiché quand les sous-titres sont coupés (événements d’une piste non choisie ignorés)', async () => {
-  const s = await playing('mp4-h264-aac', {});
+  const s = await playing('mp4-h264-aac', { plexLang: { mode: 'custom', audio: ['eng'], subs: ['fra'] } }); // audio compris : aucun sous-titre
   s.player.ready();
   s.player.events.onSubtitle('Texte', 2000);
   assert.equal(subLine(s.panel).textContent, '');
 });
 
 test('sous-titres : un sous-titre externe refusé par AVPlay n’arrête pas la lecture, le lecteur l’indique', async () => {
-  const s = await playing('mkv-h264-ac3-pgs', { plexSubLang: 'fra' });
+  const s = await playing('mkv-h264-ac3-pgs', {});
   s.player.ready();
   s.player.events.onSubtitleError(new Error('AVPlay : refusé'));
   assert.ok(has(s.panel.el, /Sous-titres indisponibles/));
@@ -536,7 +536,7 @@ test('sous-titres : un sous-titre externe refusé par AVPlay n’arrête pas la 
 });
 
 test('sous-titres : externe refusé pendant l’ouverture → aucune piste interne choisie à la place, message une fois la lecture lancée', async () => {
-  const s = await playing('mkv-h264-ac3-pgs', { plexSubLang: 'fra' });
+  const s = await playing('mkv-h264-ac3-pgs', {});
   s.player.tracks = [{ kind: 'audio', index: 1, info: {} }, { kind: 'text', index: 2, info: {} }];
   s.player.events.onSubtitleError(new Error('AVPlay : refusé')); // synchrone dans open(), avant le prêt
   s.player.calls.length = 0;
@@ -548,7 +548,7 @@ test('sous-titres : externe refusé pendant l’ouverture → aucune piste inter
 });
 
 test('PGS / VobSub / ASS : transcodage avec sous-titres incrustés, demandé au serveur (subtitles=burn)', async () => {
-  const s = await playing('mkv-h264-ac3-vobsub', { plexAudioLang: 'fra', plexSubLang: 'eng' }, { transcode: true });
+  const s = await playing('mkv-h264-ac3-vobsub', { plexLang: { mode: 'custom', audio: ['jpn'], subs: ['eng'] } }, { transcode: true });
   const req = s.arg.http.calls.find((c) => /transcode\/universal\/decision/.test(c.url));
   assert.ok(req, 'décision demandée');
   assert.equal(param(req, 'subtitles'), 'burn');
@@ -645,7 +645,7 @@ test('séries : le choix de piste est retenu pour les autres épisodes (langue, 
 });
 
 test('séries : désactiver les sous-titres est retenu aussi ; un film ne laisse aucune mémoire de série', async () => {
-  const s = await playing('mkv-h264-ac3-srt-force', { plexSubLang: 'fra' }, { item: EPISODE });
+  const s = await playing('mkv-h264-ac3-srt-force', {}, { item: EPISODE });
   s.player.ready();
   s.panel.onKey('up'); pick(s.panel, /Désactivés/);
   assert.equal(storedPrefs(s.arg.store).plexSeries['900'].subLang, '');

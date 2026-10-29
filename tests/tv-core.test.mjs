@@ -49,21 +49,21 @@ function memStore(initial) {
 
 test('stockage : migre un schéma v0 vers la version courante (tuiles à 4 par défaut)', () => {
   const s = memStore({ 'cimaise.v1': JSON.stringify({ layout: 'dock', clock24: true }) });
-  assert.deepEqual(core.loadStored(s), { version: 2, prefs: { layout: 'dock', clock24: true, homeTiles: 4 } });
+  assert.deepEqual(core.loadStored(s), { version: 3, prefs: { layout: 'dock', clock24: true, homeTiles: 4 } });
   core.saveStored(core.loadStored(s), s);
-  assert.equal(JSON.parse(s.getItem('cimaise.v1')).version, 2);
+  assert.equal(JSON.parse(s.getItem('cimaise.v1')).version, 3);
 });
 
 test('stockage : migre un schéma v1 vers v2 sans toucher aux préférences existantes', () => {
   const s = memStore({ 'cimaise.v1': JSON.stringify({ version: 1, prefs: { homeMode: 'rangee', plexToken: 'T' } }) });
-  assert.deepEqual(core.loadStored(s), { version: 2, prefs: { homeMode: 'rangee', plexToken: 'T', homeTiles: 4 } });
+  assert.deepEqual(core.loadStored(s), { version: 3, prefs: { homeMode: 'rangee', plexToken: 'T', homeTiles: 4 } });
   const kept = memStore({ 'cimaise.v1': JSON.stringify({ version: 1, prefs: { homeTiles: 6 } }) });
   assert.equal(core.loadStored(kept).prefs.homeTiles, 6, 'une valeur déjà présente est conservée');
 });
 
 test('stockage : vide ou JSON corrompu → version courante vide', () => {
-  assert.deepEqual(core.loadStored(memStore()), { version: 2, prefs: {} });
-  assert.deepEqual(core.loadStored(memStore({ 'cimaise.v1': '{oops' })), { version: 2, prefs: {} });
+  assert.deepEqual(core.loadStored(memStore()), { version: 3, prefs: {} });
+  assert.deepEqual(core.loadStored(memStore({ 'cimaise.v1': '{oops' })), { version: 3, prefs: {} });
 });
 
 test('adaptateur : erreur explicite quand tizen est absent', () => {
@@ -460,29 +460,56 @@ test('device.watchNetwork : état initial + événements webapis.network, retrai
   } finally { delete globalThis.window; }
 });
 
-test('langues : défauts audio français / sous-titres aucun, mémorisés dans cimaise.v1 sans changer la version', () => {
+test('langues : défaut « VO sous-titrée », mémorisé dans cimaise.v1 (prefs.plexLang), version courante', () => {
   const s = memStore();
-  assert.deepEqual(core.loadLangPrefs(s), { audioLang: 'fra', subLang: '' });
-  core.saveLangPrefs({ audioLang: 'eng' }, s);
-  core.saveLangPrefs({ subLang: 'fra' }, s);
-  assert.deepEqual(core.loadLangPrefs(s), { audioLang: 'eng', subLang: 'fra' });
-  assert.equal(JSON.parse(s.getItem('cimaise.v1')).version, 2);
-  assert.deepEqual(core.loadLangPrefs(memStore({ 'cimaise.v1': JSON.stringify({ version: 2, prefs: { plexAudioLang: 42, plexSubLang: {} } }) })), { audioLang: 'fra', subLang: '' });
+  assert.deepEqual(core.loadLangPrefs(s), { mode: 'vo', audioList: ['fra'], subList: ['fra'] });
+  core.saveLangPrefs({ mode: 'custom' }, s);
+  core.saveLangPrefs({ audioList: ['eng', 'jpn'], subList: [] }, s);
+  assert.deepEqual(core.loadLangPrefs(s), { mode: 'custom', audioList: ['eng', 'jpn'], subList: [] });
+  const stored = JSON.parse(s.getItem('cimaise.v1'));
+  assert.equal(stored.version, 3);
+  assert.deepEqual(stored.prefs.plexLang, { mode: 'custom', audio: ['eng', 'jpn'], subs: [] });
+  const bad = memStore({ 'cimaise.v1': JSON.stringify({ version: 3, prefs: { plexLang: { mode: 'x', audio: [42, '', 'eng', 'eng', 'fra', 'jpn', 'ita'], subs: {} } } }) });
+  assert.deepEqual(core.loadLangPrefs(bad), { mode: 'vo', audioList: ['eng', 'fra', 'jpn'], subList: ['fra'] }, 'valeurs invalides : défaut ; listes nettoyées, 3 au plus');
+  assert.deepEqual(core.loadLangPrefs(memStore({ 'cimaise.v1': JSON.stringify({ version: 3, prefs: { plexLang: { mode: 'fr', audio: [] } } }) })).audioList, ['fra'], 'audio jamais vide');
   assert.deepEqual(core.LANG_CHOICES.slice(0, 2).map((c) => c.code), ['fra', 'eng']);
+});
+
+test('migration v2 → v3 : les anciens réglages globaux passent dans prefs.plexLang (mode Personnalisé), les clés disparaissent', () => {
+  const old = memStore({ 'cimaise.v1': JSON.stringify({ version: 2, prefs: { homeTiles: 5, plexAudioLang: 'eng', plexSubLang: 'fra', plexSeries: { 900: { audioLang: 'jpn' } } } }) });
+  const d = core.loadStored(old);
+  assert.equal(d.version, 3);
+  assert.deepEqual(d.prefs.plexLang, { mode: 'custom', audio: ['eng'], subs: ['fra'] });
+  assert.equal('plexAudioLang' in d.prefs, false);
+  assert.equal('plexSubLang' in d.prefs, false);
+  assert.equal(d.prefs.homeTiles, 5, 'le reste est intact');
+  assert.deepEqual(d.prefs.plexSeries, { 900: { audioLang: 'jpn' } }, 'les choix par série sont conservés');
+  assert.deepEqual(core.loadLangPrefs(old), { mode: 'custom', audioList: ['eng'], subList: ['fra'] });
+  // sous-titres coupés (ancien défaut '') : liste vide ; audio seul enregistré : sous-titres vides
+  assert.deepEqual(core.loadStored(memStore({ 'cimaise.v1': JSON.stringify({ version: 2, prefs: { plexAudioLang: 'fra', plexSubLang: '' } }) })).prefs.plexLang, { mode: 'custom', audio: ['fra'], subs: [] });
+  assert.deepEqual(core.loadStored(memStore({ 'cimaise.v1': JSON.stringify({ version: 2, prefs: { plexSubLang: 'eng' } }) })).prefs.plexLang, { mode: 'custom', audio: ['fra'], subs: ['eng'] });
+  // jamais réglé : rien n'est inventé, le défaut du module s'applique
+  const none = core.loadStored(memStore({ 'cimaise.v1': JSON.stringify({ version: 2, prefs: { homeTiles: 4 } }) }));
+  assert.equal('plexLang' in none.prefs, false);
+  assert.equal(core.loadLangPrefs(memStore({ 'cimaise.v1': JSON.stringify({ version: 2, prefs: { homeTiles: 4 } }) })).mode, 'vo');
+  // schéma v0 (à plat) avec anciennes clés : traversé jusqu'à la version courante
+  assert.deepEqual(core.loadStored(memStore({ 'cimaise.v1': JSON.stringify({ plexAudioLang: 'ita' }) })).prefs.plexLang, { mode: 'custom', audio: ['ita'], subs: [] });
 });
 
 test('langues : le choix fait sur une série est retenu pour ses autres épisodes, sans toucher aux autres séries', () => {
   const s = memStore();
-  core.saveLangPrefs({ audioLang: 'fra', subLang: '' }, s);
   core.rememberSeries('900', { audioLang: 'jpn' }, s);
   core.rememberSeries('900', { subLang: 'fra' }, s);
-  assert.deepEqual(core.langPrefsFor('900', s), { audioLang: 'jpn', subLang: 'fra' });
-  assert.deepEqual(core.langPrefsFor('901', s), { audioLang: 'fra', subLang: '' });
-  assert.deepEqual(core.langPrefsFor(undefined, s), { audioLang: 'fra', subLang: '' });
+  const base = { mode: 'vo', audioList: ['fra'], subList: ['fra'] };
+  assert.deepEqual(core.langPrefsFor('900', s), { ...base, audioLang: 'jpn', subLang: 'fra' });
+  assert.deepEqual(core.langPrefsFor('901', s), base, 'les autres séries suivent le mode');
+  assert.deepEqual(core.langPrefsFor(undefined, s), base);
   core.rememberSeries('900', { subLang: '' }, s);
   assert.equal(core.langPrefsFor('900', s).subLang, '', 'sous-titres coupés retenus aussi');
-  core.saveLangPrefs({ subLang: 'eng' }, s);
-  assert.equal(core.langPrefsFor('900', s).subLang, '', 'le choix de la série prime sur le réglage global');
+  core.saveLangPrefs({ mode: 'fr' }, s);
+  assert.equal(core.langPrefsFor('900', s).subLang, '', 'le choix de la série prime sur le réglage du module');
+  assert.equal(core.langPrefsFor('900', s).audioLang, 'jpn');
+  assert.equal(core.langPrefsFor('900', s).mode, 'fr');
 });
 
 test('langues : la mémoire par série oublie la plus ancienne même avec des clés numériques', () => {

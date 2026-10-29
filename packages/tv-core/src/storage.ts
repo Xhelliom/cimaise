@@ -1,5 +1,5 @@
 export var STORAGE_KEY = 'cimaise.v1';
-export var CURRENT_VERSION = 2;
+export var CURRENT_VERSION = 3;
 
 export interface Stored { version: number; prefs: { [k: string]: any }; }
 
@@ -10,6 +10,19 @@ var migrations: Array<(d: any) => any> = [
     var prefs = v1.prefs && typeof v1.prefs === 'object' ? v1.prefs : {};
     if (prefs.homeTiles === undefined) prefs.homeTiles = 4;
     return { version: 2, prefs: prefs };
+  },
+  // v3 : langues du lecteur Plex dans prefs.plexLang { mode, audio, subs } (Réglages du module Plex) ; remplace plexAudioLang / plexSubLang.
+  function (v2) {
+    var prefs = v2.prefs && typeof v2.prefs === 'object' ? v2.prefs : {};
+    // Anciens réglages globaux (une langue audio, une langue de sous-titres) : repris tels quels en mode « Personnalisé »,
+    // pour que le comportement ne change pas. Sans ancien réglage : défaut du module (VO sous-titrée).
+    var a = prefs.plexAudioLang, s = prefs.plexSubLang;
+    if (a !== undefined || s !== undefined) {
+      prefs.plexLang = { mode: 'custom', audio: [typeof a === 'string' && a ? a : 'fra'], subs: typeof s === 'string' && s ? [s] : [] };
+    }
+    delete prefs.plexAudioLang;
+    delete prefs.plexSubLang;
+    return { version: 3, prefs: prefs };
   }
 ];
 
