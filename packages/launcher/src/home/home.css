@@ -28,9 +28,18 @@
 .home.defile .message{top:40px;left:auto;right:100px;max-width:900px}
 /* Une rangée : le rail défile en x ; la tuile suivante dépasse à droite (esquissée), le bord du bac la coupe */
 .home.rangee .rail{display:flex;grid-gap:0}
-.home.rangee .tuile{flex:none;width:370px}
+.home.rangee .tuile{flex:none;width:378px}
 .home.rangee .tuile+.tuile{margin-left:40px}
 .home .tuile img{width:144px;height:144px;border-radius:28px}
+/* Tuiles à l'écran 5 / 6 : même ratio 378 × 216, logo et monogramme réduits ; rayons concentriques avec le bac. Aucun asset en plus. */
+.home.n5 .rail{grid-template-columns:repeat(5,1fr)}
+.home.n5 .tuile{height:168px;border-radius:32px;font-size:88px}
+.home.n5 .tuile img{width:120px;height:120px;border-radius:24px}
+.home.rangee.n5 .tuile{width:294px}
+.home.n6 .rail{grid-template-columns:repeat(6,1fr)}
+.home.n6 .tuile{height:136px;border-radius:29px;font-size:72px}
+.home.n6 .tuile img{width:96px;height:96px;border-radius:20px}
+.home.rangee.n6 .tuile{width:238px}
 .home .tuile.focus{transform:scale(1.1);box-shadow:0 0 0 6px rgba(255,255,255,.92);position:relative;z-index:1}
 .home .message{position:absolute;left:100px;top:630px;max-width:1720px;padding:18px 36px;border-radius:36px;font-size:32px;font-weight:500;background:rgba(255,255,255,.92);color:#111;z-index:5;opacity:0}
 .home .message.on{opacity:1}

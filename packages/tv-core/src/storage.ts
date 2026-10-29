@@ -1,11 +1,16 @@
 export var STORAGE_KEY = 'cimaise.v1';
-export var CURRENT_VERSION = 1;
+export var CURRENT_VERSION = 2;
 
 export interface Stored { version: number; prefs: { [k: string]: any }; }
 
-// v0 : objet de préférences à plat, sans champ `version`. v1 : { version, prefs }.
+// v0 : objet de préférences à plat, sans champ `version`. v1 : { version, prefs }. v2 : prefs.homeTiles (tuiles à l'écran, défaut 4).
 var migrations: Array<(d: any) => any> = [
-  function (v0) { return { version: 1, prefs: v0 }; }
+  function (v0) { return { version: 1, prefs: v0 }; },
+  function (v1) {
+    var prefs = v1.prefs && typeof v1.prefs === 'object' ? v1.prefs : {};
+    if (prefs.homeTiles === undefined) prefs.homeTiles = 4;
+    return { version: 2, prefs: prefs };
+  }
 ];
 
 export function migrate(raw: any): Stored {

@@ -199,7 +199,7 @@ for (const n of [4, 10, 20]) {
     assert.deepEqual(clsOf(m.p), ['home', 'rangee']);
     for (let i = 0; i < n; i++) {
       assert.ok(byClass(m.p.el, 'tuile')[i].className.includes('focus'));
-      const left = H.rowTileLeft(i) + ox(rail), right = left + H.ROW_TILE_W;
+      const left = H.rowTileLeft(i) + ox(rail), right = left + H.rowTileW(4);
       assert.ok(left >= 25 && right <= H.BAC_W - 25, `tuile ${i} : ${left}–${right}`); // anneau + agrandissement ≈ 25 px
       if (i < n - 1 && H.rowOffset(i, n) > 0) {
         const nextLeft = H.rowTileLeft(i + 1) + ox(rail);
@@ -210,7 +210,7 @@ for (const n of [4, 10, 20]) {
     }
     for (let i = n - 1; i >= 0; i--) { // retour à gauche : la tuile reste entière
       const left = H.rowTileLeft(i) + ox(rail);
-      assert.ok(left >= 25 && left + H.ROW_TILE_W <= H.BAC_W - 25, `retour ${i}`);
+      assert.ok(left >= 25 && left + H.rowTileW(4) <= H.BAC_W - 25, `retour ${i}`);
       m.press('left');
     }
     if (n === 4) assert.equal(ox(rail), 0, 'tout tient : pas de défilement');
@@ -253,7 +253,7 @@ test('mode : préférence mémorisée dans cimaise.v1 (prefs.homeMode), défaut 
   assert.equal(H.loadHomeMode(st), 'grille');
   H.saveHomeMode('rangee', st);
   assert.equal(JSON.parse(st.d['cimaise.v1']).prefs.homeMode, 'rangee');
-  assert.equal(JSON.parse(st.d['cimaise.v1']).version, 1);
+  assert.equal(JSON.parse(st.d['cimaise.v1']).version, 2);
   assert.equal(H.loadHomeMode(st), 'rangee');
   H.saveHomeMode('grille', st);
   assert.equal(H.loadHomeMode(st), 'grille');
@@ -279,15 +279,15 @@ test('coins : rayons concentriques bac / tuile agrandie, marge intérieure suffi
   const ring = num(/\.tuile\.focus\{[^}]*0 0 0 (\d+)px/), scale = num(/\.tuile\.focus\{transform:scale\(([\d.]+)\)/);
   assert.equal(pad, H.PAD);
   const gridW = (H.BAC_W - 2 * pad - 3 * gap) / 4;
-  for (const w of [gridW, H.ROW_TILE_W]) {
+  for (const w of [gridW, H.rowTileW(4)]) {
     const marge = pad - (w * (scale - 1)) / 2 - ring * scale; // bord du bac → anneau de la tuile agrandie (la plus serrée : horizontale)
     assert.ok(marge >= 12, 'la tuile de bord déborde ou frôle le bac : ' + marge);
     const outer = r * scale + ring * scale; // rayon extérieur de l'anneau
     assert.ok(Math.abs(R - outer - marge) <= 3, `rayons non concentriques : bac ${R}, anneau ${outer}, marge ${marge}`);
   }
   assert.ok((pad - (216 * (scale - 1)) / 2 - ring * scale) >= 12, 'marge verticale');
-  assert.match(css, /\.home\.rangee \.tuile\{[^}]*width:370px/);
-  assert.equal(H.ROW_TILE_W, 370);
+  assert.match(css, /\.home\.rangee \.tuile\{[^}]*width:378px/);
+  assert.equal(H.rowTileW(4), 378);
 });
 
 test('Entrée : launchApp avec l’id ; module interne via callback ; erreur remontée', () => {
@@ -509,4 +509,130 @@ test('latence : dégradé en 960×540 mis à l’échelle, tuiles et calques pro
   assert.match(css, /\.fond\{[^}]*will-change:opacity/);
   assert.match(css, /\.titre\{[^}]*height:\d+px/);
   assert.match(css, /\.desc\{[^}]*height:\d+px/);
+});
+
+// --- Tuiles à l'écran : 4 / 5 / 6 ---
+const cssOf = () => readFileSync('packages/launcher/src/home/home.css', 'utf8');
+const nOf = (p) => { const m = /(?:^| )n(\d)(?: |$)/.exec(p.el.className); return m ? Number(m[1]) : 4; };
+
+test('tuiles : modèle — 4 / 5 / 6, défaut 4, valeur inconnue → 4, largeur déduite du bac, hauteur au même ratio', () => {
+  assert.deepEqual(H.TILES_CHOICES, [4, 5, 6]);
+  assert.equal(H.DEFAULT_TILES, 4);
+  for (const [v, e] of [[4, 4], [5, 5], [6, 6], [3, 4], [7, 4], ['6', 4], [undefined, 4], [null, 4]]) assert.equal(H.normalizeTiles(v), e, String(v));
+  for (const n of [4, 5, 6]) {
+    const w = H.tileW(n);
+    assert.ok(Math.abs(n * w + (n - 1) * H.GAP - (H.BAC_W - 2 * H.PAD)) < 1e-6, 'n tuiles remplissent le bac : ' + n);
+    assert.ok(Math.abs(H.tileH(n) - (w * 216) / 378) <= 1, 'ratio conservé : ' + n);
+    assert.ok(H.rowTileW(n) <= w && H.rowTileW(n) > w - 1.5);
+  }
+  assert.equal(H.tileH(4), 216);
+  assert.ok(H.tileH(6) < H.tileH(5) && H.tileH(5) < H.tileH(4));
+});
+
+for (const n of [4, 5, 6]) {
+  test('tuiles ' + n + ' : grille à ' + n + ' colonnes, focus et défilement vertical corrects', () => {
+    const m = mount({ tiles: n }, 20);
+    assert.equal(nOf(m.p), n);
+    assert.match(cssOf(), n === 4 ? /\.rail\{[^}]*repeat\(4,1fr\)/ : new RegExp('\\.home\\.n' + n + ' \\.rail\\{[^}]*repeat\\(' + n + ',1fr\\)'));
+    m.press('down');
+    assert.equal(one(m.p.el, 'titre').textContent, APPS[n].toUpperCase(), 'bas = +' + n);
+    for (let i = 0; i < 20; i++) {
+      const q = mount({ tiles: n }, 20);
+      for (let d = 0; d < Math.floor(i / n); d++) q.press('down');
+      for (let c = 0; c < i % n; c++) q.press('right');
+      const box = H.tileBox(i, n), top = bacTop(q.p);
+      assert.ok(box.top >= top + 17 && box.bottom <= 1080 - 17, 'n=' + n + ' tuile ' + i + ' : ' + box.top + '–' + box.bottom);
+      assert.equal(Math.abs(ty(one(q.p.el, 'rail'))), H.railOffset(Math.floor(i / n), n));
+    }
+  });
+
+  test('tuiles ' + n + ' : une rangée — les ' + n + ' premières tuiles entières, défilement horizontal ensuite, suivante esquissée', () => {
+    const total = 14, w = H.rowTileW(n);
+    const m = mount({ mode: 'rangee', tiles: n }, total);
+    const rail = one(m.p.el, 'rail');
+    assert.equal(nOf(m.p), n);
+    for (let i = 0; i < total; i++) {
+      const left = H.rowTileLeft(i, n) + ox(rail), right = left + w;
+      assert.ok(left >= 25 && right <= H.BAC_W - 25, 'n=' + n + ' tuile ' + i + ' : ' + left + '–' + right);
+      if (i < n) assert.equal(ox(rail), 0, 'les ' + n + ' premières sans défilement (' + i + ')');
+      else if (i < total - 1) assert.ok(H.rowTileLeft(i + 1, n) + ox(rail) < H.BAC_W - 40, 'la suivante dépasse à droite');
+      m.press('right');
+    }
+    for (let i = total - 1; i >= 0; i--) {
+      const left = H.rowTileLeft(i, n) + ox(rail);
+      assert.ok(left >= 25 && left + w <= H.BAC_W - 25, 'retour ' + i);
+      m.press('left');
+    }
+    assert.equal(ox(rail), 0);
+  });
+}
+
+test('tuiles : peu d’apps → rien ne défile en une rangée', () => {
+  const m = mount({ mode: 'rangee', tiles: 6 }, 6);
+  for (let i = 0; i < 6; i++) { assert.equal(ox(one(m.p.el, 'rail')), 0); m.press('right'); }
+});
+
+test('setTiles : appliqué tout de suite, sans reconstruire les tuiles, focus conservé, valeur inconnue → 4', () => {
+  const m = mount({}, 20);
+  m.press('right', 'right', 'right');
+  const t0 = byClass(m.p.el, 'tuile')[0];
+  m.p.setTiles(6);
+  assert.equal(nOf(m.p), 6);
+  assert.equal(byClass(m.p.el, 'tuile')[0], t0);
+  assert.equal(one(m.p.el, 'titre').textContent, 'YOUTUBE', 'le focus reste sur la même tuile');
+  m.press('down');
+  assert.equal(one(m.p.el, 'titre').textContent, APPS[9].toUpperCase(), 'colonnes = 6');
+  m.p.setTiles(5);
+  assert.equal(nOf(m.p), 5);
+  m.p.setMode('rangee');
+  assert.deepEqual(clsOf(m.p).slice(0, 2), ['home', 'rangee']);
+  assert.ok(clsOf(m.p).includes('n5'));
+  m.p.setTiles(4);
+  assert.deepEqual(clsOf(m.p), ['home', 'rangee']);
+  m.p.setTiles(9);
+  assert.equal(nOf(m.p), 4);
+});
+
+test('tuiles : logos et texte lisibles à 6 (logo ≥ 90 px, monogramme ≥ 64 px), rayons concentriques, aucun nouvel asset', () => {
+  const css = cssOf();
+  const pad = H.PAD, ring = 6, scale = 1.1, R = Number(/\.bac\{[^}]*border-radius:(\d+)px/.exec(css)[1]);
+  for (const n of [5, 6]) {
+    const rule = (sel) => new RegExp('\\.home\\.n' + n + ' ' + sel + '\\{([^}]*)\\}').exec(css)[1];
+    const tuile = rule('\\.tuile'), img = rule('\\.tuile img');
+    const h = Number(/height:(\d+)px/.exec(tuile)[1]), r = Number(/border-radius:(\d+)px/.exec(tuile)[1]), fs = Number(/font-size:(\d+)px/.exec(tuile)[1]);
+    const iw = Number(/width:(\d+)px/.exec(img)[1]);
+    assert.equal(h, Math.round(H.tileH(n)), 'hauteur = ratio : ' + n);
+    assert.ok(iw <= h - 24 && iw >= (n === 6 ? 90 : 110), 'logo ' + n + ' : ' + iw);
+    assert.ok(fs >= (n === 6 ? 64 : 80), 'monogramme ' + n);
+    const w = H.tileW(n), marge = pad - (w * (scale - 1)) / 2 - ring * scale;
+    assert.ok(marge >= 12);
+    assert.ok(Math.abs(R - (r * scale + ring * scale) - marge) <= 3, 'rayons ' + n);
+    assert.match(css, new RegExp('\\.home\\.rangee\\.n' + n + ' \\.tuile\\{[^}]*width:' + Math.floor(H.rowTileW(n)) + 'px'));
+  }
+  assert.doesNotMatch(css, /url\((?!fonts\/)/, 'pas de nouvelle image');
+});
+
+test('tuiles : préférence mémorisée dans cimaise.v1 (prefs.homeTiles), défaut 4, valeur inconnue → 4, migration d’un v1', () => {
+  const mem = () => { const d = {}; return { d, getItem: (k) => (k in d ? d[k] : null), setItem: (k, v) => { d[k] = String(v); } }; };
+  const st = mem();
+  assert.equal(H.loadHomeTiles(st), 4);
+  H.saveHomeTiles(6, st);
+  const saved = JSON.parse(st.d['cimaise.v1']);
+  assert.equal(saved.prefs.homeTiles, 6);
+  assert.equal(saved.version, 2);
+  assert.equal(H.loadHomeTiles(st), 6);
+  H.saveHomeMode('rangee', st);
+  assert.equal(H.loadHomeTiles(st), 6, 'le mode n’écrase pas les tuiles');
+  assert.equal(H.loadHomeMode(st), 'rangee');
+  const old = mem();
+  old.setItem('cimaise.v1', JSON.stringify({ version: 1, prefs: { homeMode: 'rangee', catalog: { version: 1, entries: [] } } }));
+  assert.equal(H.loadHomeTiles(old), 4, 'v1 migré : 4 par défaut');
+  H.saveHomeTiles(5, old);
+  const m = JSON.parse(old.d['cimaise.v1']);
+  assert.deepEqual([m.version, m.prefs.homeMode, m.prefs.homeTiles, m.prefs.catalog.version], [2, 'rangee', 5, 1]);
+  const junk = mem();
+  junk.setItem('cimaise.v1', JSON.stringify({ version: 2, prefs: { homeTiles: 8 } }));
+  assert.equal(H.loadHomeTiles(junk), 4);
+  junk.setItem('cimaise.v1', '{pas du json');
+  assert.equal(H.loadHomeTiles(junk), 4);
 });

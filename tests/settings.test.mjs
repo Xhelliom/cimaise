@@ -135,7 +135,7 @@ test('Affichage de l’accueil : Grille par défaut, Haut atteint la ligne, Entr
   const { panel, press } = open({ onMode: (m) => modes.push(m) });
   assert.ok(texts(panel.el).includes('Affichage de l’accueil'));
   assert.ok(texts(panel.el).includes('Grille'));
-  press('up');
+  press('up', 'up');
   assert.ok(focused(panel.el).some((f) => f.includes('Affichage de l’accueil')));
   press('enter');
   assert.deepEqual(modes, ['rangee']);
@@ -144,8 +144,36 @@ test('Affichage de l’accueil : Grille par défaut, Haut atteint la ligne, Entr
   press('left');
   assert.deepEqual(modes, ['rangee', 'grille', 'rangee']);
   press('up'); // borne haute
-  press('down', 'enter'); // Découvrir, inchangé
+  press('down', 'down', 'enter'); // Découvrir, inchangé
   assert.equal(modes.length, 3);
+});
+
+test('Tuiles à l’écran : 4 par défaut, sous Affichage (même section), gauche/droite/Entrée parcourent 4 → 5 → 6', () => {
+  const tiles = [];
+  const { panel, press } = open({ onTiles: (n) => tiles.push(n) });
+  const t = texts(panel.el);
+  assert.ok(t.indexOf('Tuiles à l’écran') > t.indexOf('Affichage de l’accueil') && t.indexOf('Tuiles à l’écran') < t.indexOf('Découvrir les apps installées'));
+  assert.ok(t.includes('4'));
+  press('up');
+  assert.ok(focused(panel.el).some((f) => f.includes('Tuiles à l’écran')));
+  press('right');
+  assert.deepEqual(tiles, [5]);
+  press('enter');
+  assert.deepEqual(tiles, [5, 6]);
+  assert.ok(texts(panel.el).includes('6'));
+  press('right');
+  assert.deepEqual(tiles, [5, 6], 'borne haute : 6 est le maximum');
+  press('left', 'left');
+  assert.deepEqual(tiles, [5, 6, 5, 4]);
+  press('left');
+  assert.equal(tiles.length, 4, 'borne basse : 4 est le minimum');
+  press('down', 'enter'); // Découvrir, inchangé
+  assert.equal(tiles.length, 4);
+});
+
+test('Tuiles à l’écran : l’option reflète la valeur reçue, une valeur inconnue → 4', () => {
+  assert.ok(texts(open({ tiles: 6 }).panel.el).includes('6'));
+  assert.ok(!texts(open({ tiles: 9 }).panel.el).includes('9'));
 });
 
 test('Affichage : l’option reflète le mode reçu', () => {

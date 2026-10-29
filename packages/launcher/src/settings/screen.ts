@@ -2,7 +2,7 @@ import { applyIcon } from '../../../tv-core/src/icon';
 import { Key } from '../../../tv-core/src/keys';
 import { Panel } from '../../../tv-core/src/router/router';
 import { AppEntry, DiscoveredApp, removeAt, moveItem, setTint, nextTint, addDiscovered, ROW_H, scrollOffset } from './model';
-import { HomeMode, normalizeMode } from '../home/model';
+import { HomeMode, normalizeMode, normalizeTiles, TILES_CHOICES } from '../home/model';
 import { fillIds } from '../catalog/model';
 import { knownApp } from '../catalog/known-apps';
 
@@ -13,6 +13,8 @@ export interface SettingsOptions {
   onChange: (catalog: AppEntry[]) => void;   // le propriétaire persiste
   mode?: HomeMode;                           // affichage de l'accueil ; défaut : grille
   onMode?: (mode: HomeMode) => void;         // le propriétaire persiste
+  tiles?: number;                            // tuiles à l'écran : 4 (défaut), 5 ou 6
+  onTiles?: (n: number) => void;             // le propriétaire persiste
   onClose: () => void;
   doc?: Document;
 }
@@ -47,7 +49,8 @@ export function createSettings(opts: SettingsOptions): Panel {
   var catalog = opts.catalog.slice(0);
   var found: DiscoveredApp[] = [];
   var mode: HomeMode = normalizeMode(opts.mode);
-  var row = 0;      // -1 = affichage de l'accueil ; 0 = bouton Découvrir ; 1..n = catalogue ; ensuite apps découvertes
+  var tiles = normalizeTiles(opts.tiles);
+  var row = 0;      // -2 = affichage de l'accueil ; -1 = tuiles à l'écran ; 0 = bouton Découvrir ; 1..n = catalogue ; ensuite apps découvertes
   var chip = 0;
   var grabbed = false;
   var status = '';
@@ -78,8 +81,8 @@ export function createSettings(opts: SettingsOptions): Panel {
   function rowCount(): number { return 1 + catalog.length + found.length; }
 
   // Ligne sélectionnable -> position dans la liste (le titre de section occupe une ligne non sélectionnable).
-  function posOf(r: number): number { return r + 1 + (found.length && r > catalog.length ? 1 : 0); }
-  function totalPos(): number { return 2 + catalog.length + (found.length ? 1 + found.length : 0); }
+  function posOf(r: number): number { return r + 2 + (found.length && r > catalog.length ? 1 : 0); }
+  function totalPos(): number { return 3 + catalog.length + (found.length ? 1 + found.length : 0); }
 
   function absRow(node: HTMLElement, pos: number): HTMLElement {
     node.style.top = pos * ROW_H + 'px';
@@ -92,21 +95,26 @@ export function createSettings(opts: SettingsOptions): Panel {
     var h = doc.createElement('h1');
     h.textContent = 'Réglages';
     el.appendChild(h);
-    offset = row <= 0 ? 0 : scrollOffset(offset, posOf(row), totalPos()); // Affichage et Découvrir restent en haut
+    offset = row <= 0 ? 0 : scrollOffset(offset, posOf(row), totalPos()); // la section Accueil et Découvrir restent en haut
     var vue = div('vue'), list = div('liste');
     list.style.transform = 'translateY(' + (offset ? -offset : 0) + 'px)';
     var total = totalPos();
-    var from = Math.max(-1, Math.floor(offset / ROW_H) - 2), to = Math.min(total - 2, Math.ceil(offset / ROW_H) + 7); // pos = position visuelle - 1
+    var from = Math.max(-2, Math.floor(offset / ROW_H) - 3), to = Math.min(total - 3, Math.ceil(offset / ROW_H) + 7); // pos = position visuelle - 2
     var inCat: { [id: string]: boolean } = {};
     for (var q = 0; q < catalog.length; q++) if (catalog[q].id) inCat[catalog[q].id] = true;
     for (var pos = from; pos <= to; pos++) {
-      if (pos === -1) {
-        var ml = div('ligne bouton' + (row === -1 ? ' focus' : ''));
+      if (pos === -2) {
+        var ml = div('ligne bouton' + (row === -2 ? ' focus' : ''));
         ml.appendChild(div('nom', 'Affichage de l’accueil'));
-        ml.appendChild(div('puce' + (row === -1 ? ' focus' : ''), mode === 'grille' ? 'Grille' : 'Une rangée'));
+        ml.appendChild(div('puce' + (row === -2 ? ' focus' : ''), mode === 'grille' ? 'Grille' : 'Une rangée'));
         list.appendChild(absRow(ml, 0));
+      } else if (pos === -1) {
+        var tl = div('ligne bouton' + (row === -1 ? ' focus' : ''));
+        tl.appendChild(div('nom', 'Tuiles à l’écran'));
+        tl.appendChild(div('puce' + (row === -1 ? ' focus' : ''), '' + tiles));
+        list.appendChild(absRow(tl, 1));
       } else if (pos === 0) {
-        list.appendChild(absRow(div('ligne bouton' + (row === 0 ? ' focus' : ''), 'Découvrir les apps installées'), 1));
+        list.appendChild(absRow(div('ligne bouton' + (row === 0 ? ' focus' : ''), 'Découvrir les apps installées'), 2));
       } else if (pos <= catalog.length) {
         var i = pos - 1, on = row === pos;
         var line = div('ligne' + (on ? ' focus' : '') + (on && grabbed ? ' saisie' : ''));
@@ -115,9 +123,9 @@ export function createSettings(opts: SettingsOptions): Panel {
         for (var c = 0; c < CHIPS.length; c++) {
           if (on) line.appendChild(div('puce' + (chip === c ? ' focus' : ''), CHIPS[c]));
         }
-        list.appendChild(absRow(line, pos + 1));
+        list.appendChild(absRow(line, pos + 2));
       } else if (pos === catalog.length + 1) {
-        list.appendChild(absRow(div('titre-section', 'Apps installées'), pos + 1));
+        list.appendChild(absRow(div('titre-section', 'Apps installées'), pos + 2));
       } else {
         var f = pos - catalog.length - 2, fon = row === pos - 1;
         var fl = div('ligne' + (fon ? ' focus' : ''));
@@ -127,7 +135,7 @@ export function createSettings(opts: SettingsOptions): Panel {
         fl.appendChild(nom);
         if (inCat[found[f].id]) fl.appendChild(div('deja', 'Au catalogue'));
         else if (fon) fl.appendChild(div('puce focus', 'Ajouter'));
-        list.appendChild(absRow(fl, pos + 1));
+        list.appendChild(absRow(fl, pos + 2));
       }
     }
     list.style.height = total * ROW_H + 'px';
@@ -139,6 +147,16 @@ export function createSettings(opts: SettingsOptions): Panel {
   function toggleMode(): void {
     mode = mode === 'grille' ? 'rangee' : 'grille';
     if (opts.onMode) opts.onMode(mode);
+  }
+
+  // Un pas dans 4 / 5 / 6 (borné) ; Entrée avance et revient à 4 après 6.
+  function stepTiles(d: number, wrap: boolean): void {
+    var i = TILES_CHOICES.indexOf(tiles) + d;
+    if (i >= TILES_CHOICES.length) i = wrap ? 0 : TILES_CHOICES.length - 1;
+    if (i < 0) i = 0;
+    if (TILES_CHOICES[i] === tiles) return;
+    tiles = TILES_CHOICES[i];
+    if (opts.onTiles) opts.onTiles(tiles);
   }
 
   function changed(): void { opts.onChange(catalog.slice(0)); }
@@ -163,7 +181,7 @@ export function createSettings(opts: SettingsOptions): Panel {
 
   function clampRow(): void {
     if (row >= rowCount()) row = rowCount() - 1;
-    if (row < -1) row = -1;
+    if (row < -2) row = -2;
   }
 
   function press(k: Key): boolean {
@@ -187,10 +205,12 @@ export function createSettings(opts: SettingsOptions): Panel {
       clampRow();
       chip = 0;
     } else if (k === 'left' || k === 'right') {
-      if (row === -1) toggleMode();
+      if (row === -2) toggleMode();
+      else if (row === -1) stepTiles(k === 'left' ? -1 : 1, false);
       else if (inCatalog) chip = Math.max(0, Math.min(CHIPS.length - 1, chip + (k === 'left' ? -1 : 1)));
     } else if (k === 'enter') {
-      if (row === -1) { toggleMode(); render(); return true; }
+      if (row === -2) { toggleMode(); render(); return true; }
+      if (row === -1) { stepTiles(1, true); render(); return true; }
       if (row === 0) { discover(); return true; }
       if (inCatalog) {
         if (chip === 0) { catalog = setTint(catalog, idx, nextTint(catalog[idx].tint)); changed(); }

@@ -24,9 +24,11 @@ var plex = lazy<{ panel: () => { el: HTMLElement } }>(function (done) {
 });
 
 var mode: HomeMode = /[?&]mode=rangee/.test(location.search) ? 'rangee' : 'grille';
+var tiles = Number((/[?&]tiles=(\d)/.exec(location.search) || [])[1]) || 4;
 var home = createHome({
   catalog: catalog,
   mode: mode,
+  tiles: tiles,
   openInternal: function () { router.pushLazy(plex, function (m) { return m.panel(); }); },
   onError: function (e) { hud.textContent = e.message; },
   onPastille: function (name) {
@@ -36,6 +38,8 @@ var home = createHome({
         catalog: catalog.map(function (c) { return { id: c.id, name: c.name, icon: c.icon, tint: c.color }; }),
         mode: mode,
         onMode: function (m: HomeMode) { mode = m; home.setMode(m); },
+        tiles: tiles,
+        onTiles: function (n: number) { tiles = n; home.setTiles(n); },
         listInstalledApps: function (_ok: (a: DiscoveredApp[]) => void, fail: (e: Error) => void) { fail(new Error('Découverte : pas de TV dans l’aperçu')); },
         onChange: function (c: AppEntry[]) {
           catalog = c.map(function (a) { return { id: a.id, name: a.name, icon: a.icon, color: a.tint, type: a.id === 'cimaise.plex' ? 'interne' : 'tv' } as CatalogEntry; });
