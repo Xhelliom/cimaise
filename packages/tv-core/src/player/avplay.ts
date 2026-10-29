@@ -21,6 +21,8 @@ export interface PlayerEvents {
   onSeekPending?: (targetMs: number | null) => void;
   // Un seek échoué n'arrête pas la lecture : on reste où on est (distinct de onError, fatal).
   onSeekError?: (err: Error) => void;
+  // Transcodage HLS : saut hors de ce que la session a déjà produit ; la page relance la session à cette position (temps du film).
+  onFarSeek?: (targetMs: number) => void;
   // Appelé avant le stop/close déclenché par visibilitychange, avec la position à reprendre.
   onSuspend?: (positionMs: number, url: string) => void;
 }
@@ -40,6 +42,9 @@ export interface Player {
   open(url: string, opts: OpenOptions, done: (err: Error | null) => void): void;
   play(): void;
   pause(): void;
+  // Transcodage : la session démarre à offsetMs du film (AVPlay compte depuis 0) ; totalMs = durée du film. Positions, durée et seeks passent en temps du film.
+  // null : lecture directe. À appeler avant open().
+  setTranscode(offsetMs: number | null, totalMs?: number): void;
   seekTo(ms: number, done?: (err: Error | null) => void): void;
   forward(): void;
   rewind(): void;
@@ -53,6 +58,9 @@ export interface Player {
   setSubtitlesVisible(visible: boolean): void;
   destroy(): void;
 }
+
+// Au-delà de cette avance sur la position courante (pas sur ce qui est réellement transcodé, inconnu d'AVPlay), un saut en transcodage relance la session (le transcodeur n'a pas encore produit ces segments).
+var AHEAD_MS = 30000;
 
 function toError(e: any): Error {
   if (e instanceof Error) return e;
@@ -72,6 +80,7 @@ export function createPlayer(opts?: PlayerOptions): Player {
   var url = '';
   var opened = false;
   var lastTime = 0;
+  var off = 0, total = 0, transcoded = false; // session de transcodage : décalage et durée du film
   var settle = o.settleMs === undefined ? 400 : o.settleMs;
   var timers = o.timers || {
     setTimeout: function (fn: () => void, ms: number) { return setTimeout(fn, ms); },
@@ -88,12 +97,15 @@ export function createPlayer(opts?: PlayerOptions): Player {
   function fail(e: any): void { if (o.onError) o.onError(toError(e)); }
   function guard(fn: () => void): void { try { fn(); } catch (e) { fail(e); } }
 
+  var gen = 0; // incrémenté à chaque release() : les événements d'un flux fermé sont ignorés
+
   function listener(): any {
-    return {
+    var mine = gen;
+    var l: any = {
       onbufferingstart: function () { if (o.onBuffering) o.onBuffering(true, 0); },
       onbufferingprogress: function (p: number) { if (o.onBuffering) o.onBuffering(true, p); },
       onbufferingcomplete: function () { if (o.onBuffering) o.onBuffering(false, 100); },
-      oncurrentplaytime: function (ms: number) { lastTime = ms; if (o.onTime) o.onTime(ms); },
+      oncurrentplaytime: function (ms: number) { lastTime = ms; if (o.onTime) o.onTime(ms + off); },
       onstreamcompleted: function () { if (o.onEnd) o.onEnd(); },
       onerror: function (type: any) {
         // PLAYER_ERROR_SEEK_FAILED : le flux continue, seul le seek a échoué.
@@ -110,11 +122,15 @@ export function createPlayer(opts?: PlayerOptions): Player {
       },
       onsubtitlechange: function (duration: number, text: string) { if (o.onSubtitle) o.onSubtitle(text, duration); }
     };
+    var out: any = {};
+    function wrap(k: string): void { out[k] = function () { if (mine === gen) l[k].apply(l, arguments); }; }
+    for (var k in l) wrap(k);
+    return out;
   }
 
   function bound(ms: number): number {
     var d = 0;
-    try { d = api().getDuration(); } catch (e) { d = 0; }
+    try { d = transcoded && total > 0 ? total : api().getDuration(); } catch (e) { d = 0; }
     var max = d > 5000 ? d - 5000 : 0;
     return Math.max(0, d > 0 ? Math.min(ms, max) : ms);
   }
@@ -132,16 +148,22 @@ export function createPlayer(opts?: PlayerOptions): Player {
       if (settled || inflight !== mine) return;
       settled = true;
       inflight = null;
-      if (!err) lastTime = target; else seekErrReported = true;
+      if (!err) lastTime = target - off; else seekErrReported = true;
       if (done && hasDone) done(err); else if (err && o.onSeekError) o.onSeekError(err);
       drain();
     }
     try {
-      api().seekTo(target, function () { end(null); }, function (e: any) { end(toError(e)); });
+      api().seekTo(target - off, function () { end(null); }, function (e: any) { end(toError(e)); });
     } catch (e) { end(toError(e)); }
   }
   function requestSeek(ms: number, done?: (err: Error | null) => void): void {
     var target = bound(ms);
+    if (transcoded && o.onFarSeek && (target < off || target > p.getPosition() + AHEAD_MS)) {
+      resetSeek();
+      o.onFarSeek(target);
+      if (done) done(null);
+      return;
+    }
     if (inflight) {
       if (!queued) queued = { target: target, dones: [] };
       queued.target = target;
@@ -177,6 +199,7 @@ export function createPlayer(opts?: PlayerOptions): Player {
   }
 
   function release(): void {
+    gen++;
     if (!opened) return;
     resetSeek();
     opened = false;
@@ -239,8 +262,9 @@ export function createPlayer(opts?: PlayerOptions): Player {
     stop: function () { guard(function () { api().stop(); }); },
     close: function () { release(); },
     getState: function () { try { return api().getState(); } catch (e) { return 'NONE'; } },
-    getPosition: function () { try { return api().getCurrentTime(); } catch (e) { return lastTime; } },
-    getDuration: function () { try { return api().getDuration(); } catch (e) { return 0; } },
+    getPosition: function () { try { return api().getCurrentTime() + off; } catch (e) { return lastTime + off; } },
+    getDuration: function () { try { return transcoded && total > 0 ? total : api().getDuration(); } catch (e) { return 0; } },
+    setTranscode: function (offsetMs, totalMs) { transcoded = offsetMs !== null; off = offsetMs || 0; total = totalMs || 0; },
     getTracks: function () {
       var out: Track[] = [];
       try {

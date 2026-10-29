@@ -315,3 +315,66 @@ test('sous-titres : AVPlay n’est pas silencieux à l’ouverture, le texte arr
   api.emitSubtitle(1000, 'revenu');
   assert.deepEqual(got, ['Bonjour', 'revenu']);
 });
+
+// --- Transcodage HLS : position décalée (session relancée à un offset) et sauts lointains ---------------------
+
+test('transcodage : positions et durée en temps du film (décalage de la session), saut proche = seekTo relatif', () => {
+  const api = fakeApi();
+  const times = [], far = [];
+  const p = core.createPlayer({ api, doc: fakeDoc(), onTime: (ms) => times.push(ms), onFarSeek: (ms) => far.push(ms), settleMs: 0, timers: { setTimeout: (f) => { f(); return 1; }, clearTimeout() {} } });
+  p.setTranscode(600000, 7200000);
+  p.open('http://x/a.m3u8', {}, () => {});
+  api.setTime(20000);
+  api.listener.oncurrentplaytime(20000);
+  assert.deepEqual(times, [620000]);
+  assert.equal(p.getPosition(), 620000);
+  assert.equal(p.getDuration(), 7200000);
+  p.seekTo(630000);                       // 10 s plus loin : dans ce qui est déjà transcodé
+  assert.ok(api.calls.includes('seekTo:30000'), api.calls.join());
+  p.seekTo(610000);                       // en arrière, après le début de la session
+  assert.ok(api.calls.includes('seekTo:10000'), api.calls.join());
+  assert.deepEqual(far, []);
+});
+
+test('transcodage : saut lointain (avant la session, ou à plus de 30 s de la position courante) → onFarSeek, aucun seekTo AVPlay', () => {
+  const api = fakeApi();
+  const far = [];
+  const p = core.createPlayer({ api, doc: fakeDoc(), onFarSeek: (ms) => far.push(ms) });
+  p.setTranscode(600000, 7200000);
+  p.open('http://x/a.m3u8', {}, () => {});
+  api.setTime(20000);
+  let done = 'pending';
+  p.seekTo(300000, (e) => { done = e; });      // avant le début de la session
+  p.seekTo(3600000);                            // à plus de 30 s de la position courante (mesuré depuis elle, pas depuis le transcodé)
+  assert.deepEqual(far, [300000, 3600000]);
+  assert.equal(done, null);
+  assert.ok(!api.calls.some((c) => /^seekTo/.test(c)), api.calls.join());
+});
+
+test('lecture directe : setTranscode(null) rend les positions d’AVPlay, aucun saut lointain', () => {
+  const api = fakeApi();
+  const far = [];
+  const p = core.createPlayer({ api, doc: fakeDoc(), onFarSeek: (ms) => far.push(ms) });
+  p.setTranscode(600000, 7200000);
+  p.setTranscode(null);
+  p.open('http://x/a.mkv', {}, () => {});
+  api.setTime(20000);
+  assert.equal(p.getPosition(), 20000);
+  p.seekTo(90000);
+  assert.ok(api.calls.includes('seekTo:90000'));
+  assert.deepEqual(far, []);
+});
+
+test('événements d’un flux fermé ignorés (génération), ceux du nouveau flux transmis', () => {
+  const api = fakeApi();
+  const errs = [], ends = [];
+  const p = core.createPlayer({ api, doc: fakeDoc(), onError: (e) => errs.push(e), onEnd: () => ends.push(1) });
+  p.open('http://x/a.m3u8', {}, () => {});
+  const old = api.listener;
+  p.stop(); p.close();
+  p.open('http://x/b.m3u8', {}, () => {});
+  old.onerror('PLAYER_ERROR_CONNECTION_FAILED'); old.onstreamcompleted();
+  assert.equal(errs.length, 0); assert.equal(ends.length, 0);
+  api.listener.onerror('PLAYER_ERROR_CONNECTION_FAILED'); api.listener.onstreamcompleted();
+  assert.equal(errs.length, 1); assert.equal(ends.length, 1);
+});

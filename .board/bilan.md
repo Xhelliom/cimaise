@@ -1,10 +1,10 @@
-# Bilan
+# Bilan — transcodage HLS fiable dans le lecteur
 
-**Fait**
-- YouTube : le PNG avait un rectangle blanc plein (le recoloriage une encre avait rempli le triangle). Triangle recreusé en transparent (même palette, 2,4 Ko) : le rouge de la tuile apparaît. Test sur les pixels de la ligne centrale.
-- Plex officiel : cause racine = deux normaliseurs en égalité stricte (`nameKey` pour logo/tuile, `norm` de `fillIds` pour l'ID), aucun ne connaissait « ＆ » ni les noms longs. Un seul normaliseur (NFKC, casse, accents, ponctuation, « & »→and), alias par app (`names`), début de nom sûr (`starts`, limité à plex/youtube/netflix/spotify/deezer/twitch), et `sameApp` partagé par `fillIds`.
-- Tests avec les noms réels (sans ID) ; `npm run check` passe (466 tests).
+## Fait
+- Session de transcodage stable par lecture, arrêtée à la sortie et sur erreur ; reprise à un offset ; sauts lointains = nouvelle session à la position (pas de seekTo hors segment) ; qualité LAN ; erreurs du transcodeur → message + « Ouvrir Plex officiel » ; session dans la timeline (commits 227f9d6, 399ba1b).
+- Correctif de la revue (critère 3) : le filtre `mode === 'loading'` de `onEnd`/`onError` (packages/plex/src/ui/player.ts) supprimait aussi les erreurs du premier chargement et du nouveau flux. Remplacé par un compteur de génération dans `packages/tv-core/src/player/avplay.ts` (incrémenté par `release()`, vérifié par chaque événement du listener) : seuls les événements d'un flux fermé sont ignorés. `onEnd: leave(true)` / `onError: fail` restaurés.
+- Tests : un test avplay (flux fermé ignoré, nouveau flux transmis) ; faux lecteur Plex qui ignore les événements d'un flux fermé (`streamEvents`), deux tests de relance conservés ; deux nouveaux tests : onerror seul pendant le premier prepareAsync, et pendant le chargement après un saut lointain → écran d'erreur, « Ouvrir Plex officiel », session arrêtée.
+- `npm run check` vert (427 tests).
 
-**Non fait**
-- Aucun rendu navigateur à 4/5/6 tuiles : pas de navigateur dans cet environnement. Le logo est le même PNG mis à l'échelle quel que soit le nombre de tuiles ; à confirmer d'un coup d'œil sur la Frame ou l'aperçu.
-- Logo non remplacé par le SVG officiel (pas d'accès réseau) : le triangle a été recreusé à la main, proportions approchées.
+## Pas fait
+- Aucune validation contre le vrai serveur ni sur la TV (priorité (b) de docs/plex-audit.md) : tests sur faux serveur uniquement, comme demandé.

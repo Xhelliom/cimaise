@@ -11,6 +11,8 @@ export interface ProgressOptions {
   ratingKey: string;
   durationMs: number;
   getPosition: () => number;
+  // Session du transcodeur en cours (null en lecture directe) : signalée au serveur dans la timeline.
+  getTranscodeSession?: () => string | null;
   // Fin de lecture (arrêt ou fin de flux) : position retenue et vu ou non, pour rafraîchir les caches locaux.
   onFinish?: (positionMs: number, watched: boolean) => void;
 }
@@ -36,7 +38,7 @@ export function createProgress(o: ProgressOptions): Progress {
 
   function send(s: 'playing' | 'paused' | 'stopped', ms: number): void {
     try {
-      sendTimeline(o.http, o.id, o.session, { ratingKey: o.ratingKey, state: s, timeMs: ms, durationMs: o.durationMs }, function () { /* retenté au tick suivant */ });
+      sendTimeline(o.http, o.id, o.session, { ratingKey: o.ratingKey, state: s, timeMs: ms, durationMs: o.durationMs, transcodeSession: (o.getTranscodeSession && o.getTranscodeSession()) || undefined }, function () { /* retenté au tick suivant */ });
     } catch (e) { /* transport en panne : la lecture continue */ }
   }
   function markWatched(): void {
