@@ -1,0 +1,54 @@
+{
+  "MediaContainer": {
+    "size": 1,
+    "Metadata": [
+      {
+        "ratingKey": "700",
+        "key": "/library/metadata/700",
+        "type": "show",
+        "title": "Titre de série 700",
+        "summary": "Résumé.",
+        "year": 2015,
+        "leafCount": 24,
+        "viewedLeafCount": 1,
+        "thumb": "/library/metadata/700/thumb/1700000000",
+        "art": "/library/metadata/700/art/1700000000",
+        "OnDeck": {
+          "Metadata": {
+            "ratingKey": "701",
+            "key": "/library/metadata/701",
+            "type": "episode",
+            "title": "Titre d'épisode 701",
+            "grandparentTitle": "Titre de série 700",
+            "grandparentRatingKey": "700",
+            "grandparentThumb": "/library/metadata/700/thumb/1700000000",
+            "parentTitle": "Titre de saison 1",
+            "parentRatingKey": "750",
+            "parentIndex": 1,
+            "summary": "Résumé.",
+            "year": 2015,
+            "index": 2,
+            "duration": 1423136,
+            "thumb": "/library/metadata/701/thumb/1700000000",
+            "art": "/library/metadata/701/art/1700000000",
+            "Media": [
+              {
+                "id": 1600,
+                "container": "mkv",
+                "videoCodec": "h264",
+                "audioCodec": "ac3",
+                "Part": [
+                  {
+                    "id": 1600,
+                    "key": "/library/parts/1600/1700000000/file.mkv",
+                    "duration": 1423136
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}

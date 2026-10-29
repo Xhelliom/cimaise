@@ -29,7 +29,7 @@ export interface Data {
   onDeck(on: On<Item[]>, err?: Err): Cancel;
   recent(on: On<Item[]>, err?: Err): Cancel;
   page(sectionKey: string, start: number, size: number, on: On<Page>, err?: Err): Cancel;
-  metadata(ratingKey: string, on: On<Item>, err?: Err): Cancel;
+  metadata(ratingKey: string, on: On<Item>, err?: Err, withOnDeck?: boolean): Cancel;
   children(ratingKey: string, on: On<Item[]>, err?: Err): Cancel;
   // Retour de lecture : la fiche est corrigée sur place, « En cours » et les parents (saison, série) sont rechargés.
   progressed(it: Item, offsetMs: number, watched: boolean): void;
@@ -68,8 +68,8 @@ export function createData(http: Http, id: Identity, s: ServerRef, cache: Cache)
       return load<Page>('p:' + key + ':' + start + ':' + size, TTL_PAGE, function (cb) { return getSectionItems(http, id, s, key, start, size, cb); },
         function (p) { return { items: slimAll(p.items), total: p.total, offset: p.offset }; }, on, err);
     },
-    metadata: function (rk, on, err) {
-      return load<Item>('m:' + rk, TTL_META, function (cb) { return getMetadata(http, id, s, rk, cb); }, same, on, err);
+    metadata: function (rk, on, err, withOnDeck) {
+      return load<Item>('m:' + rk, TTL_META, function (cb) { return getMetadata(http, id, s, rk, cb, withOnDeck); }, same, on, err);
     },
     children: function (rk, on, err) {
       return load<Item[]>('c:' + rk, TTL_META, function (cb) { return getChildren(http, id, s, rk, cb); }, slimAll, on, err);
