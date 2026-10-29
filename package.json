@@ -13,7 +13,8 @@
     "build": "node scripts/build/all.mjs",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "check:es5": "node scripts/build/check-es5.mjs",
-    "check": "npm run typecheck && npm run build && npm run check:es5 && npm test",
+    "check:css": "node scripts/build/check-css.mjs",
+    "check": "npm run typecheck && npm run build && npm run check:es5 && npm run check:css && npm test",
     "dev": "node scripts/dev/server.mjs",
     "test": "node --test --test-concurrency=1 tests/*.test.mjs"
   },

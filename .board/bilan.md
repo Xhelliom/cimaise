@@ -1,12 +1,10 @@
-# Bilan — avance/recul rapides du lecteur
+# Bilan — CSS compatible avec le moteur de la TV
 
-Cause racine : le wrapper AVPlay (`tv-core/src/player/avplay.ts`) lançait un `seekTo` natif à chaque appui, sans attendre le précédent, et `forward/rewind` lisaient `getCurrentTime()` (périmé pendant un seek en vol). Une rafale d'appuis enchaînait donc des seeks concurrents → PLAYER_ERROR_SEEK_FAILED, que le listener `onerror` traitait comme fatal (écran « Lecture impossible »). Le correctif est dans le wrapper partagé, pas dans l'UI.
+**Fait**
+- `gap` remplacé dans les feuilles de l'app, user agent dans le diagnostic (commit d832831).
+- Reprise : le CSS livré (`apps/tv/dist/app.css`) contenait des `#rrggbbaa` et pouvait recevoir `inset`. Le build CSS (`scripts/build/css-build.mjs`) fixe `target: 'chrome56'` ; `check:css` lit aussi `apps/*/dist/**/*.css` et refuse les couleurs à 8 chiffres ; tests dans `tests/css-compat.test.mjs`. Choix noté dans `docs/decisions.md`.
+- `npm run check` vert (310 tests), plus aucun `#rrggbbaa` dans `dist/app.css`.
 
-Fait :
-- Appuis ± cumulés (pas 10 s ×3, 30 s ×3, puis 60 s), un seul seek après 400 ms de silence ; position visée affichée sur la barre (`onSeekPending`).
-- Un seul seek en vol ; les suivants sont fusionnés (le dernier gagne) et partent au rappel.
-- Cible bornée à [0, durée − 5 s].
-- Erreur de seek (rappel ou `onerror` *SEEK*) : non fatale, `onSeekError` → message discret « Déplacement impossible », lecture intacte.
-- Tests dans `tests/player.test.mjs` (appuis rapides, seek pendant seek, hors bornes, erreurs). `npm run check` : 300 tests OK.
-
-Non fait : pas de test sur la TV réelle (à valider par Stéphane : rafale longue sur Avancer).
+**Pas fait / à suivre**
+- Le user agent réel de la Frame reste à relever (touche 0) ; `chrome56` est prudent, à relever si le moteur est plus récent.
+- Rien vérifié sur la TV elle-même.

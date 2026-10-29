@@ -4,6 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { rmSync, mkdirSync, existsSync, readdirSync, copyFileSync, readFileSync, statSync, cpSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import { build } from 'esbuild';
+import { buildCss } from './css-build.mjs';
 
 // CIMAISE_APP : dossier de l'app (tsconfig.json, src/index.ts) ; CIMAISE_OUT : dossier de sortie.
 const app = process.env.CIMAISE_APP ?? 'apps/tv';
@@ -33,15 +34,7 @@ await build({
   logLevel: 'warning',
 });
 if (existsSync(`${app}/src/style.css`)) {
-  await build({
-    entryPoints: { app: `${app}/src/style.css` },
-    bundle: true,
-    minify: true,
-    outdir: outDir,
-    loader: { '.woff2': 'file' }, // la police référencée par le CSS est copiée telle quelle dans dist/fonts/
-    assetNames: 'fonts/[name]',
-    logLevel: 'warning',
-  });
+  await buildCss(`${app}/src/style.css`, outDir);
 }
 // Fichiers copiés tels quels dans dist/ : package.json de l'app, clé "cimaise.assets" (chemins relatifs à l'app).
 const pkg = existsSync(`${app}/package.json`) ? JSON.parse(readFileSync(`${app}/package.json`, 'utf8')) : {};

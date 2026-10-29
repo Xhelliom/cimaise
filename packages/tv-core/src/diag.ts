@@ -8,6 +8,7 @@ export function mark(name: 'firstPaint' | 'interactive' | string): void {
 export function report(): string {
   var base = marks.scriptLoaded, lines: string[] = [];
   for (var k in marks) if (marks.hasOwnProperty(k)) lines.push(k + ': +' + (marks[k] - base) + ' ms');
+  lines.push('userAgent: ' + (typeof navigator !== 'undefined' ? navigator.userAgent : '(absent)'));
   return lines.join('\n');
 }
 

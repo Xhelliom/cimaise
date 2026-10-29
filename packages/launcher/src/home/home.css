@@ -5,18 +5,20 @@
 .home .fond.on{opacity:1}
 .home .entete{position:absolute;left:120px;top:72px;z-index:3}
 .home .salut{font-size:28px;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.55);font-weight:500;padding-left:6px}
-.home .heure{display:flex;align-items:center;gap:40px;margin-top:8px}
+.home .heure{display:flex;align-items:center;margin-top:8px}
+.home .heure>*+*{margin-left:40px}
 .home .horloge{font-size:176px;line-height:1;letter-spacing:-.02em}
 .home .sep{width:2px;height:68px;background:rgba(255,255,255,.22)}
 .home .date{font-size:34px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.6);font-weight:500}
-.home .pastilles{position:absolute;right:120px;top:100px;display:flex;gap:24px;z-index:3}
+.home .pastilles{position:absolute;right:120px;top:100px;display:flex;z-index:3}
+.home .pastilles>*+*{margin-left:24px}
 .home .pastille{height:84px;padding:0 40px;border-radius:42px;display:flex;align-items:center;font-size:34px;font-weight:500;background:rgba(255,255,255,.08);box-shadow:inset 0 0 0 2px rgba(255,255,255,.14)}
 .home .pastille.focus{background:rgba(255,255,255,.9);color:#111;box-shadow:none}
 .home .titre{position:absolute;left:136px;top:520px;font-size:120px;line-height:1;margin:0;font-weight:300;z-index:3}
 .home .desc{position:absolute;left:140px;top:646px;max-width:1500px;font-size:30px;line-height:1;font-weight:300;color:rgba(255,255,255,.6);z-index:3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* .bac est fixe (cadre découpant) ; seul .rail défile, par transform */
 .home .bac{position:absolute;left:100px;width:1720px;top:690px;height:420px;overflow:hidden;border-radius:56px;background:rgba(255,255,255,.07);box-shadow:inset 0 0 0 2px rgba(255,255,255,.1);z-index:3}
-.home .rail{padding:28px;display:grid;grid-template-columns:repeat(4,1fr);gap:40px;transition:transform .2s ease}
+.home .rail{padding:28px;display:grid;grid-template-columns:repeat(4,1fr);grid-gap:40px;transition:transform .2s ease}
 .home .tuile{height:216px;border-radius:36px;display:flex;align-items:center;justify-content:center;font-size:104px;font-weight:500;overflow:hidden;transition:transform .2s ease}
 .home .tuile img{width:144px;height:144px;border-radius:28px}
 .home .tuile.focus{transform:scale(1.1);box-shadow:0 0 0 6px rgba(255,255,255,.92);position:relative;z-index:1}
