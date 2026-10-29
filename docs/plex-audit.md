@@ -114,3 +114,10 @@ Film MKV H.264 + DTS (dca) à 8,8 Mb/s.
   vitesse 2,5×). Sans eux : `videoDecision=copy`, `audioDecision=transcode`, DTS → AAC 5.1, vitesse 4–9×. Le client les omet donc pour un transcodage audio seul.
 - **Flux.** `start.m3u8` : liste de variantes (`application/vnd.apple.mpegurl`) pointant `session/<id>/base/index.m3u8`, segments MPEG-TS de 1 s.
 - **À observer sur la Frame** : lecture, avance/recul, reprise, progression et arrêt de la session à la sortie.
+
+### Essai sur la Frame (2026-10-29) : installé, lecture NON observée
+
+Observé par le SDK uniquement : `.wgt` signé (411 Ko), `install completed`, app présente dans la liste, lancement envoyé. Rien n'a été vu à l'écran
+et Stéphane n'a pas encore lu de film : le relevé serveur (`scripts/plex/watch-transcode.mjs`) ne montre aucune session Cimaise
+(seules des sessions d'autres appareils, dont une avec vidéo ré-encodée, sans rapport). Les critères « lecture vue », « avance/recul, reprise,
+progression » et « session disparue après la sortie » restent à valider ; à consigner ici avec les lignes du script une fois l'essai fait.
