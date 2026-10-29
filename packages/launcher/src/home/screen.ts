@@ -174,8 +174,8 @@ export function createHome(opts: HomeOptions): HomePanel {
     else titre.textContent = '';
   }
 
-  // Ordre : icône de la TV, logo de la bibliothèque (par nom), monogramme. Le logo ne se charge qu'à l'affichage.
-  function logoOf(name: string): string | undefined { var k = knownApp(name); return k ? k.logoUrl : undefined; }
+  // La tuile EST la marque : logo large de la bibliothèque (par nom) sur son fond naturel ; sans logo, le nom sur la couleur
+  // de l'app ; l'icône de la TV n'est qu'un dernier recours. Le logo ne se charge qu'à l'affichage.
 
   function cols(): number { return mode === 'grille' ? per : Math.max(1, catalog.length); }
 
@@ -187,9 +187,13 @@ export function createHome(opts: HomeOptions): HomePanel {
     tiles = [];
     for (var i = 0; i < catalog.length; i++) {
       var t = div('tuile');
-      t.style.background = catalog[i].color;
-      t.style.color = tileInk(catalog[i].color);
-      applyIcon(doc, t, catalog[i].icon || '', catalog[i].name, catalog[i].name ? catalog[i].name.charAt(0).toUpperCase() : '?', logoOf(catalog[i].name));
+      var k = knownApp(catalog[i].name), bg = k && k.logoUrl ? k.bg : catalog[i].color;
+      t.style.background = bg;
+      t.style.color = tileInk(bg);
+      // Sans logo large : le nom, jamais l'icône carrée de la TV (sauf app sans nom).
+      if (k && k.logoUrl) applyIcon(doc, t, catalog[i].icon || '', catalog[i].name, catalog[i].name, k.logoUrl);
+      else if (catalog[i].name) t.textContent = catalog[i].name;
+      else applyIcon(doc, t, catalog[i].icon || '', '', '?');
       tiles.push(t);
       rail.appendChild(t);
     }

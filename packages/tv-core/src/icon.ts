@@ -10,18 +10,18 @@ export function iconCandidates(path: string): string[] {
   return [path];
 }
 
-// Pose l'icône dans `tile` : d'abord celle de la TV, puis `logo` (URL du logo de la bibliothèque, facultatif),
-// puis le repli (texte). Chaque échec de chargement passe à la variante suivante.
+// Pose l'image dans `tile` : d'abord `logo` (logotype large de la bibliothèque, facultatif), puis l'icône de la TV
+// en dernier recours, puis le repli (texte : le nom de l'app). Chaque échec de chargement passe à la variante suivante.
 // Résultat consigné dans le diagnostic (touche 0) ; statut « logo » quand c'est le logo de la bibliothèque qui s'affiche.
 export function applyIcon(doc: Document, tile: HTMLElement, path: string, label: string, fallback: string, logo?: string): void {
   var cands = iconCandidates(path);
   var rec = noteIcon(label, path);
-  if (logo) cands.push(logo);
+  if (logo) cands.unshift(logo);
   if (!cands.length) { tile.textContent = fallback; return; }
   var img: any = doc.createElement('img');
   var n = 0;
   rec.status = '?';
-  img.onload = function () { rec.status = logo && cands[n] === logo ? 'logo' : 'ok'; rec.url = cands[n]; };
+  img.onload = function () { rec.status = logo && n === 0 ? 'logo' : 'ok'; rec.url = cands[n]; };
   img.onerror = function () {
     n++;
     if (n < cands.length) { img.setAttribute('src', cands[n]); return; }

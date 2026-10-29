@@ -25,24 +25,42 @@ test('bibliothèque : une vingtaine d’apps, chacune avec logo et description d
   for (const k of list) {
     assert.match(k.desc, /^[^\n]{10,90}$/, k.logo);
     assert.ok(/[.!]$/.test(k.desc), 'phrase terminée : ' + k.desc);
-    assert.ok(existsSync(join(DIR, 'logos', k.logo)), 'logo manquant : ' + k.logo);
+    if (k.logo) assert.ok(existsSync(join(DIR, 'logos', k.logo)), 'logo manquant : ' + k.logo);
+    assert.match(k.bg, /^#[0-9a-f]{6}$/i, 'fond de tuile : ' + k.names[0]);
   }
 });
 
-test('logos : PNG ≤ 256 px, < 10 Ko chacun, aucun fichier orphelin', () => {
+test('logos larges : PNG ≤ 320 × 160 px, < 15 Ko chacun, logotype (largeur ≥ 1,3 × hauteur), aucun orphelin', () => {
   const files = readdirSync(join(DIR, 'logos')).sort();
-  assert.deepEqual(files, C.KNOWN_APPS.map((k) => k.logo).sort());
+  assert.deepEqual(files, C.KNOWN_APPS.map((k) => k.logo).filter(Boolean).sort());
   for (const f of files) {
     const b = readFileSync(join(DIR, 'logos', f));
-    assert.ok(b.length < 10 * 1024, f + ' : ' + b.length + ' octets');
+    assert.ok(b.length < 15 * 1024, f + ' : ' + b.length + ' octets');
     assert.equal(b.subarray(1, 4).toString(), 'PNG', f);
-    assert.ok(b.readUInt32BE(16) <= 256 && b.readUInt32BE(20) <= 256, f + ' : dimensions');
+    const w = b.readUInt32BE(16), h = b.readUInt32BE(20);
+    assert.ok(w <= 320 && h <= 160, f + ' : dimensions ' + w + '×' + h);
+    assert.ok(w >= 1.3 * h, f + ' : pas un logotype large ' + w + '×' + h);
   }
+});
+
+test('logos : seul Smart Hub (pictogramme maison) n’a pas de logo, la tuile porte son nom', () => {
+  const sans = C.KNOWN_APPS.filter((k) => !k.logo);
+  assert.deepEqual(sans.map((k) => k.names[0]), ['smarthub']);
+  const m = C.knownApp('Smart Hub');
+  assert.equal(m.logoUrl, undefined);
+  assert.equal(m.desc.length > 10, true);
+});
+
+test('fond de tuile : couleur naturelle du logo (Netflix et YouTube blancs, Prime bleu)', () => {
+  const bg = (n) => C.knownApp(n).bg.toLowerCase();
+  assert.equal(bg('Netflix'), '#ffffff');
+  assert.equal(bg('YouTube'), '#ffffff');
+  assert.match(bg('Prime Video'), /^#0[0-9a-f][0-9a-f]{2}[c-f][0-9a-f]$/);
 });
 
 test('provenance : chaque logo est cité dans THIRD_PARTY_NOTICES.md', () => {
   const notices = readFileSync('THIRD_PARTY_NOTICES.md', 'utf8');
-  for (const k of C.KNOWN_APPS) assert.ok(notices.includes(k.logo), 'provenance absente : ' + k.logo);
+  for (const k of C.KNOWN_APPS) if (k.logo) assert.ok(notices.includes(k.logo), 'provenance absente : ' + k.logo);
   assert.match(notices, /commons\.wikimedia\.org/);
 });
 
@@ -67,7 +85,7 @@ test('correspondance par nom : casse, accents, ponctuation, suffixes', () => {
   same('appletv.png', 'Apple TV', 'apple tv', 'Apple TV+', 'APPLE TV');
   same('max.png', 'Max', 'HBO Max', 'OCS', 'ocs');
   same('paramount.png', 'Paramount+', 'Paramount Plus');
-  same('smarthub.png', 'Smart Hub', 'smart hub', 'SmartHub', 'Smart Hub Samsung', 'Mode Art', 'mode art', 'Art Mode');
+  for (const n of ['Smart Hub', 'smart hub', 'SmartHub', 'Smart Hub Samsung', 'Mode Art', 'mode art', 'Art Mode']) assert.deepEqual(C.knownApp(n).names.slice(0, 1), ['smarthub'], n);
   same('pluto.png', 'Pluto TV', 'pluto tv');
   same('rakuten.png', 'Rakuten TV', 'rakuten tv');
   same('molotov.png', 'Molotov', 'Molotov TV');
@@ -88,7 +106,7 @@ test('le logo n’est jamais embarqué dans le JS initial ; le .wgt le contient'
   const js = readFileSync('apps/tv/dist/app.js', 'utf8');
   assert.ok(!js.includes('data:image'), 'image en data: dans app.js');
   assert.ok(!js.includes('iVBORw0KGgo'), 'PNG en base64 dans app.js');
-  for (const k of C.KNOWN_APPS) {
+  for (const k of C.KNOWN_APPS.filter((k) => k.logo)) {
     const p = join('apps/tv/dist/logos', k.logo);
     assert.ok(existsSync(p), 'logo absent de dist : ' + k.logo);
     assert.equal(statSync(p).size, statSync(join(DIR, 'logos', k.logo)).size);

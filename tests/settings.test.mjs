@@ -268,7 +268,7 @@ test('scrollOffset : déplacement minimal, bornes', () => {
   assert.equal(S.scrollOffset(0, 299, 300), 300 * S.ROW_H - S.VIEW_H);
 });
 
-test('Découvrir : logo + nom + description pour une app connue, monogramme pour une inconnue', () => {
+test('Découvrir : logo + nom + description pour une app connue, son nom (pas d’icône) pour une inconnue', () => {
   const r = open();
   r.calls.impl = (ok) => ok([
     { id: 'n.id', name: 'NETFLIX' },
@@ -282,9 +282,9 @@ test('Découvrir : logo + nom + description pour une app connue, monogramme pour
   const img = (l) => all(l, (e) => e.tag === 'img').map((i) => i.attrs.src);
   assert.deepEqual(img(netflix), ['logos/netflix.png']);
   assert.ok(texts(netflix).includes('Séries, films et documentaires en streaming.'));
-  assert.deepEqual(img(disney), ['file:///d.png'], 'icône TV d’abord');
+  assert.deepEqual(img(disney), ['logos/disney.png'], 'logo large d’abord, icône TV en dernier recours');
   assert.ok(texts(disney).some((t) => /Disney/.test(t) && t !== 'Disney Plus'));
-  assert.deepEqual(img(inconnue), []);
-  assert.ok(texts(inconnue).includes('I'));
+  assert.deepEqual(img(inconnue), [], 'app inconnue : jamais d’icône TV, son nom');
+  assert.ok(texts(inconnue).includes('Inconnue'), 'le nom sur la tuile');
   assert.equal(texts(inconnue).length, 2, 'aucune description pour une inconnue');
 });

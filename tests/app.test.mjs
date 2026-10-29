@@ -148,13 +148,13 @@ async function openSettings(a) {
   a.flush(); a.key(UP); a.key(OK); await a.tick();
 }
 
-test('Réglages → accueil : une couleur changée est visible sur la tuile et persistée', async () => {
+test('Réglages → accueil : une couleur changée est persistée (la tuile d’une app à logo garde le fond de son logo)', async () => {
   const a = boot();
   await openSettings(a);
   a.key(DOWN); a.key(OK); // 1re app, puce « Couleur » : teinte suivante de la palette
   a.key(BACK);
   assert.equal(find(a.root, 'reglages').length, 0);
-  assert.equal(find(a.root, 'tuile')[0].style.background, '#e50914');
+  assert.equal(find(a.root, 'tuile')[0].style.background, '#000000', 'Plex : fond de son logo, la couleur teinte le fond d’écran');
   const saved = JSON.parse(a.store['cimaise.v1']).prefs.catalog.entries;
   assert.equal(saved[0].color, '#e50914');
   assert.equal(saved[0].type, 'interne', 'le type interne survit à l’aller-retour des réglages');

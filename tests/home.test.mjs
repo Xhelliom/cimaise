@@ -472,15 +472,41 @@ const kcat = [
   { id: 'c', name: 'Ma super app', color: '#5a5a5f', type: 'tv' },
 ];
 
-test('Dock : logo de la bibliothèque sans icône TV, icône TV d’abord sinon, monogramme si inconnue', () => {
+test('Dock : logo large de la bibliothèque d’abord, icône TV en dernier recours, le nom si rien', () => {
   const { p } = mount({ catalog: kcat });
   const [n, d, c] = byClass(p.el, 'tuile');
   assert.equal(n.children[0].attrs.src, 'logos/netflix.png');
-  assert.equal(d.children[0].attrs.src, 'file:///tv/d.png');
+  assert.equal(d.children[0].attrs.src, 'logos/disney.png', 'le logo passe avant l’icône de la TV');
   d.children[0].onerror();
-  assert.equal(d.children[0].attrs.src, 'logos/disney.png');
+  assert.equal(d.children[0].attrs.src, 'file:///tv/d.png', 'logo illisible : icône de la TV');
   assert.equal(c.children.length, 0);
-  assert.equal(c.textContent, 'M');
+  assert.equal(c.textContent, 'Ma super app', 'nom en grand, pas une initiale');
+});
+
+test('Dock : app inconnue avec icône TV → son nom, aucune <img> (l’icône carrée n’est pas chargée)', () => {
+  const { p } = mount({ catalog: [{ id: 'x', name: 'Ma super app', color: '#8a3ffc', type: 'tv', icon: 'file:///tv/x.png' }] });
+  const [x] = byClass(p.el, 'tuile');
+  assert.equal(x.children.length, 0);
+  assert.equal(x.textContent, 'Ma super app');
+  assert.equal(x.style.background, '#8a3ffc');
+});
+
+test('Dock : la tuile prend le fond naturel du logo ; sans logo, la couleur de l’app', () => {
+  const { p } = mount({ catalog: [...kcat, { id: 'h', name: 'Smart Hub', color: '#5a5a5f', type: 'tv' }] });
+  const [n, d, c, h] = byClass(p.el, 'tuile');
+  assert.equal(n.style.background, '#ffffff', 'Netflix : blanc');
+  assert.match(d.style.background, /^#[0-9a-f]{6}$/i);
+  assert.notEqual(d.style.background, '#113ccf', 'Disney+ : fond du logo, pas la couleur de l’app');
+  assert.equal(c.style.background, '#5a5a5f', 'app inconnue : sa couleur');
+  assert.equal(h.style.background, '#5a5a5f', 'Smart Hub sans logo : sa couleur');
+  assert.equal(h.textContent, 'Smart Hub');
+  assert.equal(h.children.length, 0);
+});
+
+test('Dock : la teinte du fond d’écran suit toujours la couleur de l’app, pas le fond du logo', () => {
+  const { p, tm } = mount({ catalog: kcat });
+  tm.list.filter((x) => x.live).forEach((x) => x.fn());
+  assert.match(byClass(p.el, 'fond').map((f) => f.style.background).join('|'), /rgba\(229,9,20/); // Netflix #e50914, pas blanc
 });
 
 test('Dock : description de l’app focalisée sous le titre, vide pour une app inconnue', () => {
@@ -593,22 +619,27 @@ test('setTiles : appliqué tout de suite, sans reconstruire les tuiles, focus co
   assert.equal(nOf(m.p), 4);
 });
 
-test('tuiles : logos et texte lisibles à 6 (logo ≥ 90 px, monogramme ≥ 64 px), rayons concentriques, aucun nouvel asset', () => {
+test('tuiles : logo large centré à 60–70 % de la largeur, sans cadre, nom lisible à 4/5/6, rayons concentriques', () => {
   const css = cssOf();
+  const img = /\.home \.tuile img\{([^}]*)\}/.exec(css)[1];
+  const pct = Number(/width:(\d+)%/.exec(img)[1]);
+  assert.ok(pct >= 60 && pct <= 70, 'largeur du logo : ' + pct + ' %');
+  assert.match(img, /object-fit:contain/);
+  assert.doesNotMatch(img, /border-radius|box-shadow|background|border:/, 'aucun cadre autour du logo');
+  assert.doesNotMatch(css, /\.tuile img\{[^}]*\b\d+px/, 'le logo suit la tuile en %, aucune taille fixe');
   const pad = H.PAD, ring = 6, scale = 1.1, R = Number(/\.bac\{[^}]*border-radius:(\d+)px/.exec(css)[1]);
   for (const n of [5, 6]) {
     const rule = (sel) => new RegExp('\\.home\\.n' + n + ' ' + sel + '\\{([^}]*)\\}').exec(css)[1];
-    const tuile = rule('\\.tuile'), img = rule('\\.tuile img');
+    const tuile = rule('\\.tuile');
     const h = Number(/height:(\d+)px/.exec(tuile)[1]), r = Number(/border-radius:(\d+)px/.exec(tuile)[1]), fs = Number(/font-size:(\d+)px/.exec(tuile)[1]);
-    const iw = Number(/width:(\d+)px/.exec(img)[1]);
     assert.equal(h, Math.round(H.tileH(n)), 'hauteur = ratio : ' + n);
-    assert.ok(iw <= h - 24 && iw >= (n === 6 ? 90 : 110), 'logo ' + n + ' : ' + iw);
-    assert.ok(fs >= (n === 6 ? 64 : 80), 'monogramme ' + n);
+    assert.ok(fs >= (n === 6 ? 26 : 34), 'nom en grand à ' + n + ' : ' + fs);
     const w = H.tileW(n), marge = pad - (w * (scale - 1)) / 2 - ring * scale;
     assert.ok(marge >= 12);
     assert.ok(Math.abs(R - (r * scale + ring * scale) - marge) <= 3, 'rayons ' + n);
     assert.match(css, new RegExp('\\.home\\.rangee\\.n' + n + ' \\.tuile\\{[^}]*width:' + Math.floor(H.rowTileW(n)) + 'px'));
   }
+  assert.match(/\.home \.tuile\{([^}]*)\}/.exec(css)[1], /font-size:(4\d|5\d)px/, 'nom en grand à 4 tuiles');
   assert.doesNotMatch(css, /url\((?!fonts\/)/, 'pas de nouvelle image');
 });
 
