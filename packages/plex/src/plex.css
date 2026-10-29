@@ -99,3 +99,10 @@
 .plex-set-val{padding:10px 28px;border-radius:24px;font-size:28px;font-weight:500;background:rgba(255,255,255,.08)}
 .plex-set-row.on .plex-set-val{background:rgba(255,255,255,.9);color:#111}
 .plex-set-desc{position:absolute;left:152px;top:298px;width:1130px;font-size:24px;color:rgba(255,255,255,.5)}
+.plex-episodes .vbar{position:absolute;left:0;top:197px;width:360px;height:6px;background:#e5a00d;transform-origin:0 0;z-index:2}
+.plex-episodes .vtile.done::after,.plex-seasons .vtile.done::after{content:"";position:absolute;z-index:2;border-radius:50%;background:#e5a00d}
+.plex-episodes .vtile.done::after{right:12px;top:12px;width:44px;height:44px}
+.plex-seasons .vtile.done::after{right:8px;top:8px;width:28px;height:28px}
+.plex-episodes .vtile.done::before,.plex-seasons .vtile.done::before{content:"";position:absolute;z-index:3;border:solid #111;border-width:0 5px 5px 0;transform:rotate(45deg)}
+.plex-episodes .vtile.done::before{right:29px;top:20px;width:9px;height:18px}
+.plex-seasons .vtile.done::before{right:18px;top:13px;width:6px;height:11px;border-width:0 4px 4px 0}

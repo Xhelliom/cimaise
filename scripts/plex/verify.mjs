@@ -31,7 +31,7 @@ function checkShape(name, v, shape) {
   bad.length ? ko(name, bad.join(', ')) : ok(name, 'forme conforme');
 }
 const ITEM = { ratingKey: 'string', title: 'string', type: 'string', thumb: '?string', art: '?string', summary: '?string',
-  duration: '?number', viewOffset: '?number', index: '?number', leafCount: '?number', viewedLeafCount: '?number', year: '?number',
+  duration: '?number', viewOffset: '?number', viewCount: '?number', index: '?number', leafCount: '?number', viewedLeafCount: '?number', year: '?number',
   grandparentTitle: '?string', grandparentRatingKey: '?string', grandparentThumb: '?string', parentTitle: '?string', parentIndex: '?number', Media: '?array' };
 
 async function main() {

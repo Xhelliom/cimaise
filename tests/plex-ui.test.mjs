@@ -963,3 +963,116 @@ test('fiche d’un film vu en entier (viewOffset >= durée) : un seul bouton Lir
   assert.equal(restartBtn(p).length, 0);
   p.destroy();
 });
+
+// ---- fiche série : vus, progression, présélection ---------------------------------------------------------------
+// Formes réelles (voir show-ondeck.json / children.json), valeurs réduites pour le test.
+function viewDeps({ ondeck, seasonsOf, eps }) {
+  const meta = (l) => JSON.stringify({ MediaContainer: { size: l.length, Metadata: l } });
+  const show = JSON.parse(fx('show-ondeck')).MediaContainer.Metadata[0];
+  if (ondeck) show.OnDeck = { Metadata: ondeck }; else delete show.OnDeck;
+  const state = { eps, seasons: seasonsOf };
+  const routes = [
+    [/\/library\/metadata\/700(\?|$)/, () => meta([show])],
+    [/\/library\/metadata\/700\/children/, () => meta(state.seasons)],
+    [/\/library\/metadata\/(\d+)\/children/, (m) => meta(state.eps[m[1]] || [])],
+  ];
+  const http = (req, cb) => {
+    http.calls.push(req);
+    for (const [re, body] of routes) { const m = re.exec(req.url); if (m) { setImmediate(() => cb(null, { status: 200, body: body(m) })); return { abort() {} }; } }
+    setImmediate(() => cb(new Error('404')));
+    return { abort() {} };
+  };
+  http.calls = [];
+  const played = [];
+  const d = deps({ http, onPlay: (it) => played.push(it) });
+  return { d, state, played };
+}
+const season = (rk, index, leaf, seen) => ({ ratingKey: rk, type: 'season', index, title: 'Saison ' + index, leafCount: leaf, viewedLeafCount: seen });
+const episode = (rk, index, parent, extra = {}) => ({ ratingKey: rk, type: 'episode', index, parentIndex: parent === '751' ? 2 : 1, parentRatingKey: parent, title: 'Ép ' + index, duration: 1200000, thumb: '/library/metadata/' + rk + '/thumb/1', ...extra });
+const tilesOf = (p, cls) => byClass(byClass(p.el, cls)[0], 'vtile');
+const tileByLabel = (p, cls, re) => tilesOf(p, cls).find((t) => re.test(byClass(t, 'vlabel')[0].textContent));
+
+test('fiche série : coche sur les épisodes vus, barre sur l’entamé, rien sur les autres ; coche sur la saison vue', async () => {
+  const { d } = viewDeps({
+    seasonsOf: [season('750', 1, 3, 3), season('751', 2, 3, 1)],
+    eps: { 750: [episode('1', 1, '750', { viewCount: 2 }), episode('2', 2, '750', { viewCount: 1 }), episode('3', 3, '750', { viewCount: 1 })],
+      751: [episode('4', 1, '751', { viewCount: 1 }), episode('5', 2, '751', { viewOffset: 300000 }), episode('6', 3, '751')] },
+  });
+  const p = ui.createDetailPanel(d.arg, SHOW_DECK);
+  await flush();
+  const seasons = tilesOf(p, 'plex-seasons');
+  assert.equal(seasons.find((t) => /Saison 1/.test(t.children[1].textContent)).classList.contains('done'), true, 'saison entièrement vue');
+  assert.equal(seasons.find((t) => /Saison 2/.test(t.children[1].textContent)).classList.contains('done'), false);
+  // sans « à suivre » : première saison non terminée (2), premier non vu (ép 2)
+  const ep = (n) => tileByLabel(p, 'plex-episodes', new RegExp('^' + n + '\\. '));
+  assert.ok(ep(1).classList.contains('done'), 'vu');
+  assert.ok(!ep(2).classList.contains('done'), 'entamé : pas de coche');
+  const bar = (t) => byClass(t, 'vbar')[0];
+  assert.equal(bar(ep(2)).style.transform, 'scaleX(0.25)', 'entamé : 300 s sur 1200 s');
+  assert.equal(bar(ep(3)).style.transform, 'scaleX(0)', 'rien');
+  assert.equal(bar(ep(1)).style.transform, 'scaleX(0)', 'vu : pas de barre');
+});
+
+test('ouverture : saison de l’épisode « à suivre » affichée, épisode présélectionné et visible, focus sur Reprendre', async () => {
+  const next = { ratingKey: '15', type: 'episode', index: 15, parentIndex: 2, parentRatingKey: '751', title: 'Ép 15', duration: 1200000, viewOffset: 60000 };
+  const many = []; for (let i = 1; i <= 20; i++) many.push(episode(String(100 + i), i, '751'));
+  many[14] = { ...many[14], ratingKey: '15', viewOffset: 60000 };
+  const { d } = viewDeps({
+    ondeck: next,
+    seasonsOf: [season('750', 1, 3, 3), season('751', 2, 20, 14)],
+    eps: { 750: [episode('1', 1, '750', { viewCount: 1 })], 751: many },
+  });
+  const p = ui.createDetailPanel(d.arg, SHOW_DECK);
+  await flush();
+  assert.equal(playBtn(p), 'Reprendre S2 E15 · 1:00');
+  assert.equal(byClass(p.el, 'plex-play')[0].className, 'plex-play focus', 'focus initial sur le bouton');
+  const sel = byClass(byClass(p.el, 'plex-seasons')[0], 'sel');
+  assert.equal(sel.length, 1);
+  assert.equal(sel[0].children[1].textContent, 'Saison 2');
+  assert.ok(tileByLabel(p, 'plex-episodes', /^15\. /), 'l’épisode à suivre est rendu, donc défilé jusqu’à lui');
+  p.onKey('down'); p.onKey('down');
+  const focused = byClass(byClass(p.el, 'plex-episodes')[0], 'focus');
+  assert.equal(focused.length, 1);
+  assert.ok(/^15\. /.test(byClass(focused[0], 'vlabel')[0].textContent), 'épisode à suivre présélectionné');
+});
+
+test('ouverture sans « à suivre » : première saison non terminée, premier épisode non vu ; tout vu → S1 E1', async () => {
+  const a = viewDeps({
+    seasonsOf: [season('750', 1, 2, 2), season('751', 2, 2, 1)],
+    eps: { 750: [episode('1', 1, '750', { viewCount: 1 }), episode('2', 2, '750', { viewCount: 1 })], 751: [episode('4', 1, '751', { viewCount: 1 }), episode('5', 2, '751')] },
+  });
+  const p = ui.createDetailPanel(a.d.arg, SHOW_DECK);
+  await flush();
+  assert.equal(playBtn(p), 'Lire S2 E2');
+  assert.equal(byClass(byClass(p.el, 'plex-seasons')[0], 'sel')[0].children[1].textContent, 'Saison 2');
+  const b = viewDeps({
+    seasonsOf: [season('750', 1, 1, 1), season('751', 2, 1, 1)],
+    eps: { 750: [episode('1', 1, '750', { viewCount: 1 })], 751: [episode('4', 1, '751', { viewCount: 1 })] },
+  });
+  const q = ui.createDetailPanel(b.d.arg, SHOW_DECK);
+  await flush();
+  assert.equal(byClass(byClass(q.el, 'plex-seasons')[0], 'sel')[0].children[1].textContent, 'Saison 1');
+  assert.equal(playBtn(q), 'Lire S1 E1');
+});
+
+test('retour de lecture : coches et progression mis à jour sans rouvrir la fiche', async () => {
+  const { d, state } = viewDeps({
+    ondeck: { ratingKey: '2', type: 'episode', index: 2, parentIndex: 1, parentRatingKey: '750', title: 'Ép 2', duration: 1200000 },
+    seasonsOf: [season('750', 1, 2, 1)],
+    eps: { 750: [episode('1', 1, '750', { viewCount: 1 }), episode('2', 2, '750')] },
+  });
+  const p = ui.createDetailPanel(d.arg, SHOW_DECK);
+  await flush();
+  const ep2 = () => tileByLabel(p, 'plex-episodes', /^2\. /);
+  assert.ok(!ep2().classList.contains('done'));
+  const seasonTile = () => tilesOf(p, 'plex-seasons')[0];
+  assert.ok(!seasonTile().classList.contains('done'));
+  p.suspend();
+  state.eps[750] = [episode('1', 1, '750', { viewCount: 1 }), episode('2', 2, '750', { viewCount: 1 })];
+  state.seasons = [season('750', 1, 2, 2)];
+  sharedData(d).progressed({ ratingKey: '2', type: 'episode', parentRatingKey: '750', grandparentRatingKey: '700' }, 0, true);
+  p.resume();
+  await flush();
+  assert.ok(ep2().classList.contains('done'), 'épisode terminé : coche');
+  assert.ok(seasonTile().classList.contains('done'), 'saison terminée : coche');
+});
