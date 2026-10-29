@@ -1,10 +1,10 @@
-# Bilan — sous-titres et pistes audio (Plex)
+# Bilan — sous-titres et pistes audio
 
-## Fait
-- SRT interne (setSelectTrack) et externe (setExternalSubtitlePath, rendu maison via onsubtitlechange, bas d'écran, sans flou).
-- PGS/ASS/VobSub : transcodage avec sous-titres incrustés.
-- Menu des pistes (Haut), langues par défaut dans Réglages, choix retenu par série, forcés automatiques.
-- Correctif de cette passe : un refus de setExternalSubtitlePath pendant open() (mode encore « loading ») est mémorisé (`extFailed`) ; en mode externe après échec, aucune piste TEXT n'est choisie (plus de sous-titres internes par erreur) et « Sous-titres indisponibles » s'affiche au démarrage de la lecture. Test ajouté (fichier avec piste interne + refus). `npm run check` vert (403 tests).
+## Fait (cette reprise)
+- Critère 1 corrigé : `avplay.ts` n'appelle plus `setSilentSubtitle(true)` à l'ouverture (il coupait `onsubtitlechange`). Le lecteur Plex appelle `setSubtitlesVisible(true)` quand une piste de texte (interne ou externe) est choisie, `false` quand les sous-titres sont coupés, en échec ou transcodés (incrustés).
+- Faux AVPlay des tests : n'émet plus `onsubtitlechange` en mode silencieux ; test qui aurait attrapé le bug (`tests/player.test.mjs`), test Plex adapté (`subs:true` après le choix de piste).
+- `rememberSeries` : ordre de récence explicite (`prefs.plexSeriesOrder`) au lieu de l'ordre des clés d'objet ; test avec clés numériques. `docs/decisions.md` corrigé.
+- `npm run check` : 404 tests verts.
 
-## Non fait
-- Rien de connu. Rendu réel sur la TV non vérifié (aucun accès TV ici).
+## Non fait / réserve
+- Non testé sur la TV : arrivée des événements `onsubtitlechange` en mode non silencieux, absence de double affichage natif + page, piste externe = dernière piste TEXT.

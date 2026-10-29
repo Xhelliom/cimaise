@@ -485,6 +485,18 @@ test('langues : le choix fait sur une série est retenu pour ses autres épisode
   assert.equal(core.langPrefsFor('900', s).subLang, '', 'le choix de la série prime sur le réglage global');
 });
 
+test('langues : la mémoire par série oublie la plus ancienne même avec des clés numériques', () => {
+  const s = memStore();
+  for (let i = 1000; i < 1250; i++) core.rememberSeries(String(i), { audioLang: 'eng' }, s); // garde 1050..1249
+  core.rememberSeries('1050', { subLang: 'fra' }, s); // la plus ancienne redevient récente
+  core.rememberSeries('999', { audioLang: 'jpn' }, s); // évince 1051 (la plus ancienne), pas la plus petite clé 999/1050
+  const m = JSON.parse(s.getItem('cimaise.v1')).prefs.plexSeries;
+  assert.equal(Object.keys(m).length, 200);
+  assert.ok(m['1050'] && m['999'] && m['1249'] && m['1052']);
+  assert.equal(m['1051'], undefined);
+  assert.equal(m['1050'].audioLang, 'eng');
+});
+
 test('langues : la mémoire par série reste bornée (les plus anciennes disparaissent)', () => {
   const s = memStore();
   for (let i = 0; i < 250; i++) core.rememberSeries('k' + i, { audioLang: 'eng' }, s);

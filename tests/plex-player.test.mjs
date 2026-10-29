@@ -240,8 +240,8 @@ test('pistes : Haut ouvre le choix audio / sous-titres, setSelectTrack via le le
   s.panel.onKey('up');
   for (let i = 0; i < 3; i++) s.panel.onKey('down');
   s.panel.onKey('enter');
-  // Le rendu natif reste coupé (le texte s'affiche dans la page) : jamais de setSubtitlesVisible(true).
-  assert.deepEqual(s.player.calls, ['select:text3']);
+  // Piste choisie : AVPlay réveillé (sinon aucun onsubtitlechange), le texte s'affiche dans la page.
+  assert.deepEqual(s.player.calls, ['select:text3', 'subs:true']);
   s.player.events.onSubtitle('Texte', 1000);
   assert.equal(byClass(s.panel.el, 'plex-pl-sub')[0].textContent, 'Texte');
   s.panel.onKey('up');

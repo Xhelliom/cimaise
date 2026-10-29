@@ -21,7 +21,7 @@ before(async () => {
 // Fausse API AVPlay : journalise les appels, réussit de façon synchrone.
 function fakeApi(over = {}) {
   const calls = [];
-  let time = 0;
+  let time = 0, silent = false;
   const api = {
     calls,
     open: (u) => calls.push('open:' + u),
@@ -42,7 +42,9 @@ function fakeApi(over = {}) {
       { index: 2, type: 'TEXT', extra_info: '{"track_lang":"eng"}' },
     ],
     setSelectTrack: (t, i) => calls.push('select:' + t + i),
-    setSilentSubtitle: (b) => calls.push('silent:' + b),
+    // Comme AVPlay : en mode silencieux, aucun onsubtitlechange n'est émis.
+    setSilentSubtitle: (b) => { silent = b; calls.push('silent:' + b); },
+    emitSubtitle: (d, t) => { if (!silent && api.listener) api.listener.onsubtitlechange(d, t); },
     setTime: (t) => { time = t; },
     ...over,
   };
@@ -66,7 +68,7 @@ test('cycle : open → setListener → setDisplayRect → prepareAsync → play'
   let res = 'pending';
   p.open('http://x/a.mkv', { rect: { x: 0, y: 0, w: 1280, h: 720 } }, (e) => { res = e; });
   assert.equal(res, null);
-  assert.deepEqual(api.calls, ['open:http://x/a.mkv', 'setListener', 'rect:0,0,1280,720', 'silent:true', 'prepareAsync', 'play']);
+  assert.deepEqual(api.calls, ['open:http://x/a.mkv', 'setListener', 'rect:0,0,1280,720', 'prepareAsync', 'play']);
 });
 
 test('reprise : seekTo avant play', () => {
@@ -298,9 +300,18 @@ test('sous-titre externe : chemin posé après open et avant prepareAsync ; un r
   assert.deepEqual(ev, ['refusé']);
 });
 
-test('sous-titres : le rendu natif est coupé à l’ouverture (le texte vient des événements onsubtitlechange)', () => {
+test('sous-titres : AVPlay n’est pas silencieux à l’ouverture, le texte arrive à la page', () => {
   const api = fakeApi();
-  const p = core.createPlayer({ api, doc: fakeDoc() });
+  const got = [];
+  const p = core.createPlayer({ api, doc: fakeDoc(), onSubtitle: (t) => got.push(t) });
   p.open('u', {}, () => {});
-  assert.ok(api.calls.includes('silent:true'));
+  assert.ok(!api.calls.includes('silent:true'), 'jamais coupé à l’ouverture');
+  api.emitSubtitle(1000, 'Bonjour');
+  assert.deepEqual(got, ['Bonjour']);
+  p.setSubtitlesVisible(false);
+  api.emitSubtitle(1000, 'muet');
+  assert.deepEqual(got, ['Bonjour'], 'silencieux : aucun événement');
+  p.setSubtitlesVisible(true);
+  api.emitSubtitle(1000, 'revenu');
+  assert.deepEqual(got, ['Bonjour', 'revenu']);
 });

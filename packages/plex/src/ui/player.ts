@@ -68,7 +68,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
   var durationMs = item.duration || 0;
   var paused = false, menuOpen = false;
   var suspendPos = -1;
-  // Sous-titres rendus par la page (AVPlay est coupé) : subsOn = la piste choisie est lue par AVPlay (interne ou externe), pas incrustée.
+  // Sous-titres rendus par la page (AVPlay n'est réveillé que pour une piste choisie) : subsOn = la piste choisie est lue par AVPlay (interne ou externe), pas incrustée.
   var extFailed = false, subsOn = false, subTimer: any = null, seriesKey = item.grandparentRatingKey;
   // Mesure (diagnostic) : Entrée sur Lire → première image (1er temps de lecture signalé par AVPlay). Avec la question de reprise, part du choix.
   var t0 = Date.now(), awaitFrame = false;
@@ -92,6 +92,11 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
     setClass(dialog, 'plex-pl-dialog', true);
   }
 
+  // AVPlay n'émet onsubtitlechange que s'il n'est pas silencieux : on le réveille seulement quand une piste est choisie.
+  function setSubs(on: boolean): void {
+    subsOn = on;
+    if (player) player.setSubtitlesVisible(on);
+  }
   function clearSub(): void {
     if (subTimer !== null) { timers.clearTimeout(subTimer); subTimer = null; }
     sub.textContent = '';
@@ -195,7 +200,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
         if (closed) return;
         extFailed = true; // refus synchrone pendant open() : signalé une fois la lecture lancée (applyTracks)
         if (mode !== 'play') return;
-        subsOn = false;
+        setSubs(false);
         clearSub();
         state.textContent = 'Sous-titres indisponibles';
         show();
@@ -256,7 +261,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
   // la n-ième piste AVPlay de ce type (les index d'AVPlay ne sont pas ceux de Plex). Transcodé, le flux porte déjà l'audio choisi et les
   // sous-titres incrustés. Les sous-titres d'une piste externe sont, d'après la doc, ajoutés après les pistes internes : on prend la dernière.
   function applyTracks(p: Player, doAudio: boolean, doSub: boolean): void {
-    if (plan!.mode !== 'direct') { if (doSub) { subsOn = false; clearSub(); } return; }
+    if (plan!.mode !== 'direct') { if (doSub) { setSubs(false); clearSub(); } return; }
     var streams = plan!.part.Stream || [], tracks = p.getTracks();
     function avplayTrack(kind: 'audio' | 'text', type: number, wanted: { id: number } | null): Track | null {
       if (!wanted) return null;
@@ -273,7 +278,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
     clearSub();
     var t: Track | null = null;
     if (plan!.subtitleMode === 'external' && extFailed) {
-      subsOn = false;
+      setSubs(false);
       state.textContent = 'Sous-titres indisponibles';
       return;
     }
@@ -281,8 +286,8 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
     else if (plan!.subtitleMode === 'external') {
       for (var i = tracks.length - 1; i >= 0 && !t; i--) if (tracks[i].kind === 'text') t = tracks[i];
     }
-    subsOn = !!t;
     if (t) p.selectTrack('text', t.index);
+    setSubs(!!t);
   }
 
   function prefs(): LangPrefs { return langPrefsFor(seriesKey, arg.store); }
@@ -369,13 +374,14 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
         return {
           label: trackLabel(t),
           apply: function () {
-            if (t.kind === 'text') { subsOn = true; clearSub(); }
+            if (t.kind === 'text') clearSub();
             player!.selectTrack(t.kind, t.index);
+            if (t.kind === 'text') setSubs(true);
           }
         };
       };
       for (i = 0; i < tracks.length; i++) if (tracks[i].kind === 'audio') out.push(pick(tracks[i]));
-      out.push({ label: 'Sous-titres · Désactivés', apply: function () { subsOn = false; clearSub(); } });
+      out.push({ label: 'Sous-titres · Désactivés', apply: function () { setSubs(false); clearSub(); } });
       for (i = 0; i < tracks.length; i++) if (tracks[i].kind === 'text') out.push(pick(tracks[i]));
     }
     choices = out;

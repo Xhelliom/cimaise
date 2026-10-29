@@ -206,8 +206,8 @@ export function createPlayer(opts?: PlayerOptions): Player {
         a.setListener(listener());
         var r = oo.rect || { x: 0, y: 0, w: 1920, h: 1080 };
         a.setDisplayRect(r.x, r.y, r.w, r.h);
-        // Rendu natif coupé : le texte arrive par onsubtitlechange et s'affiche dans la page (taille et ombre maîtrisées, sans flou).
-        try { a.setSilentSubtitle(true); } catch (e) { /* sans effet : AVPlay affichera ses propres sous-titres */ }
+        // AVPlay ne dessine jamais les sous-titres : il envoie le texte par onsubtitlechange, que la page affiche. Pas de setSilentSubtitle(true) ici
+        // (il couperait ces événements) ; l'appelant l'active/coupe avec setSubtitlesVisible selon la piste choisie.
         if (oo.subtitleUrl) {
           try { a.setExternalSubtitlePath(oo.subtitleUrl); } catch (e) { if (o.onSubtitleError) o.onSubtitleError(toError(e)); }
         }

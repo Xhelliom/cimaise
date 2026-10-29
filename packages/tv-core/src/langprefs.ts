@@ -53,10 +53,17 @@ export function rememberSeries(seriesKey: string, patch: { audioLang?: string; s
   if (cur.subLang !== undefined) next.subLang = cur.subLang;
   if (patch.audioLang !== undefined) next.audioLang = patch.audioLang;
   if (patch.subLang !== undefined) next.subLang = patch.subLang;
-  delete m[seriesKey]; // réinséré en dernier : le plus récent
   m[seriesKey] = next;
-  var keys = Object.keys(m);
-  for (var i = 0; i < keys.length - SERIES_MAX; i++) delete m[keys[i]];
+  // Ordre de récence explicite (les clés numériques de Plex ne gardent pas l'ordre d'insertion dans un objet) : plus ancien en tête.
+  var prev = d.prefs.plexSeriesOrder, order: string[] = [], i: number;
+  if (prev && typeof prev.length === 'number') for (i = 0; i < prev.length; i++) if (typeof prev[i] === 'string' && prev[i] !== seriesKey && m[prev[i]]) order.push(prev[i]);
+  var known: { [k: string]: boolean } = {};
+  for (i = 0; i < order.length; i++) known[order[i]] = true;
+  var orphans = Object.keys(m).filter(function (k) { return k !== seriesKey && !known[k]; }); // sans ordre connu : considérées plus anciennes
+  order = orphans.concat(order);
+  order.push(seriesKey);
+  while (order.length > SERIES_MAX) delete m[order.shift() as string];
   d.prefs.plexSeries = m;
+  d.prefs.plexSeriesOrder = order;
   saveStored(d, store);
 }
