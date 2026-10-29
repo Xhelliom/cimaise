@@ -47,3 +47,11 @@ RUN apt-get update \
       xauth adwaita-icon-theme fonts-dejavu-core \
  && rm -rf /var/lib/apt/lists/*
 USER tizen
+
+# Mode web de cert-manager.sh (VM sans session graphique) : serveur X virtuel, gestionnaire de
+# fenêtres minimal, VNC et noVNC (HTML/JS statique + websockify).
+USER root
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends xvfb openbox x11vnc novnc websockify \
+ && rm -rf /var/lib/apt/lists/*
+USER tizen

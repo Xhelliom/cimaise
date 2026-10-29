@@ -142,8 +142,19 @@ grep -q -- "^DOCKER .*--env-file" "$TMP/docker.log" && ok "secrets passés par e
 
 # 8 bis. cert-manager : ouvre le Certificate Manager sur l'affichage de l'hôte (X11/XWayland)
 check "cert-manager.sh exécutable + syntaxe" bash -c "[ -x '$HERE/cert-manager.sh' ] && bash -n '$HERE/cert-manager.sh'"
-out="$(env -u DISPLAY -u WAYLAND_DISPLAY "$HERE/cert-manager.sh" 2>&1)"; rc=$?
-[ $rc -ne 0 ] && [[ "$out" == *"DISPLAY"* ]] && ok "cert-manager sans affichage → erreur claire" || fail "cert-manager sans affichage → erreur claire"
+: > "$TMP/docker.log"
+out="$(env -u DISPLAY -u WAYLAND_DISPLAY CIMAISE_WEB_PORT=6099 "$HERE/cert-manager.sh" 2>&1)"; rc=$?
+[ $rc -eq 0 ] && [[ "$out" == *"http://"*":6099/vnc.html"* ]] && ok "cert-manager sans DISPLAY → mode web, URL affichée" || fail "cert-manager sans DISPLAY → mode web, URL affichée"
+pw="$(sed -n 's/^Mot de passe.*: //p' <<<"$out")"
+[[ "$pw" =~ ^[A-Za-z0-9]{8}$ ]] && ok "mot de passe VNC affiché (8 caractères)" || fail "mot de passe VNC affiché (8 caractères)"
+out2="$(env -u DISPLAY "$HERE/cert-manager.sh" --web 2>&1)"
+[ "$pw" != "$(sed -n 's/^Mot de passe.*: //p' <<<"$out2")" ] && ok "mot de passe différent à chaque lancement" || fail "mot de passe différent à chaque lancement"
+grep -q -- "^DOCKER run .*-e CIMAISE_VNC_PW " "$TMP/docker.log" && ! grep -q -- "$pw" "$TMP/docker.log" && ok "mot de passe VNC hors ligne de commande docker" || fail "mot de passe VNC hors ligne de commande docker"
+grep -q -- "^DOCKER run .*web-session.sh" "$TMP/docker.log" && ok "mode web lance web-session.sh" || fail "mode web lance web-session.sh"
+: > "$TMP/docker.log"
+DISPLAY=:0 "$HERE/cert-manager.sh" --neko >/dev/null 2>&1
+grep -q -- "^DOCKER run .*DISPLAY=:99" "$TMP/docker.log" && ok "cert-manager --neko vise DISPLAY=:99" || fail "cert-manager --neko vise DISPLAY=:99"
+check "web-session.sh syntaxe" bash -n "$HERE/web-session.sh"
 : > "$TMP/docker.log"
 mkdir -p "$TMP/local/SamsungCertificate/cimaise"
 echo fake > "$TMP/local/SamsungCertificate/cimaise/author.p12"
