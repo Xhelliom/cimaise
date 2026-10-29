@@ -1,7 +1,7 @@
 import { Focus } from '../focus';
 import { Key } from '../keys';
 
-export interface TileInfo { title?: string; image?: string | null; }
+export interface TileInfo { title?: string; image?: string | null; selected?: boolean; }  // selected : classe « sel », marque permanente distincte du focus
 
 export interface VirtualOptions {
   container: HTMLElement;
@@ -85,11 +85,13 @@ export class VirtualList {
     this.o.count = count;
     this.focus.setCount(count);
     if (this.o.horizontal) this.focus.cols = Math.max(1, count);
+    // Les tuiles déjà posées gardent leur index : sans relier, un même nombre d'éléments ne redessinerait rien.
+    for (var k in this.active) this.bind(this.active[k]);
     this.scrollToFocus();
     this.update();
   }
 
-  // Les données d'une page sont arrivées : relie les tuiles actives.
+  // Les données ont changé (page arrivée, contenu remplacé) : relie les tuiles actives.
   refresh(): void {
     for (var k in this.active) this.bind(this.active[k]);
     this.update();
@@ -154,6 +156,7 @@ export class VirtualList {
     // src n'est retiré que si l'URL change : une page qui arrive ne redécode pas les affiches inchangées.
     if (t.src && url !== t.img.getAttribute('data-src')) { t.img.removeAttribute('src'); t.src = false; }
     t.img.setAttribute('data-src', url || '');
+    if (info && info.selected) t.el.classList.add('sel'); else t.el.classList.remove('sel');
   }
 
   private place(t: Tile, i: number): void {

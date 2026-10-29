@@ -2,11 +2,13 @@ import { Item } from '../api/types';
 import { Panel } from '../../../tv-core/src/router/router';
 import { Key } from '../../../tv-core/src/keys';
 import { createRow, VirtualList } from '../../../tv-core/src/virtual/list';
-import { Ctx, el, PlexArg, resolve } from './context';
+import { Ctx, el, PlexArg, realTimers, resolve } from './context';
 import { createPlayerPanel } from './player';
 import { detailPosterUrl, EPISODE, episodeThumbUrl } from './images';
 
 type Zone = 'play' | 'seasons' | 'episodes';
+
+var SEASON_FOLLOW_MS = 300;
 
 function duration(ms?: number): string {
   if (!ms) return '';
@@ -76,8 +78,8 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
   if (stub.type === 'show') {
     seasonList = createRow({
       container: seasonsBox, doc: doc, count: 0, itemW: 240, itemH: 84, gap: 24, viewportW: 1400, viewportH: 84,
-      render: function (i) { return seasons[i] ? { title: seasons[i].title, image: null } : null; },
-      onSelect: function (i) { loadEpisodes(seasons[i]); }
+      render: function (i) { return seasons[i] ? { title: seasons[i].title, image: null, selected: seasons[i] === curSeason } : null; },
+      onSelect: function (i) { settle(); loadEpisodes(seasons[i]); }
     });
     episodeList = createRow({
       container: episodesBox, doc: doc, count: 0, itemW: EPISODE.w, itemH: EPISODE.h + 72, gap: 48, viewportW: 1800, viewportH: EPISODE.h + 72,
@@ -97,13 +99,30 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
   }
 
   var curSeason: Item | null = null;
+  var timers = arg.timers || realTimers();
+  var follow: any = null;   // le focus se pose sur une saison : elle s'affiche après un court délai, sans Entrée
+  function settle(): void { if (follow !== null) { timers.clearTimeout(follow); follow = null; } }
+  function followFocus(): void {
+    settle();
+    follow = timers.setTimeout(function () {
+      follow = null;
+      var s = seasons[seasonList!.focus.index];
+      if (s && s !== curSeason) loadEpisodes(s);
+    }, SEASON_FOLLOW_MS);
+  }
+  // `fresh` : autre saison que celle affichée (focus au premier épisode) ; sinon rechargement de la même (retour de lecture).
   function loadEpisodes(season: Item): void {
+    var fresh = !curSeason || season.ratingKey !== curSeason.ratingKey;
     curSeason = season;
     if (epCancel) epCancel();
     epTitle.textContent = season.title;
+    seasonList!.refresh();   // repère « sélectionnée » sur la saison affichée
+    if (fresh) { episodes = []; episodeList!.setCount(0); }   // l'ancienne saison ne reste pas affichée pendant le chargement
     epCancel = c.data.children(season.ratingKey, function (l) {
+      if (curSeason !== season) return;   // réponse d'une saison quittée entre-temps
       episodes = l;
       episodeList!.setCount(l.length);
+      if (fresh) episodeList!.setFocus(0);
       var t = target ? target.ratingKey : '';
       for (var i = 0; i < l.length; i++) if (l[i].ratingKey === t) { target = l[i]; episodeList!.setFocus(i); break; }   // version à jour
       if (!target && l.length) target = l[0];
@@ -168,7 +187,12 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
         startPlay(item.type === 'show' ? target! : item);
         return true;
       }
-      return (zone === 'seasons' ? seasonList! : episodeList!).handleKey(k);
+      if (zone === 'seasons') {
+        var moved = seasonList!.handleKey(k);
+        if (moved && (k === 'left' || k === 'right')) followFocus();
+        return moved;
+      }
+      return episodeList!.handleKey(k);
     },
     suspend: function () {
       held = true;
@@ -183,6 +207,7 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
       if (seasonList) { seasonList.restore(); episodeList!.restore(); }
     },
     destroy: function () {
+      settle();
       for (var i = 0; i < cancels.length; i++) cancels[i]();
       if (metaCancel) metaCancel();
       if (epCancel) epCancel();

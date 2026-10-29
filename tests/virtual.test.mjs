@@ -172,3 +172,20 @@ test('images : la ligne de marge au-dessus du visible est aussi chargée', () =>
   const above = layer.children.filter((t) => xy(t)[1] < layerY(layer) * -1 && t.children[0].getAttribute('src'));
   assert.ok(above.length >= 5, 'ligne de marge supérieure sans image');
 });
+
+test('setCount à nombre égal : les tuiles déjà posées sont reliées au nouveau contenu, tout de suite', () => {
+  const log = [], doc = fakeDoc(log), container = doc.createElement('div');
+  let data = ['a0', 'a1', 'a2'];
+  const r = core.createRow({ container, doc, count: 3, itemW: 300, itemH: 170, gap: 20, viewportW: 1920, viewportH: 170,
+    render: (i) => ({ title: data[i], image: 'img/' + data[i], selected: i === 1 }) });
+  r.update();
+  const layer = container.children[0];
+  const titles = () => layer.children.map((t) => t.children[1].textContent).sort();
+  assert.deepEqual(titles(), ['a0', 'a1', 'a2']);
+  data = ['b0', 'b1', 'b2'];
+  r.setCount(3);
+  assert.deepEqual(titles(), ['b0', 'b1', 'b2']);
+  const imgs = layer.children.map((t) => t.children[0].getAttribute('src')).sort();
+  assert.deepEqual(imgs, ['img/b0', 'img/b1', 'img/b2']);
+  assert.equal(layer.children.filter((t) => t.classList.contains('sel')).length, 1);
+});
