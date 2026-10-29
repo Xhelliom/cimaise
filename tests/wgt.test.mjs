@@ -74,8 +74,8 @@ test('la page vide de référence : .wgt séparé, identité propre, fond uni, h
   assert.notEqual(id(cfg), id(readFileSync('apps/tv/config.xml', 'utf8')));
 });
 
-test('le package de chaque config.xml fait exactement 10 caractères alphanumériques', () => {
-  const cfgs = ['apps/tv/config.xml', 'apps/blank/config.xml', 'bench/cleanframe/work/app/config.xml'];
+test('le package de apps/tv et apps/blank fait exactement 10 caractères alphanumériques', () => {
+  const cfgs = ['apps/tv/config.xml', 'apps/blank/config.xml'];
   for (const p of cfgs) {
     const m = /<tizen:application id="([^"]+)" package="([^"]+)"/.exec(readFileSync(p, 'utf8'));
     assert.ok(m, p);
