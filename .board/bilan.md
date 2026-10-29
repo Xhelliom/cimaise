@@ -1,12 +1,12 @@
-# Bilan — Certificate Manager dans un navigateur
+# Bilan — Certificate Manager en mode web
 
-**Fait**
-- Mode web par défaut sans DISPLAY (ou `--web`) : Xvfb 1600×1000 + openbox + x11vnc + noVNC, URL par IP et mot de passe aléatoire affiché une fois ; certificats toujours rangés dans `.local/certs/` ; `docs/m1-procedure.md` §5 à jour ; capture noVNC dans `.board/captures/`.
-- Correctif 1 : `web-session.sh` n'écrit plus le mot de passe VNC en argument (`x11vnc -storepasswd` retiré) ; `printf` (builtin) → fichier 0600 → `-passwdfile`. Test ajouté dans `test.sh` (aucune commande ne reçoit `CIMAISE_VNC_PW`, pas de `-storepasswd`/`-rfbauth`).
-- Correctif 2 : le Certificate Manager est lancé depuis un répertoire temporaire (mode web et mode hôte), donc plus de `workspace/` Eclipse dans le dépôt ; le `workspace/` parasite est supprimé. Tests ajoutés.
-- Correctif 3 : mode `--neko` retiré (cert-manager.sh, test.sh, README, m1-procedure §5, decisions.md). Hors carte ; à proposer en carte séparée si voulu.
-- `npm run check` : vert (150 tests, 0 échec).
+## Fait
+- Relancé pour de vrai, sur le code de fdfa66e : `env -u DISPLAY scripts/tizen/cert-manager.sh --port 6081` (conteneur cimaise-tizen:5.6). URL + mot de passe affichés, fenêtre « Tizen Certificate Manager » visible sur Xvfb 1600×1000.
+- Authentification vérifiée via websockify (chemin noVNC) avec un client RFB scripté : mauvais mot de passe refusé (SecurityResult=1), bon mot de passe accepté.
+- Capture `.board/captures/certificate-manager-novnc.png` refaite depuis cette session VNC (1600×1000).
+- Aucun `workspace/` dans le dépôt après coup ; conteneur arrêté (le mien uniquement).
+- `docs/m1-procedure.md` §5 : ne dit plus « observé par Stéphane », liste ce qui a été vérifié, quand, comment, et ce qui ne l'est pas ; « bureau gris » corrigé en « fond noir ».
 
-**Non fait / limites**
-- Le correctif `-passwdfile` et le `cd` temporaire sont vérifiés par tests statiques (docker simulé) ; non rejoués dans un vrai conteneur après coup.
-- Connexion au compte Samsung et création réelle des certificats : non testées (c'est à Stéphane de les faire).
+## Non fait / pourquoi
+- Pas ouvert dans un vrai navigateur : le Chrome de l'agent n'atteint pas la VM (page d'erreur sur localhost et sur l'IP LAN). Le client scripté suit le même chemin websocket + RFB, mais le rendu noVNC lui-même n'est pas vérifié.
+- Clics dans la fenêtre, connexion Samsung et création de certificats non testés (compte Samsung : jamais touché).
