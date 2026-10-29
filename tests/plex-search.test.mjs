@@ -385,3 +385,25 @@ test('accueil : l’index se construit en arrière-plan après l’affichage de 
   assert.ok(d.http.calls.filter((c) => /\/all/.test(c.req.url)).length >= 2);
   p.destroy();
 });
+
+test('diagnostic : deux copies du module (app.js, plex.js) partagent les mesures par window', async () => {
+  const load = async () => {
+    const out = join(mkdtempSync(join(tmpdir(), 'diagcopy-')), 'diag.cjs');
+    await build({ entryPoints: ['packages/tv-core/src/diag.ts'], bundle: true, format: 'cjs', target: 'es5', outfile: out, logLevel: 'warning' });
+    return createRequire(import.meta.url)(out);
+  };
+  const hadWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  Object.defineProperty(globalThis, 'window', { value: {}, configurable: true, writable: true });
+  try {
+    const plexCopy = await load(), appCopy = await load();
+    assert.notEqual(plexCopy, appCopy, 'deux instances distinctes');
+    plexCopy.recordMeasure('recherche', 12);
+    plexCopy.recordMeasure('recherche', 30);
+    assert.deepEqual(appCopy.measureStats('recherche'), { n: 2, min: 12, median: 21, max: 30 });
+    assert.match(appCopy.report(), /frappe → 1ers résultats: min 12 \/ méd 21 \/ max 30 ms \(2\)/);
+    appCopy.resetMeasures();
+    assert.equal(plexCopy.measureStats('recherche'), null);
+  } finally {
+    if (hadWindow) Object.defineProperty(globalThis, 'window', hadWindow); else delete globalThis.window;
+  }
+});
