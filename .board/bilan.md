@@ -1,12 +1,14 @@
-# Bilan — wrapper AVPlay (tv-core)
+# Bilan — maquette Dock v2 (d'après la référence cleanyourtv)
 
 Fait :
-- `packages/tv-core/src/player/avplay.ts` : `createPlayer()`, seul point d'appel à `webapis.avplay` (cycle complet, pause/seek/±10 s, pistes audio/texte, sous-titres, événements, visibilitychange → `onSuspend(position, url)` puis stop/close). Exporté par `tv-core`.
-- `tests/player.test.mjs` : 13 tests sur fausse API injectée (cycle, reprise, pistes, événements, erreurs, visibilitychange, absence de TV).
-- `docs/decisions.md` : section AVPlay (inclusion `$WEBAPIS/webapis/webapis.js`, privilèges `developer.samsung.com/privilege/avplay` + `tizen.org/privilege/internet`).
+- `packages/launcher/mockups/dock.html` refait : salutation (Bonsoir, petites capitales espacées), horloge 20:45 graisse 300, séparateur, date, 3 pastilles focalisables (Réglages, Smart Hub, Réseau), titre de l'app focalisée, bac arrondi de tuiles 16:9 (4 par rangée, 2ᵉ rangée dépasse), focus = scale 1,1 + anneau, fond sombre teinté.
+- Teinte : 2 calques `.fond` superposés ; la couleur est écrite sur le calque caché, seul `opacity` est animé (0,6 s). Aucune transition de couleur/background, aucun flou, aucun logo (monogrammes + couleur).
+- Police : Outfit (OFL, variable, latin, 300–500) 19,5 Ko remplace Roboto Flex (supprimée) ; List/Art suivent (700 → 500). Justifié dans COUTS.md.
+- COUTS.md à jour (police, DOM 21, effets, coût du fondu). Tests ajoutés dans tests/mockups.test.mjs (éléments, fondu opacity, pas de logo/flou, 2 graisses, captures 1920×1080).
+- Captures : `captures/maquette-dock-v2.png` (focus Netflix) et `captures/maquette-dock-v2-focus-disney.png` (teinte bleue), commitées.
 
-Non fait / pourquoi :
-- `config.xml` et `index.html` NON modifiés : la carte demande de documenter, et aucun écran n'appelle encore le lecteur. À faire avec le premier écran de lecture (M3).
-- Privilèges non vérifiés sur la TV ni contre la doc Samsung en ligne (hors ligne).
+Pas fait / pourquoi :
+- Publication des captures sur la carte : l'outil `publish_file` (collie-board) n'est pas disponible dans cette session et aucune instruction curl n'était fournie. À publier : les 2 PNG ci-dessus.
+- Capture « autre app » faite sur Disney+ (pas YouTube : trop proche du rouge de Netflix pour montrer la teinte).
 
-Checks : `node --test --test-concurrency=1 tests/*.test.mjs` 94/94. `npm test` en parallèle a 2-4 échecs aléatoires (course sur `apps/tv/dist` entre tests de build), reproduits sur la base sans mes changements : hors carte.
+Checks : `node --test --test-concurrency=1 tests/*.test.mjs` 98/98 ; typecheck, build, check:es5 OK. `npm run check` (tests en parallèle) a 2 échecs aléatoires (course sur `apps/tv/dist` entre tests de build), déjà connus et hors carte.
