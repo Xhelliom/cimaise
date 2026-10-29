@@ -219,3 +219,21 @@ pages de 36 reçues et rendues : **55 à 70 ms** ; 12 premières affiches charg�
 
 **Non fait.** Puces de tri, pastilles du haut, repère « non vu » et progression sur les affiches, fond flou de la fiche ;
 lecture AVPlay (message clair), connexion PIN, choix du serveur (le premier du compte).
+
+## Connexion Plex par PIN, vérifiée contre le vrai plex.tv (2026-10-29)
+
+**Écran.** `packages/plex/src/ui/login.ts` (chunk `plex.js`, toujours différé) : sans `prefs.plexToken`, code PIN en 260 px avec « Va sur plex.tv/link » ;
+sinon directement la recherche du serveur. Serveur unique ou mémorisé (`prefs.plexServer`) : choisi sans demander ; sinon liste. Connexion locale joignable
+d'abord (`chooseConnection`). Session dans `prefs.plexSession` ; avec une session, `createPlexPanel` ouvre l'accueil sans appel plex.tv. Un 401 de plex.tv
+efface le token et relance le PIN. Aucun token dans les logs (test dédié).
+
+**Essai réel dans l'aperçu** (`npm run dev`, Chromium 1920×1080 dans le conteneur Playwright v1.49, `plex-session.js` bloqué pour cette exécution seulement,
+aucun fichier du dépôt modifié ; journal réseau filtré sur plex.tv, URL sans paramètres) :
+1. Ouverture de Plex : `POST /api/v2/pins` puis `GET /api/v2/pins/{id}` à +2,4 s, +4,8 s, +7,2 s (2 s d'intervalle + latence, car la suivante est planifiée à la réponse).
+   Code réel de 4 caractères affiché (lisible, centré, dans les marges).
+2. Retour : l'écran est fermé, la requête en vol est abandonnée (`net::ERR_ABORTED`), **aucune requête ensuite** pendant 6 s.
+3. **Non fait — demande l'opérateur** : valider le code sur plex.tv/link avec le compte de Stéphane. Le chemin après le token (serveur, locale préférée, session
+   stockée, réouverture directe) n'est prouvé que contre les fixtures et le faux transport.
+
+**Écart avec la réalité.** `expiresIn` réel = 900 s (les fixtures disaient 1500/1800) : corrigé dans `pin-*.json`. Le délai du client (15 min) était déjà bon.
+La réponse réelle a des champs en plus (`qr`, `trusted`, `location`, `expiresAt`…), ignorés. Les `pin-*.json` restent écrits à la main (créer un PIN écrit chez plex.tv).

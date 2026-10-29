@@ -6,4 +6,4 @@ identifiants renumérotés, hôtes en plages de documentation (192.0.2.0/24, 203
 jetons factices. Quelques valeurs numériques sont forcées pour les tests (ex. `viewOffset` de onDeck).
 Ne pas éditer à la main : relancer le script (il échoue si un secret ou un hôte réel subsiste).
 
-`pin-*.json` sont écrits à la main : créer un PIN écrit chez plex.tv, ce que la vérification s'interdit.
+`pin-*.json` sont écrits à la main : créer un PIN écrit chez plex.tv, ce que la vérification s'interdit. Forme vérifiée à la main contre le vrai plex.tv (2026-10-29) : `id`, `code` (4 caractères), `authToken` (null tant que non validé), `expiresIn` = 900 s ; la réponse réelle contient en plus des champs que le client ignore.
