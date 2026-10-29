@@ -1,12 +1,12 @@
 // App cimaise : accueil Dock v2 alimenté par le catalogue persistant ; Plex et réglages sont des chunks
 // (plex.js, settings.js) injectés à la première ouverture. Démarrage en deux temps : horloge + tuiles d'abord,
 // puis (setTimeout 0) police décorative et touches média.
-import { mark, toggleDiag, keyLatency, normalizeKey, hasTizen, registerKeys, REGISTER_KEYS, listInstalledApps, launchApp, hideApp } from '../../../packages/tv-core/src/index';
+import { mark, toggleDiag, keyLatency, normalizeKey, isDiagOpen, hasTizen, registerKeys, REGISTER_KEYS, listInstalledApps, launchApp, hideApp } from '../../../packages/tv-core/src/index';
 import { Router, lazy, chunkLoader, Panel } from '../../../packages/tv-core/src/index';
 import { createHome, loadHomeMode, saveHomeMode, loadHomeTiles, saveHomeTiles, loadSmartHubTarget } from '../../../packages/launcher/src/home';
 import { loadCatalog, saveCatalog, launchEntry } from '../../../packages/launcher/src/catalog';
 
-interface Chunk { createPanel(arg?: any): Panel; }
+interface Chunk { createPanel(arg?: any): Panel; createProbePanel?(arg?: any): Panel; }
 
 var router = new Router({ root: document.getElementById('root')! });
 var plex = lazy<Chunk>(chunkLoader('plex'));
@@ -88,8 +88,15 @@ document.addEventListener('keydown', function (e) {
 });
 
 // Diagnostic caché (horodatages) : touche 0 de la télécommande (pavé numérique) ou du clavier.
+// Sonde formats : touche 1 (ou pavé 1) pendant que le diagnostic est ouvert ; le diagnostic se referme, l'écran de la sonde le remplace.
 document.addEventListener('keydown', function (e) {
-  if (e.keyCode === 48 || e.keyCode === 96) toggleDiag();
+  if (e.keyCode === 48 || e.keyCode === 96) { toggleDiag(); return; }
+  if ((e.keyCode === 49 || e.keyCode === 97) && isDiagOpen()) {
+    toggleDiag();
+    router.pushLazy(plex, function (m) {
+      return m.createProbePanel!({ nav: { push: function (p: Panel) { router.push(p); }, pop: function () { router.pop(); } } });
+    });
+  }
 });
 
 mark('firstPaint');
