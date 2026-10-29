@@ -406,3 +406,20 @@ test('diagnostic : le user agent du moteur web figure dans le rapport', () => {
   try { assert.match(core.report(), /userAgent: .*Tizen 5\.0.*Chrome\/56/); }
   finally { delete globalThis.navigator; }
 });
+
+test('diagnostic : latence touche → frame, min/médiane/max des 20 derniers', () => {
+  core.resetLatency();
+  for (let i = 1; i <= 25; i++) core.recordLatency(i * 10); // les 20 derniers : 60..250
+  assert.deepEqual(core.latencyStats(), { n: 20, min: 60, median: 155, max: 250 });
+  assert.match(core.report(), /latence touche→frame: min 60 \/ méd 155 \/ max 250 ms \(20\)/);
+});
+
+test('diagnostic : la sonde mesure keydown → 2 requestAnimationFrame', () => {
+  let t = 1000; const q = [];
+  core.resetLatency();
+  core.keyLatency(() => t, (fn) => q.push(fn));
+  t = 1040; q.shift()();
+  assert.equal(core.latencyStats(), null, 'pas avant la 2e frame');
+  t = 1057; q.shift()();
+  assert.deepEqual(core.latencyStats(), { n: 1, min: 57, median: 57, max: 57 });
+});

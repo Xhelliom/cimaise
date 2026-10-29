@@ -5,9 +5,33 @@ export function mark(name: 'firstPaint' | 'interactive' | string): void {
   marks[name] = Date.now();
 }
 
+// Latence touche → frame : keydown jusqu'à la 2e requestAnimationFrame (≈ le moment où le mouvement du focus est peint).
+var LATENCY_KEEP = 20;
+var latencies: number[] = [];
+export function resetLatency(): void { latencies = []; }
+export function recordLatency(ms: number): void {
+  latencies.push(ms);
+  if (latencies.length > LATENCY_KEEP) latencies.shift();
+}
+export function latencyStats(): { n: number; min: number; median: number; max: number } | null {
+  if (!latencies.length) return null;
+  var s = latencies.slice().sort(function (a, b) { return a - b; });
+  var m = Math.floor(s.length / 2);
+  return { n: s.length, min: s[0], median: s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2), max: s[s.length - 1] };
+}
+export function keyLatency(clock?: () => number, raf?: (fn: () => void) => void): void {
+  var c = clock || function () { return Date.now(); };
+  var r = raf || (typeof requestAnimationFrame !== 'undefined' ? function (fn: () => void) { requestAnimationFrame(fn); } : null);
+  if (!r) return;
+  var t0 = c();
+  r(function () { r!(function () { recordLatency(c() - t0); }); });
+}
+
 export function report(): string {
   var base = marks.scriptLoaded, lines: string[] = [];
   for (var k in marks) if (marks.hasOwnProperty(k)) lines.push(k + ': +' + (marks[k] - base) + ' ms');
+  var st = latencyStats();
+  if (st) lines.push('latence touche→frame: min ' + st.min + ' / méd ' + st.median + ' / max ' + st.max + ' ms (' + st.n + ')');
   lines.push('userAgent: ' + (typeof navigator !== 'undefined' ? navigator.userAgent : '(absent)'));
   return lines.join('\n');
 }

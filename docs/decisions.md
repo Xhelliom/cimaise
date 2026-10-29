@@ -292,3 +292,15 @@ D'après la doc Tizen Application API ; **non testé sur la TV** (à confirmer a
 - **Contrôle.** `scripts/build/check-css.mjs`, lancé par `npm run check` (`check:css`), liste noire maison : `gap`, `row/column-gap`, `aspect-ratio`, `inset`, `clamp/min/max()`, `:is/:where/:has`, `backdrop-filter`. **Aucune devDependency ajoutée** (doiuse + browserslist pèseraient des dizaines de paquets pour une liste de sept règles). Coût runtime : nul.
 - **Feuille livrée.** Le CSS minifié par esbuild sans `target` réécrivait `rgba()` en `#rrggbbaa` (Chrome 62+) et `top/right/bottom/left:0` en `inset` (Chrome 87). Le build CSS (`scripts/build/css-build.mjs`) fixe `target: 'chrome56'`, choix prudent tant que le user agent de la TV n'est pas relevé (M0) ; à relever si le moteur s'avère plus récent. `check:css` lit aussi `apps/*/dist/**/*.css` (après le build) et refuse les couleurs à 8 chiffres ; test : `tests/css-compat.test.mjs`.
 - **Moteur réel.** Le user agent est affiché dans le diagnostic (touche 0) : à relever sur la TV pour clore la question M0.
+
+## Latence du focus dans le Dock (2026-10-29)
+
+- **Constat (Frame, 29/10).** Légère latence quand le focus passe d'une app à l'autre. Budget §6 bis : touche → focus < 100 ms.
+- **Mesure.** `keyLatency()` (tv-core/diag) part du `keydown` et s'arrête à la 2e `requestAnimationFrame` ; min/médiane/max des 20 derniers déplacements dans le diagnostic (touche 0), ligne « latence touche→frame ». Coût : une paire de rAF par touche, quelques octets. **Mesure TV à faire par Stéphane** : appuyer ~20 fois sur gauche/droite dans le Dock, puis touche 0.
+- **Avant/après (aperçu).** **Non mesuré** : l'outil navigateur de la session n'a pas pu joindre le serveur local (`chrome-error`), et un chiffre pris sur un ordinateur ne prouve de toute façon rien pour la Frame. Le « avant » de la TV est à relever avec la version précédente si besoin de comparer.
+- **Changements (suspects 1, 2, 4, sans mesure préalable sur la TV).**
+  - Teinte : le focus bouge immédiatement ; la teinte n'est écrite qu'après 150 ms sans mouvement (`TINT_DELAY_MS`), donc plus de réécriture du dégradé à chaque appui rapide.
+  - Calques de teinte rastérisés en 960×540 puis `transform: scale(2)` (4× moins de pixels ; le dégradé est lisse, rendu identique), `will-change: opacity`.
+  - Tuiles : `will-change: transform` (12 couches au plus). Titre (120 px) et description (30 px) en hauteur fixe pour éviter la remise en page au changement de texte.
+  - Non touché : logos (pré-décodage), faute de mesure indiquant un coût. À reprendre si la mesure TV reste > 100 ms.
+- Rendu Dock v2 inchangé (mêmes tailles, couleurs, transitions) ; tests : `tests/home.test.mjs`, `tests/tv-core.test.mjs`.

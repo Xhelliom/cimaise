@@ -1,7 +1,7 @@
 // App cimaise : accueil Dock v2 alimenté par le catalogue persistant ; Plex et réglages sont des chunks
 // (plex.js, settings.js) injectés à la première ouverture. Démarrage en deux temps : horloge + tuiles d'abord,
 // puis (setTimeout 0) police décorative et touches média.
-import { mark, toggleDiag, normalizeKey, hasTizen, registerKeys, REGISTER_KEYS, listInstalledApps } from '../../../packages/tv-core/src/index';
+import { mark, toggleDiag, keyLatency, normalizeKey, hasTizen, registerKeys, REGISTER_KEYS, listInstalledApps } from '../../../packages/tv-core/src/index';
 import { Router, lazy, chunkLoader, Panel } from '../../../packages/tv-core/src/index';
 import { createHome } from '../../../packages/launcher/src/home';
 import { loadCatalog, saveCatalog, launchEntry } from '../../../packages/launcher/src/catalog';
@@ -56,6 +56,7 @@ router.push(home);
 document.addEventListener('keydown', function (e) {
   var k = normalizeKey(e);
   if (k === null) return;
+  keyLatency();
   router.handleKey(k);
 });
 

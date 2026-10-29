@@ -28,6 +28,7 @@ export interface HomePanel extends Panel {
 }
 
 var MESSAGE_MS = 4000;
+var TINT_DELAY_MS = 150; // la teinte ne suit qu'après cet arrêt du focus ; le focus, lui, bouge tout de suite
 
 var PASTILLES: Array<{ name: PastilleName; label: string }> = [
   { name: 'reglages', label: 'Réglages' },
@@ -92,7 +93,13 @@ export function createHome(opts: HomeOptions): HomePanel {
   var shownRow = -1;
 
   // --- teinte : écrite sur le calque caché, puis fondu d'opacity (CSS) ; jamais de couleur animée ---
-  var cur = 0, fadeTimer: any = null, tintHex = '';
+  var cur = 0, fadeTimer: any = null, tintHex = '', tintTimer: any = null;
+  function tintLater(hex: string): void {
+    if (tintTimer !== null) { timer.clear(tintTimer); tintTimer = null; }
+    if (hex === tintHex) return;
+    if (tintHex === '') { tint(hex); return; }
+    tintTimer = timer.set(function () { tintTimer = null; tint(hex); }, TINT_DELAY_MS);
+  }
   function tint(hex: string): void {
     if (hex === tintHex) return;
     if (tintHex === '') { tintHex = hex; layers[0].style.background = tintGradient(hex); return; } // état initial : rien à fondre
@@ -149,7 +156,7 @@ export function createHome(opts: HomeOptions): HomePanel {
     if (desc.textContent !== (known ? known.desc : '')) desc.textContent = known ? known.desc : '';
     if (zone === 'tiles' && catalog[grid.index]) {
       titre.textContent = catalog[grid.index].name;
-      tint(catalog[grid.index].color);
+      tintLater(catalog[grid.index].color);
     } else if (zone === 'pastilles') titre.textContent = PASTILLES[chips.index].label;
     else titre.textContent = '';
   }
@@ -236,6 +243,7 @@ export function createHome(opts: HomeOptions): HomePanel {
     destroy: function () {
       stopClock();
       if (fadeTimer !== null) { timer.clear(fadeTimer); fadeTimer = null; }
+      if (tintTimer !== null) { timer.clear(tintTimer); tintTimer = null; }
       if (msgTimer !== null) { timer.clear(msgTimer); msgTimer = null; }
     }
   };

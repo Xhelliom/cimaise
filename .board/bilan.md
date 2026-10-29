@@ -1,10 +1,3 @@
-# Bilan — CSS compatible avec le moteur de la TV
-
-**Fait**
-- `gap` remplacé dans les feuilles de l'app, user agent dans le diagnostic (commit d832831).
-- Reprise : le CSS livré (`apps/tv/dist/app.css`) contenait des `#rrggbbaa` et pouvait recevoir `inset`. Le build CSS (`scripts/build/css-build.mjs`) fixe `target: 'chrome56'` ; `check:css` lit aussi `apps/*/dist/**/*.css` et refuse les couleurs à 8 chiffres ; tests dans `tests/css-compat.test.mjs`. Choix noté dans `docs/decisions.md`.
-- `npm run check` vert (310 tests), plus aucun `#rrggbbaa` dans `dist/app.css`.
-
-**Pas fait / à suivre**
-- Le user agent réel de la Frame reste à relever (touche 0) ; `chrome56` est prudent, à relever si le moteur est plus récent.
-- Rien vérifié sur la TV elle-même.
+# Bilan — latence du focus dans le Dock
+Fait : sonde keydown→2 rAF (min/méd/max des 20 derniers, diagnostic touche 0) ; teinte différée de 150 ms (focus immédiat) ; calques de teinte en 960×540 mis à l'échelle ; will-change sur tuiles et calques ; titre/description en hauteur fixe ; docs/decisions.md ; tests ajoutés ; npm run check vert (314 tests).
+Pas fait : mesure avant/après dans l'aperçu (le navigateur de la session n'atteint pas localhost) ; pré-décodage des logos (pas de mesure qui le justifie). Mesure TV à faire par Stéphane.

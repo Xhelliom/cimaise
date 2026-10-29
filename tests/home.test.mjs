@@ -207,7 +207,9 @@ test('teinte : fondu d’opacity entre 2 calques, couleur écrite uniquement sur
   press('right');
   press('right');
   press('right'); // appuis rapprochés
-  assert.ok(log.length >= 3);
+  assert.equal(log.length, 0, 'la teinte ne bouge pas pendant les appuis');
+  tm.pending().filter((t) => t.ms === 150).forEach((t) => t.fn()); // arrêt du focus
+  assert.equal(log.length, 1);
   assert.ok(log.every((w) => !w.visible), 'écriture sur un calque visible');
   assert.ok(log.every((w) => fonds.includes(w.el)), 'background écrit ailleurs que sur un calque');
   tm.pending().filter((t) => t.ms < 1000).forEach((t) => t.fn()); // fin du fondu
@@ -222,6 +224,8 @@ test('teinte : après le fondu, l’ancien calque est éteint (minuterie annulé
   const { p, tm, press } = mount();
   press('right');
   press('right');
+  assert.equal(tm.pending().filter((t) => t.ms === 150).length, 1, 'une seule teinte en attente');
+  tm.pending().filter((t) => t.ms === 150)[0].fn();
   const pend = tm.pending().filter((t) => t.ms < 1000);
   assert.equal(pend.length, 1, 'une seule extinction en attente');
   pend[0].fn();
@@ -362,4 +366,23 @@ test('Dock : description de l’app focalisée sous le titre, vide pour une app 
   press('right', 'right');
   assert.equal(one(p.el, 'titre').textContent, 'Ma super app');
   assert.equal(one(p.el, 'desc').textContent, '');
+});
+
+test('latence : le focus bouge tout de suite, la teinte suit après 150 ms sans bloquer', () => {
+  const { p, tm, press, log } = mount();
+  log.length = 0;
+  press('right');
+  const tuiles = byClass(p.el, 'tuile');
+  assert.ok(tuiles[1].className.split(' ').includes('focus'));
+  assert.equal(log.length, 0);
+  assert.ok(tm.pending().some((t) => t.ms === 150));
+});
+
+test('latence : dégradé en 960×540 mis à l’échelle, tuiles et calques promus, titre/description en hauteur fixe', () => {
+  const css = readFileSync('packages/launcher/src/home/home.css', 'utf8');
+  assert.match(css, /\.fond\{[^}]*width:960px;height:540px[^}]*transform:scale\(2\)/);
+  assert.match(css, /\.tuile\{[^}]*will-change:transform/);
+  assert.match(css, /\.fond\{[^}]*will-change:opacity/);
+  assert.match(css, /\.titre\{[^}]*height:\d+px/);
+  assert.match(css, /\.desc\{[^}]*height:\d+px/);
 });
