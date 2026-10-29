@@ -72,12 +72,13 @@ export function report(): string {
 }
 
 var el: HTMLElement | null = null;
+export function isDiagOpen(): boolean { return el !== null; }
 export function toggleDiag(): void {
   if (el) { el.parentNode!.removeChild(el); el = null; return; }
   el = document.createElement('pre');
   el.style.cssText = 'position:fixed;top:0;left:0;margin:0;padding:16px;background:#000;color:#0f0;font:20px monospace;max-width:1888px;word-break:break-all;z-index:9999';
   var ic = iconReport();
-  el.textContent = report() + (ic ? '\n\nicônes:\n' + ic : '');
+  el.textContent = report() + (ic ? '\n\nicônes:\n' + ic : '') + '\n\n[1] Sonde formats (lecture directe d’un échantillon par catégorie)';
   document.body.appendChild(el);
 }
 

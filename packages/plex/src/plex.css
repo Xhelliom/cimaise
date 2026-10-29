@@ -80,3 +80,13 @@
 .plex-pl-text{font-size:44px;line-height:1.3;margin-bottom:56px}
 .plex-pl-btn{display:inline-block;margin:0 16px;height:96px;padding:0 56px;border-radius:48px;line-height:96px;font-size:36px;font-weight:500;background:rgba(255,255,255,.1)}
 .plex-pl-btn.focus{background:rgba(255,255,255,.9);color:#111}
+/* Sonde formats (écran caché du diagnostic) */
+.plex-probe{position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;background:#0b0b0d;color:#fff;font:300 28px/1.2 Outfit,sans-serif}
+.plex-probe-title{position:absolute;left:80px;top:40px;font-size:44px;font-weight:500}
+.plex-probe-status{position:absolute;left:80px;top:104px;font-size:26px;color:#e5a00d}
+.plex-probe-table{position:absolute;left:80px;top:160px;width:1760px}
+.plex-probe-row{height:44px;line-height:44px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:rgba(255,255,255,.6)}
+.plex-probe-row.ok{color:#7ddc7d}
+.plex-probe-row.fail{color:#ff7b7b}
+.plex-probe-row.timeout{color:#ffc857}
+.plex-probe-compact{position:absolute;left:80px;top:980px;width:1760px;font:20px/1.3 monospace;color:rgba(255,255,255,.85);word-break:break-all}

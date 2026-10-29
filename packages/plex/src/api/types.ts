@@ -28,7 +28,7 @@ export interface Section { key: string; title: string; type: string; }
 export interface Stream {
   id: number; streamType: number; codec?: string; index?: number; languageCode?: string; default?: boolean; selected?: boolean; forced?: boolean;
   key?: string; format?: string; channels?: number; profile?: string; bitDepth?: number; colorTrc?: string; width?: number; height?: number;
-  DOVIPresent?: boolean; DOVIProfile?: number; hearingImpaired?: boolean;
+  DOVIPresent?: boolean; DOVIProfile?: number; hearingImpaired?: boolean; level?: number;
 }
 export interface Part { id: number; key: string; duration?: number; container?: string; Stream?: Stream[]; }
 export interface Media {
