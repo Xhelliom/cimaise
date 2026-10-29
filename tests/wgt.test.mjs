@@ -38,6 +38,7 @@ test('build produit le .wgt cimaise (accueil Dock) non signé avec les fichiers 
   assert.ok(!Object.keys(f).some((n) => n.endsWith('.wgt')));
   assert.ok(!f['app.js'].includes('CIMAISE_MOCK'), 'mock dans le .wgt');
   assert.match(f['index.html'].toString(), /id="root"/);
+  assert.match(f['index.html'].toString(), /<script src="\$WEBAPIS\/webapis\/webapis\.js"><\/script>\s*<script src="app\.js"/, 'webapis.js avant app.js');
   assert.match(f['app.css'].toString(), /outfit-latin\.woff2/);
 });
 
@@ -46,7 +47,7 @@ test('config.xml : identité stable, required_version, privilèges, documenté',
   assert.match(cfg, /<tizen:application id="cimaise001\.Cimaise" package="cimaise001" required_version="5\.0"/);
   assert.match(cfg, /<tizen:profile name="tv-samsung"/);
   const privs = [...cfg.matchAll(/<tizen:privilege name="([^"]+)"/g)].map((m) => m[1]);
-  assert.deepEqual(privs, ['http://tizen.org/privilege/tv.inputdevice', 'http://tizen.org/privilege/application.launch', 'http://tizen.org/privilege/application.info']);
+  assert.deepEqual(privs, ['http://tizen.org/privilege/tv.inputdevice', 'http://tizen.org/privilege/application.launch', 'http://tizen.org/privilege/application.info', 'http://tizen.org/privilege/internet']);
   assert.match(cfg, /<!--[\s\S]*required_version[\s\S]*-->/);
   assert.match(readFileSync('docs/decisions.md', 'utf8'), /required_version[\s\S]*cimaise001\.Cimaise|cimaise001\.Cimaise[\s\S]*required_version/);
   assert.equal(zip(readFileSync(WGT))['config.xml'].toString(), cfg);
@@ -86,7 +87,7 @@ test('le package de apps/tv et apps/blank fait exactement 10 caractères alphanu
 
 test('apps/tv déclare les privilèges de lancement et d’inventaire, documentés', () => {
   const cfg = readFileSync('apps/tv/config.xml', 'utf8');
-  for (const p of ['application.launch', 'application.info']) {
+  for (const p of ['application.launch', 'application.info', 'internet']) {
     assert.match(cfg, new RegExp('<tizen:privilege name="http://tizen\\.org/privilege/' + p.replace('.', '\\.') + '"'));
     assert.ok(readFileSync('docs/decisions.md', 'utf8').includes(p), p + ' non documenté');
   }

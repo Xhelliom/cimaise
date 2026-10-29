@@ -241,7 +241,7 @@ test('bibliothèque : ouverture instantanée depuis le cache, avec le total', as
 });
 
 // ---- fiche ---------------------------------------------------------------------------------------------------
-test('fiche film : titre, durée, progression, Reprendre ; Lire hors TV dit clairement que la lecture n’est pas là', async () => {
+test('fiche film : titre, durée, progression, Reprendre ; Lire ouvre l’écran lecteur', async () => {
   const d = deps();
   const movie = { ratingKey: '100', type: 'movie', title: 'Titre de film 1', thumb: '/library/metadata/100/thumb/1700000000' };
   const p = ui.createDetailPanel(d.arg, movie);
@@ -253,11 +253,8 @@ test('fiche film : titre, durée, progression, Reprendre ; Lire hors TV dit clai
   const big = srcs(p.el).filter((u) => /width=360&height=540/.test(u));
   assert.equal(big.length, 1);
   p.onKey('enter');
-  const msg = byClass(p.el, 'plex-msg')[0];
-  assert.match(msg.textContent, /lecture/i);
-  assert.match(msg.textContent, /TV/);
-  p.onKey('left');
-  assert.equal(msg.textContent, '', 'le message s’efface à la touche suivante');
+  assert.equal(d.pushed.length, 1, 'l’écran lecteur est poussé');
+  d.pushed[0].destroy();
 });
 
 test('fiche série : saisons en pastilles puis épisodes en vignettes 16:9, épisodes chargés pour la saison choisie', async () => {

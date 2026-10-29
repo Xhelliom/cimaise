@@ -4,7 +4,7 @@
 import { mark, toggleDiag, normalizeKey, hasTizen, registerKeys, REGISTER_KEYS, listInstalledApps } from '../../../packages/tv-core/src/index';
 import { Router, lazy, chunkLoader, Panel } from '../../../packages/tv-core/src/index';
 import { createHome } from '../../../packages/launcher/src/home';
-import { loadCatalog, saveCatalog } from '../../../packages/launcher/src/catalog';
+import { loadCatalog, saveCatalog, launchEntry } from '../../../packages/launcher/src/catalog';
 
 interface Chunk { createPanel(arg?: any): Panel; }
 
@@ -19,7 +19,19 @@ var home = createHome({
   openInternal: function (id) {
     if (id !== 'plex') { home.notify('Module inconnu : ' + id); return; }
     router.pushLazy(plex, function (m) {
-      return m.createPanel({ nav: { push: function (p: Panel) { router.push(p); }, pop: function () { router.pop(); } } });
+      return m.createPanel({
+        nav: { push: function (p: Panel) { router.push(p); }, pop: function () { router.pop(); } },
+        // Secours des fichiers qui échouent : l'app Plex officielle est cherchée par nom dans le catalogue, jamais par ID en dur.
+        officialApp: function () {
+          for (var i = 0; i < catalog.length; i++) {
+            var e = catalog[i];
+            if (e.type === 'tv' && e.id && /^plex(?!\s*int)/i.test(e.name)) {
+              return { open: function (done: (err: Error | null) => void) { launchEntry(e, function () { done(null); }, function (err) { done(err); }); } };
+            }
+          }
+          return null;
+        }
+      });
     });
   },
   // Lancement impossible (pas d'ID relevé, hors TV…) : l'accueil affiche lui-même un message ; le diagnostic reste à la touche 0.
