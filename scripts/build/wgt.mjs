@@ -6,7 +6,7 @@ import { join, relative } from 'node:path';
 
 const app = process.env.CIMAISE_APP ?? 'apps/tv';
 const dist = `${app}/dist`;
-const out = `${app}/build/cimaise-unsigned.wgt`;
+const out = `${app}/build/${process.env.CIMAISE_WGT ?? 'cimaise'}-unsigned.wgt`;
 
 // dist/ est le dossier à signer (scripts/tizen/package.sh) : il doit contenir tout l'app.
 for (const f of ['config.xml', 'index.html', 'icon.png']) copyFileSync(`${app}/${f}`, `${dist}/${f}`);

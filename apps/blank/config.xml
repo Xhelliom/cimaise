@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Page vide de référence (mesure plancher de M1, HANDOFF §6 bis). Identité PROPRE, distincte de
+  l'app cimaise (apps/tv, cimaise00.Cimaise) : les deux s'installent côte à côte sur la TV.
+  DÉFINITIF : ne plus modifier id, package ni certificat auteur, sinon les mises à jour sur place
+  échouent (HANDOFF §10).
+
+  - application id "cimaiseblk.Blank" / package "cimaiseblk" : 10 caractères alphanumériques
+    pour le package, id = package + "." + nom.
+  - widget id : URI stable, jamais résolue.
+  - required_version "5.0" : Tizen 5.0 (Frame 2019), comme l'app cimaise.
+  - privilèges : uniquement tv.inputdevice, comme l'app cimaise (même coût de démarrage mesuré).
+-->
+<widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets"
+        id="https://local.cimaise/blank" version="0.0.1" viewmodes="maximized">
+  <tizen:application id="cimaiseblk.Blank" package="cimaiseblk" required_version="5.0"/>
+  <content src="index.html"/>
+  <feature name="http://tizen.org/feature/screen.size.all"/>
+  <icon src="icon.png"/>
+  <name>cimaise-blank</name>
+  <tizen:profile name="tv-samsung"/>
+  <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
+  <tizen:setting screen-orientation="landscape" context-menu="disable" background-support="disable" encryption="disable" install-location="auto"/>
+</widget>

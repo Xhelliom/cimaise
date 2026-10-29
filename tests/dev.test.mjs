@@ -134,26 +134,30 @@ test('Échap pressée dans l’iframe = un seul keydown, keyCode 10009 ; les aut
   assert.deepEqual(appSees, [37]);       // Échap native (27) supprimée, flèche native conservée
 });
 
-test('aperçu : le bundle servi avec les mocks remplit #clock et #marks et pose l’écouteur Entrée', async () => {
+test('aperçu : le bundle servi avec les mocks affiche l’accueil et pose l’écouteur ; les mocks restent bruyants', async () => {
   const mocks = (await get('/__mocks/mocks.js')).text;
   const app = (await get('/app/app.js')).text;
-  const made = [];
-  const el = () => ({ style: {}, textContent: '', setAttribute() {}, appendChild(c) { made.push(c); }, parentNode: null });
-  const clock = el(), marks = el(), listeners = {};
+  const el = () => {
+    const e = { style: {}, textContent: '', className: '', children: [], parentNode: null, setAttribute() {} };
+    e.appendChild = (c) => { e.children.push(c); c.parentNode = e; return c; };
+    e.removeChild = (c) => { e.children.splice(e.children.indexOf(c), 1); return c; };
+    return e;
+  };
+  const root = el(), listeners = {}, timers = [];
   const document = {
     createElement: el, body: el(), documentElement: el(), readyState: 'complete',
-    getElementById: (id) => ({ clock, marks }[id]),
+    getElementById: (id) => (id === 'root' ? root : null),
     addEventListener: (t, f) => { listeners[t] = f; },
   };
   const logs = [];
   const window = { document, console: { error: (...a) => logs.push(a.join(' ')), log() {}, warn() {} } };
   window.window = window;
-  const ctx = vm.createContext({ ...window, window, setTimeout() {}, Date, console: window.console });
+  const ctx = vm.createContext({ ...window, window, setTimeout: (f, ms) => timers.push({ f, ms }), clearTimeout() {}, Date, console: window.console });
   vm.runInContext(mocks, ctx);
   vm.runInContext(app, ctx);
-  assert.match(clock.textContent, /^\d\d:\d\d$/);
-  assert.match(marks.textContent, /scriptLoaded/);
-  assert.match(marks.textContent, /interactive/);
+  assert.equal(root.children.length, 1, 'accueil affiché');
+  assert.match(root.children[0].children[0].textContent, /^\d\d:\d\d$/);
   assert.equal(typeof listeners.keydown, 'function');
+  timers.filter((t) => t.ms === 0).forEach((t) => t.f()); // chargement différé
   assert.ok(logs.some((l) => /registerKey/.test(l)), 'le mock doit rester bruyant : ' + logs.join('|'));
 });

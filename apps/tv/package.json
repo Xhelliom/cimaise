@@ -5,5 +5,8 @@
   "main": "src/index.ts",
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "cimaise": {
+    "assets": ["../../packages/launcher/mockups/outfit-latin.woff2", "../../packages/launcher/mockups/OFL.txt"]
   }
 }

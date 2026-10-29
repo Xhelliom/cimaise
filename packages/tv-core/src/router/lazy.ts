@@ -35,3 +35,23 @@ export function lazy<T>(loader: (done: (mod: T) => void, fail: (err: Error) => v
   };
   return self;
 }
+
+// Chunk séparé : un second bundle ES5 (`<nom>.js`) qui s'enregistre dans window[CHUNKS][nom] en s'exécutant.
+// Le script n'est injecté qu'au premier `get` : le JS initial ne contient rien du module.
+export var CHUNKS = '__cimaiseChunks';
+
+export function chunkLoader<T>(name: string): (done: (mod: T) => void, fail: (err: Error) => void) => void {
+  return function (done, fail) {
+    var w = window as any;
+    var reg = w[CHUNKS] || (w[CHUNKS] = {});
+    if (reg[name]) { done(reg[name]); return; }
+    var s = document.createElement('script');
+    s.onload = function () {
+      if (reg[name]) done(reg[name]);
+      else fail(new Error('chunk ' + name + ' : exécuté sans s\'enregistrer'));
+    };
+    s.onerror = function () { fail(new Error('chunk ' + name + ' : chargement impossible')); };
+    s.src = name + '.js';
+    document.head.appendChild(s);
+  };
+}

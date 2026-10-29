@@ -1,5 +1,5 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": { "outDir": "dist", "rootDir": "../.." },
-  "include": ["src", "../../packages/tv-core/src"]
+  "include": ["src", "../../packages/tv-core/src", "../../packages/launcher/src", "../../packages/plex/src"]
 }

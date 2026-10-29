@@ -5,6 +5,7 @@ import { inflateRawSync } from 'node:zlib';
 import { spawnSync } from 'node:child_process';
 
 const WGT = 'apps/tv/build/cimaise-unsigned.wgt';
+const BLANK = 'apps/blank/build/blank-unsigned.wgt';
 let build;
 before(() => {
   build = spawnSync('npm', ['run', 'build'], { encoding: 'utf8' });
@@ -29,13 +30,15 @@ function zip(buf) {
   return out;
 }
 
-test('build produit un .wgt non signé avec les fichiers de l’app', () => {
+test('build produit le .wgt cimaise (accueil Dock) non signé avec les fichiers de l’app', () => {
   assert.ok(existsSync(WGT));
   const f = zip(readFileSync(WGT));
-  for (const n of ['config.xml', 'index.html', 'app.js', 'app.css']) assert.ok(n in f, n);
+  for (const n of ['config.xml', 'index.html', 'app.js', 'app.css', 'plex.js', 'settings.js', 'outfit-latin.woff2', 'OFL.txt']) assert.ok(n in f, n);
   assert.ok(!Object.keys(f).some((n) => /signature/i.test(n)), 'signature présente');
   assert.ok(!Object.keys(f).some((n) => n.endsWith('.wgt')));
   assert.ok(!f['app.js'].includes('CIMAISE_MOCK'), 'mock dans le .wgt');
+  assert.match(f['index.html'].toString(), /id="root"/);
+  assert.match(f['app.css'].toString(), /outfit-latin\.woff2/);
 });
 
 test('config.xml : identité stable, required_version, privilèges minimaux, documenté', () => {
@@ -56,10 +59,17 @@ test('la taille du .wgt est rapportée', () => {
   assert.match(build.stdout, /Ko/);
 });
 
-test('la page vide : fond uni, heure, horodatages', () => {
-  const f = zip(readFileSync(WGT));
+test('la page vide de référence : .wgt séparé, identité propre, fond uni, heure, horodatages', () => {
+  assert.ok(existsSync(BLANK));
+  const f = zip(readFileSync(BLANK));
   const html = f['index.html'].toString();
   assert.match(html, /id="clock"/);
   assert.match(html, /id="marks"/);
   assert.match(f['app.css'].toString(), /background:#/);
+  assert.deepEqual(Object.keys(f).sort(), ['app.css', 'app.js', 'config.xml', 'icon.png', 'index.html']);
+  const cfg = f['config.xml'].toString();
+  assert.match(cfg, /<tizen:application id="cimaiseblk\.Blank" package="cimaiseblk" required_version="5\.0"/);
+  assert.doesNotMatch(cfg.replace(/<!--[\s\S]*?-->/, ''), /cimaise00/);
+  const id = (c) => /<widget[^>]* id="([^"]+)"/.exec(c)[1];
+  assert.notEqual(id(cfg), id(readFileSync('apps/tv/config.xml', 'utf8')));
 });

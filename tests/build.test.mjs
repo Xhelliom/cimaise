@@ -1,6 +1,6 @@
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { readdirSync, writeFileSync, mkdtempSync, readFileSync } from 'node:fs';
+import { readdirSync, writeFileSync, mkdtempSync, readFileSync, statSync } from 'node:fs';
 import vm from 'node:vm';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
@@ -13,9 +13,25 @@ before(() => {
   assert.equal(r.status, 0, r.stdout + r.stderr);
 });
 
-test('build produit un seul bundle JS et une seule feuille CSS', () => {
+test('build produit un bundle initial, une seule feuille CSS et un chunk par module différé', () => {
   const files = readdirSync('apps/tv/dist').filter((f) => /\.(js|css)$/.test(f));
-  assert.deepEqual(files.sort(), ['app.css', 'app.js']);
+  assert.deepEqual(files.sort(), ['app.css', 'app.js', 'plex.js', 'settings.js']);
+  assert.deepEqual(readdirSync('apps/blank/dist').filter((f) => /\.(js|css)$/.test(f)).sort(), ['app.css', 'app.js']);
+});
+
+test('Plex et réglages ne sont pas dans le JS initial mais dans leur chunk', () => {
+  const app = readFileSync('apps/tv/dist/app.js', 'utf8');
+  assert.ok(!app.includes('module en construction'), 'panneau Plex dans app.js');
+  assert.ok(!app.includes('reglages'), 'panneau réglages dans app.js');
+  assert.ok(readFileSync('apps/tv/dist/plex.js', 'utf8').includes('module en construction'));
+  assert.ok(readFileSync('apps/tv/dist/settings.js', 'utf8').includes('reglages'));
+});
+
+test('budgets : JS initial < 100 Ko, .wgt < 1,5 Mo, pour les deux cibles', () => {
+  for (const [app, wgt] of [['apps/tv', 'cimaise'], ['apps/blank', 'blank']]) {
+    assert.ok(statSync(`${app}/dist/app.js`).size < 100 * 1024, app);
+    assert.ok(statSync(`${app}/build/${wgt}-unsigned.wgt`).size < 1.5 * 1024 * 1024, app);
+  }
 });
 
 test('la vérification ES5 passe sur la sortie', () => {
