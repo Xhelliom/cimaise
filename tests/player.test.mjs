@@ -85,14 +85,106 @@ test('pause, play, stop, close', () => {
   assert.deepEqual(api.calls, ['pause', 'play', 'stop', 'stop', 'close']);
 });
 
-test('±10 s bornés à [0, durée]', () => {
-  const api = fakeApi();
-  const p = core.createPlayer({ api, doc: fakeDoc() });
+function fakeTimers() {
+  let t = 0, id = 0; const q = [];
+  return {
+    setTimeout: (fn, ms) => { q.push({ id: ++id, at: t + ms, fn }); return id; },
+    clearTimeout: (i) => { const k = q.findIndex((x) => x.id === i); if (k >= 0) q.splice(k, 1); },
+    advance(ms) { t += ms; q.filter((x) => x.at <= t).forEach((x) => { q.splice(q.indexOf(x), 1); x.fn(); }); },
+  };
+}
+const seeks = (api) => api.calls.filter((c) => c.startsWith('seekTo'));
+function opened(over = {}, opts = {}) {
+  const api = fakeApi(over), timers = fakeTimers();
+  const p = core.createPlayer({ api, doc: fakeDoc(), timers, ...opts });
   p.open('u', {}, () => {});
-  api.setTime(95000); p.forward();
-  api.setTime(4000); p.rewind();
+  api.calls.length = 0;
+  return { api, timers, p };
+}
+
+test('un appui : un seek de ±10 s après 400 ms de silence', () => {
+  const { api, timers, p } = opened();
   api.setTime(50000); p.forward();
-  assert.deepEqual(api.calls.filter((c) => c.startsWith('seekTo')), ['seekTo:100000', 'seekTo:0', 'seekTo:60000']);
+  assert.deepEqual(seeks(api), []);
+  timers.advance(399); assert.deepEqual(seeks(api), []);
+  timers.advance(1); assert.deepEqual(seeks(api), ['seekTo:60000']);
+  api.setTime(60000); p.rewind(); timers.advance(400);
+  assert.deepEqual(seeks(api), ['seekTo:60000', 'seekTo:50000']);
+});
+
+test('rafale de 30 appuis : un seul seek, pas accéléré 10/30/60 s', () => {
+  const { api, timers, p } = opened({ getDuration: () => 10000000 });
+  const pending = [];
+  p.destroy();
+  const q = core.createPlayer({ api, doc: fakeDoc(), timers, onSeekPending: (t) => pending.push(t) });
+  q.open('u', {}, () => {}); api.calls.length = 0;
+  for (let i = 0; i < 30; i++) { q.forward(); timers.advance(100); }
+  assert.deepEqual(seeks(api), []);
+  timers.advance(400);
+  // 3×10 + 3×30 + 24×60 s
+  assert.deepEqual(seeks(api), ['seekTo:' + (3 * 10000 + 3 * 30000 + 24 * 60000)]);
+  assert.equal(pending[0], 10000);
+  assert.equal(pending[29], 3 * 10000 + 3 * 30000 + 24 * 60000);
+  assert.equal(pending[30], null);
+});
+
+test('jamais deux seeks en vol : le suivant attend le rappel, le dernier gagne', () => {
+  let ok; const log = [];
+  const { api, timers, p } = opened({ seekTo: (ms, s) => { log.push(ms); ok = s; } });
+  p.seekTo(10000); p.seekTo(20000); p.seekTo(30000);
+  assert.deepEqual(log, [10000]);
+  ok(); assert.deepEqual(log, [10000, 30000]);
+  ok(); ok(); assert.deepEqual(log, [10000, 30000]);
+  // appui pendant un seek en vol : part après le rappel, depuis la cible en vol
+  p.seekTo(40000); p.forward(); timers.advance(400);
+  assert.deepEqual(log, [10000, 30000, 40000]);
+  ok(); assert.deepEqual(log, [10000, 30000, 40000, 50000]);
+});
+
+test('cible bornée à [0, durée − 5 s]', () => {
+  const { api, timers, p } = opened();
+  api.setTime(95000); p.forward(); timers.advance(400);
+  api.setTime(4000); p.rewind(); timers.advance(400);
+  p.seekTo(999999); p.seekTo(-5);
+  assert.deepEqual(seeks(api), ['seekTo:95000', 'seekTo:0', 'seekTo:95000', 'seekTo:0']);
+});
+
+test('erreur de seek : non fatale, lecteur ouvert, seek suivant possible', () => {
+  let fail = true; const errs = [], seekErrs = [];
+  const { api, timers, p } = opened(
+    { seekTo: function (ms, ok, ko) { this.calls.push('seekTo:' + ms); fail ? ko('PLAYER_ERROR_SEEK_FAILED') : ok(); } },
+    { onError: (e) => errs.push(e.message), onSeekError: (e) => seekErrs.push(e.message) });
+  p.forward(); timers.advance(400);
+  assert.equal(errs.length, 0);
+  assert.match(seekErrs[0], /SEEK_FAILED/);
+  assert.ok(!api.calls.includes('stop') && !api.calls.includes('close'));
+  fail = false; p.forward(); timers.advance(400);
+  assert.equal(seeks(api).length, 2);
+});
+
+test('rappel d\'erreur puis onerror SEEK_FAILED sans seek en vol : lecteur ouvert, pas d\'onError', () => {
+  const errs = [], seekErrs = [];
+  const { api, timers, p } = opened(
+    { seekTo: function (ms, ok, ko) { this.calls.push('seekTo:' + ms); ko('PLAYER_ERROR_SEEK_FAILED'); } },
+    { onError: (e) => errs.push(e.message), onSeekError: (e) => seekErrs.push(e.message) });
+  p.forward(); timers.advance(400);
+  assert.equal(seekErrs.length, 1);
+  api.listener.onerror('PLAYER_ERROR_SEEK_FAILED');
+  assert.equal(errs.length, 0);
+  assert.equal(seekErrs.length, 1);
+  assert.ok(!api.calls.includes('stop') && !api.calls.includes('close'));
+});
+
+test('onerror SEEK_FAILED du listener : non fatal, libère le seek en vol', () => {
+  const errs = [], seekErrs = [];
+  const { api, timers, p } = opened({ seekTo: function (ms) { this.calls.push('seekTo:' + ms); } },
+    { onError: (e) => errs.push(e.message), onSeekError: (e) => seekErrs.push(e.message) });
+  p.seekTo(10000); p.seekTo(20000);
+  api.listener.onerror('PLAYER_ERROR_SEEK_FAILED');
+  assert.equal(errs.length, 0); assert.equal(seekErrs.length, 1);
+  assert.deepEqual(seeks(api), ['seekTo:10000', 'seekTo:20000']);
+  api.listener.onerror('PLAYER_ERROR_CONNECTION_FAILED');
+  assert.equal(errs.length, 1);
 });
 
 test('pistes audio/texte listées, sélection et sous-titres', () => {

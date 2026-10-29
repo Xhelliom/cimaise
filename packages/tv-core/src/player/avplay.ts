@@ -15,6 +15,10 @@ export interface PlayerEvents {
   onEnd?: () => void;
   onError?: (err: Error) => void;
   onSubtitle?: (text: string, durationMs: number) => void;
+  // Position visée par une rafale d'appuis ±, en attente d'application ; null quand le seek est parti ou abandonné.
+  onSeekPending?: (targetMs: number | null) => void;
+  // Un seek échoué n'arrête pas la lecture : on reste où on est (distinct de onError, fatal).
+  onSeekError?: (err: Error) => void;
   // Appelé avant le stop/close déclenché par visibilitychange, avec la position à reprendre.
   onSuspend?: (positionMs: number, url: string) => void;
 }
@@ -22,7 +26,9 @@ export interface PlayerEvents {
 export interface PlayerOptions extends PlayerEvents {
   api?: any;      // webapis.avplay ; défaut : getWebapis().avplay
   doc?: { hidden: boolean; addEventListener: Function; removeEventListener: Function };
-  jumpMs?: number; // saut des touches ±, défaut 10 000
+  jumpMs?: number; // pas de base des touches ±, défaut 10 000
+  settleMs?: number; // silence après le dernier appui avant d'appliquer le seek, défaut 400
+  timers?: { setTimeout(fn: () => void, ms: number): any; clearTimeout(id: any): void };
 }
 
 export interface OpenOptions { rect?: Rect; startMs?: number; }
@@ -63,6 +69,17 @@ export function createPlayer(opts?: PlayerOptions): Player {
   var url = '';
   var opened = false;
   var lastTime = 0;
+  var settle = o.settleMs === undefined ? 400 : o.settleMs;
+  var timers = o.timers || {
+    setTimeout: function (fn: () => void, ms: number) { return setTimeout(fn, ms); },
+    clearTimeout: function (id: any) { clearTimeout(id); }
+  };
+  // Rafale d'appuis ±, un seul seek en vol, au plus un seek en attente (le dernier gagne).
+  var burst: { dir: number; count: number; target: number } | null = null;
+  var burstTimer: any = null;
+  var inflight: { target: number; fail(e: Error): void } | null = null;
+  var seekErrReported = false; // erreur déjà remontée par le rappel d'un seek : l'onerror qui suit est avalé
+  var queued: { target: number; dones: Array<(err: Error | null) => void> } | null = null;
 
   function api(): any { return o.api || getWebapis().avplay; }
   function fail(e: any): void { if (o.onError) o.onError(toError(e)); }
@@ -75,13 +92,90 @@ export function createPlayer(opts?: PlayerOptions): Player {
       onbufferingcomplete: function () { if (o.onBuffering) o.onBuffering(false, 100); },
       oncurrentplaytime: function (ms: number) { lastTime = ms; if (o.onTime) o.onTime(ms); },
       onstreamcompleted: function () { if (o.onEnd) o.onEnd(); },
-      onerror: function (type: any) { fail(new Error('AVPlay : erreur de lecture ' + type)); },
+      onerror: function (type: any) {
+        // PLAYER_ERROR_SEEK_FAILED : le flux continue, seul le seek a échoué.
+        // Jamais fatal, quel que soit l'état : déjà signalé par le rappel d'erreur du seek → avalé (il peut arriver
+        // après que le seek suivant est parti) ; sinon il appartient au seek en vol, ou à défaut est signalé tel quel.
+        if (String(type).indexOf('SEEK') >= 0) {
+          var err = new Error('AVPlay : erreur de lecture ' + type);
+          if (seekErrReported) seekErrReported = false;
+          else if (inflight) inflight.fail(err);
+          else if (o.onSeekError) o.onSeekError(err);
+          return;
+        }
+        fail(new Error('AVPlay : erreur de lecture ' + type));
+      },
       onsubtitlechange: function (duration: number, text: string) { if (o.onSubtitle) o.onSubtitle(text, duration); }
     };
   }
 
+  function bound(ms: number): number {
+    var d = 0;
+    try { d = api().getDuration(); } catch (e) { d = 0; }
+    var max = d > 5000 ? d - 5000 : 0;
+    return Math.max(0, d > 0 ? Math.min(ms, max) : ms);
+  }
+  function drain(): void {
+    if (inflight || !queued) return;
+    var q = queued;
+    queued = null;
+    startSeek(q.target, function (err) { for (var i = 0; i < q.dones.length; i++) q.dones[i](err); }, q.dones.length > 0);
+  }
+  function startSeek(target: number, done: ((err: Error | null) => void) | undefined, hasDone: boolean): void {
+    var settled = false;
+    var mine = { target: target, fail: function (e: Error) { end(e); } };
+    inflight = mine;
+    function end(err: Error | null): void {
+      if (settled || inflight !== mine) return;
+      settled = true;
+      inflight = null;
+      if (!err) lastTime = target; else seekErrReported = true;
+      if (done && hasDone) done(err); else if (err && o.onSeekError) o.onSeekError(err);
+      drain();
+    }
+    try {
+      api().seekTo(target, function () { end(null); }, function (e: any) { end(toError(e)); });
+    } catch (e) { end(toError(e)); }
+  }
+  function requestSeek(ms: number, done?: (err: Error | null) => void): void {
+    var target = bound(ms);
+    if (inflight) {
+      if (!queued) queued = { target: target, dones: [] };
+      queued.target = target;
+      if (done) queued.dones.push(done);
+      return;
+    }
+    startSeek(target, done, !!done);
+  }
+  function stepFor(count: number): number { return count <= 3 ? jump : count <= 6 ? jump * 3 : jump * 6; }
+  function press(dir: number): void {
+    if (!opened) return;
+    var base: number;
+    if (burst) base = burst.target;
+    else if (queued) base = queued.target;
+    else if (inflight) base = inflight.target;
+    else base = p.getPosition();
+    if (!burst || burst.dir !== dir) burst = { dir: dir, count: 0, target: base };
+    burst.count++;
+    burst.target = bound(burst.target + dir * stepFor(burst.count));
+    if (o.onSeekPending) o.onSeekPending(burst.target);
+    if (burstTimer !== null) timers.clearTimeout(burstTimer);
+    burstTimer = timers.setTimeout(function () {
+      burstTimer = null;
+      var t = burst!.target;
+      burst = null;
+      if (o.onSeekPending) o.onSeekPending(null);
+      requestSeek(t);
+    }, settle);
+  }
+  function resetSeek(): void {
+    if (burstTimer !== null) { timers.clearTimeout(burstTimer); burstTimer = null; }
+    burst = null; inflight = null; queued = null; seekErrReported = false;
+  }
+
   function release(): void {
     if (!opened) return;
+    resetSeek();
     opened = false;
     var a = api();
     try { a.stop(); } catch (e) { /* déjà arrêté */ }
@@ -131,14 +225,9 @@ export function createPlayer(opts?: PlayerOptions): Player {
     },
     play: function () { guard(function () { api().play(); }); },
     pause: function () { guard(function () { api().pause(); }); },
-    seekTo: function (ms, done) {
-      var target = Math.max(0, ms);
-      try {
-        api().seekTo(target, function () { lastTime = target; if (done) done(null); }, function (e: any) { if (done) done(toError(e)); else fail(e); });
-      } catch (e) { if (done) done(toError(e)); else fail(e); }
-    },
-    forward: function () { var d = p.getDuration(); var t = p.getPosition() + jump; p.seekTo(d > 0 ? Math.min(t, d) : t); },
-    rewind: function () { p.seekTo(p.getPosition() - jump); },
+    seekTo: function (ms, done) { requestSeek(ms, done); },
+    forward: function () { press(1); },
+    rewind: function () { press(-1); },
     stop: function () { guard(function () { api().stop(); }); },
     close: function () { release(); },
     getState: function () { try { return api().getState(); } catch (e) { return 'NONE'; } },
