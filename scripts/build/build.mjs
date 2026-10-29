@@ -38,7 +38,8 @@ if (existsSync(`${app}/src/style.css`)) {
     bundle: true,
     minify: true,
     outdir: outDir,
-    external: ['*.woff2'], // la police est copiée telle quelle (assets) et référencée par url relative
+    loader: { '.woff2': 'file' }, // la police référencée par le CSS est copiée telle quelle dans dist/fonts/
+    assetNames: 'fonts/[name]',
     logLevel: 'warning',
   });
 }

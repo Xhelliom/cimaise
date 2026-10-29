@@ -40,7 +40,7 @@ const routes = {
   '/demo/fonts/outfit-latin.woff2': async () => [readFileSync(`${root}packages/launcher/src/home/fonts/outfit-latin.woff2`), 'font/woff2'],
   '/app/plex.js': async () => [await bundle('apps/tv/src/chunks/plex.ts'), 'text/javascript'],
   '/app/settings.js': async () => [await bundle('apps/tv/src/chunks/settings.ts'), 'text/javascript'],
-  '/app/outfit-latin.woff2': async () => [readFileSync(`${root}packages/launcher/mockups/outfit-latin.woff2`), 'font/woff2'],
+  '/app/fonts/outfit-latin.woff2': async () => [readFileSync(`${root}packages/launcher/src/home/fonts/outfit-latin.woff2`), 'font/woff2'],
   '/app/app.css': async () => [await bundle('apps/tv/src/style.css', { external: ['*.woff2'] }), 'text/css'],
 };
 

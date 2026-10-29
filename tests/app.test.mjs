@@ -4,7 +4,7 @@ import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { build } from 'esbuild';
@@ -25,12 +25,14 @@ function el(tag) {
   e.appendChild = (c) => { if (c.parentNode) c.parentNode.removeChild(c); c.parentNode = e; e.children.push(c); if (e.onAppend) e.onAppend(c); return c; };
   e.removeChild = (c) => { e.children.splice(e.children.indexOf(c), 1); c.parentNode = null; return c; };
   e.removeAttribute = () => {};
+  e.setAttribute = () => {};
+  Object.defineProperty(e, 'firstChild', { get: () => e.children[0] || null });
   e.getElementsByTagName = () => [];
   return e;
 }
 const find = (n, cls, out = []) => { if ((n.className || '').split(' ').includes(cls)) out.push(n); n.children.forEach((c) => find(c, cls, out)); return out; };
 
-function boot({ failChunk } = {}) {
+function boot({ failChunk, stored, launched } = {}) {
   const body = el('body'), head = el('head'), root = el('div');
   const loaded = [];
   head.onAppend = (s) => {
@@ -45,6 +47,8 @@ function boot({ failChunk } = {}) {
   const listeners = [];
   const timers = [];
   const exits = [];
+  const store = {};
+  if (stored) store['cimaise.v1'] = JSON.stringify(stored);
   const document = {
     body, head, createElement: el,
     getElementById: (id) => (id === 'root' ? root : null),
@@ -54,34 +58,32 @@ function boot({ failChunk } = {}) {
     document, Date, console, Promise, Error,
     setTimeout: (f, ms) => { timers.push({ f, ms }); return timers.length; },
     clearTimeout: () => {},
-    tizen: { tvinputdevice: { registerKey() {} }, application: { getCurrentApplication: () => ({ exit: () => exits.push(1) }) } },
+    localStorage: { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = v; } },
+    tizen: { tvinputdevice: { registerKey() {} }, application: { launch: (id) => launched && launched.push(id), getCurrentApplication: () => ({ exit: () => exits.push(1) }) } },
   });
   ctx.window = ctx;
   vm.runInContext(code.app, ctx);
   const key = (keyCode) => listeners.forEach((f) => f({ keyCode }));
   const tick = () => new Promise((r) => setImmediate(r));
   const flush = () => { const t = timers.splice(0).filter((x) => x.ms === 0); t.forEach((x) => x.f()); }; // minuteries différées (0 ms)
-  return { root, body, loaded, key, tick, flush, exits };
+  return { root, body, loaded, key, tick, flush, exits, store };
 }
 const LEFT = 37, UP = 38, RIGHT = 39, DOWN = 40, OK = 13, BACK = 10009;
 
-test('premier affichage minimal : horloge et tuiles, ni fond teinté ni police décorative', () => {
+test('premier affichage minimal : horloge et tuiles du catalogue, police décorative pas encore demandée', () => {
   const a = boot();
   assert.equal(find(a.root, 'horloge').length, 1);
   assert.match(find(a.root, 'horloge')[0].textContent, /^\d\d:\d\d$/);
-  assert.equal(find(a.root, 'tuile').length, 6);
-  assert.equal(find(a.root, 'fond').length, 0);
-  assert.equal(find(a.root, 'titre').length, 0);
+  assert.equal(find(a.root, 'tuile').length, 7, 'catalogue par défaut');
   assert.notEqual(a.body.className, 'late');
   assert.deepEqual(a.loaded, [], 'aucun chunk au démarrage');
 });
 
-test('chargement différé : après le premier affichage, fond teinté, titre, pastille et police', () => {
+test('chargement différé : après le premier affichage, police et touches média', () => {
   const a = boot();
   a.flush();
-  assert.equal(find(a.root, 'fond').length, 2);
   assert.equal(find(a.root, 'titre')[0].textContent, 'Plex intégré');
-  assert.equal(find(a.root, 'pastille').length, 1);
+  assert.equal(find(a.root, 'pastille').length, 3);
   assert.equal(a.body.className, 'late');
   assert.deepEqual(a.loaded, [], 'Plex et réglages restent à la demande');
 });
@@ -91,12 +93,12 @@ test('le focus suit les flèches et le titre suit le focus', () => {
   a.flush();
   a.key(RIGHT); a.key(RIGHT);
   assert.equal(find(a.root, 'titre')[0].textContent, 'Netflix');
-  assert.deepEqual(find(a.root, 'focus').map((n) => n.textContent), ['N']);
+  assert.deepEqual(find(a.root, 'tuile').filter((n) => n.className === 'tuile focus').map((n) => n.textContent), ['N']);
   a.key(DOWN);
-  assert.equal(find(a.root, 'titre')[0].textContent, 'Canal+'); // dernière rangée incomplète
+  assert.equal(find(a.root, 'titre')[0].textContent, 'Smart Hub'); // dernière rangée incomplète
 });
 
-test('Plex : le chunk n’est chargé qu’à la première ouverture ; Retour revient à l’accueil', async () => {
+test('Plex intégré : entrée interne ouverte par le routeur, chunk chargé à la première ouverture seulement', async () => {
   const a = boot();
   a.flush();
   a.key(OK);
@@ -112,18 +114,70 @@ test('Plex : le chunk n’est chargé qu’à la première ouverture ; Retour re
   assert.equal(find(a.root, 'plex-panel').length, 1);
 });
 
-test('Réglages : pastille atteinte par Haut, chunk settings chargé à l’ouverture, diagnostic affiché', async () => {
+test('Entrée sur une tuile avec ID lance l’app via l’adaptateur TV (tizen.application.launch)', () => {
+  const launched = [];
+  const a = boot({ launched, stored: { version: 1, prefs: { catalog: { version: 1, entries: [
+    { id: 'plex', name: 'Plex intégré', color: '#e5a00d', type: 'interne' },
+    { id: 'org.test.netflix', name: 'Netflix', color: '#e50914', type: 'tv' },
+  ] } } } });
+  a.key(RIGHT); a.key(OK);
+  assert.deepEqual(launched, ['org.test.netflix']);
+  assert.deepEqual(a.loaded, [], 'une app TV ne charge aucun chunk');
+});
+
+const texts = (n) => [n.textContent, ...n.children.flatMap(texts)];
+
+test('Réglages : pastille atteinte par Haut, vrai écran dans le chunk settings chargé à l’ouverture', async () => {
   const a = boot();
   a.flush();
   a.key(UP);
   assert.equal(find(a.root, 'pastille')[0].className, 'pastille focus');
-  assert.equal(find(a.root, 'focus').filter((n) => n.className === 'tuile focus').length, 0);
+  assert.equal(find(a.root, 'tuile').filter((n) => n.className === 'tuile focus').length, 0);
   a.key(OK);
   assert.deepEqual(a.loaded, ['settings.js']);
   await a.tick();
   const panel = find(a.root, 'reglages')[0];
   assert.ok(panel);
-  assert.match(panel.children[1].textContent, /scriptLoaded[\s\S]*firstPaint[\s\S]*interactive/);
+  assert.ok(texts(panel).includes('Découvrir les apps installées'));
+  assert.ok(texts(panel).includes('Netflix'));
+});
+
+async function openSettings(a) {
+  a.flush(); a.key(UP); a.key(OK); await a.tick();
+}
+
+test('Réglages → accueil : une couleur changée est visible sur la tuile et persistée', async () => {
+  const a = boot();
+  await openSettings(a);
+  a.key(DOWN); a.key(OK); // 1re app, puce « Couleur » : teinte suivante de la palette
+  a.key(BACK);
+  assert.equal(find(a.root, 'reglages').length, 0);
+  assert.equal(find(a.root, 'tuile')[0].style.background, '#e50914');
+  const saved = JSON.parse(a.store['cimaise.v1']).prefs.catalog.entries;
+  assert.equal(saved[0].color, '#e50914');
+  assert.equal(saved[0].type, 'interne', 'le type interne survit à l’aller-retour des réglages');
+});
+
+test('Réglages → accueil : retirer et réordonner changent les tuiles et le catalogue persisté', async () => {
+  const a = boot();
+  await openSettings(a);
+  a.key(DOWN); a.key(DOWN); // Plex officiel
+  a.key(RIGHT); a.key(RIGHT); a.key(OK); // puce « Retirer »
+  a.key(BACK);
+  assert.equal(find(a.root, 'tuile').length, 6);
+  assert.equal(JSON.parse(a.store['cimaise.v1']).prefs.catalog.entries.length, 6);
+  a.key(UP); a.key(OK); await a.tick(); // retour aux réglages
+  a.key(DOWN); a.key(DOWN); a.key(RIGHT); a.key(OK); a.key(UP); a.key(OK); a.key(BACK); // « Déplacer » Netflix vers le haut
+  const saved = JSON.parse(a.store['cimaise.v1']).prefs.catalog.entries.map((e) => e.name);
+  assert.deepEqual(saved.slice(0, 3), ['Netflix', 'Plex intégré', 'YouTube']);
+});
+
+test('Réglages : la découverte hors TV signale l’erreur sans rien changer', async () => {
+  const a = boot();
+  await openSettings(a);
+  a.key(OK); // « Découvrir » : le faux tizen n’a pas getAppsInfo
+  assert.ok(texts(find(a.root, 'reglages')[0]).some((t) => /Inventaire|getAppsInfo|impossible|absent/i.test(t)));
+  assert.equal(a.store['cimaise.v1'], undefined);
 });
 
 test('un chunk qui ne charge pas laisse l’accueil en place', async () => {
@@ -149,7 +203,7 @@ test('Retour à la racine demande confirmation avant de quitter', () => {
   assert.equal(a.exits.length, 1);
 });
 
-test('diagnostic caché : Entrée sur une tuile sans action affiche les horodatages (script, premier affichage, interactif)', () => {
+test('diagnostic caché : Entrée sur une tuile sans ID affiche les horodatages (script, premier affichage, interactif)', () => {
   const a = boot();
   a.flush();
   a.key(RIGHT); a.key(OK);
@@ -158,6 +212,7 @@ test('diagnostic caché : Entrée sur une tuile sans action affiche les horodata
   assert.match(pre.textContent, /scriptLoaded[\s\S]*firstPaint[\s\S]*interactive/);
 });
 
-test('l’app ne dépend d’aucun mock', () => {
+test('l’app ne dépend d’aucun mock, ni des anciens fichiers provisoires', () => {
   assert.doesNotMatch(readFileSync('apps/tv/src/index.ts', 'utf8'), /mock/i);
+  for (const f of ['home.ts', 'tiles.ts', 'settings.ts', 'tint.ts']) assert.ok(!existsSync('packages/launcher/src/' + f), f);
 });

@@ -22,9 +22,9 @@ test('build produit un bundle initial, une seule feuille CSS et un chunk par mod
 test('Plex et réglages ne sont pas dans le JS initial mais dans leur chunk', () => {
   const app = readFileSync('apps/tv/dist/app.js', 'utf8');
   assert.ok(!app.includes('module en construction'), 'panneau Plex dans app.js');
-  assert.ok(!app.includes('reglages'), 'panneau réglages dans app.js');
+  assert.ok(!app.includes('Découvrir les apps installées'), 'panneau réglages dans app.js');
   assert.ok(readFileSync('apps/tv/dist/plex.js', 'utf8').includes('module en construction'));
-  assert.ok(readFileSync('apps/tv/dist/settings.js', 'utf8').includes('reglages'));
+  assert.ok(readFileSync('apps/tv/dist/settings.js', 'utf8').includes('couvrir les apps install'));
 });
 
 test('budgets : JS initial < 100 Ko, .wgt < 1,5 Mo, pour les deux cibles', () => {
