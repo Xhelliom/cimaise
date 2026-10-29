@@ -32,9 +32,10 @@ export function getHubs(http: Http, id: Identity, s: ServerRef, sectionKey: stri
   return serverGet(http, id, s, path, null, function (err, j) { err ? cb(err) : cb(null, container(j).Hub || []); });
 }
 
-// `withOnDeck` (séries) : le serveur ajoute l'épisode « à suivre » sous OnDeck.
-export function getMetadata(http: Http, id: Identity, s: ServerRef, ratingKey: string, cb: Callback<Item>, withOnDeck?: boolean) {
-  return serverGet(http, id, s, '/library/metadata/' + encodeURIComponent(ratingKey) + (withOnDeck ? '?includeOnDeck=1' : ''), null, function (err, j) {
+// `withOnDeck` (séries) : le serveur ajoute l'épisode « à suivre » sous OnDeck. `withMarkers` : marqueurs intro / générique sous Marker.
+export function getMetadata(http: Http, id: Identity, s: ServerRef, ratingKey: string, cb: Callback<Item>, withOnDeck?: boolean, withMarkers?: boolean) {
+  var q = withOnDeck ? '?includeOnDeck=1' : withMarkers ? '?includeMarkers=1' : '';
+  return serverGet(http, id, s, '/library/metadata/' + encodeURIComponent(ratingKey) + q, null, function (err, j) {
     if (err) return cb(err);
     var l = items(j);
     l.length ? cb(null, l[0]) : cb(new Error('métadonnées absentes'));

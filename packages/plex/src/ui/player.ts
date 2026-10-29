@@ -1,5 +1,5 @@
-import { Item } from '../api/types';
-import { bifFrameAt, Bif, decidePlayback, hasPreviewIndex, loadBif, directPlaybackUrl, newTranscodeSession, normalizeLang, PlaybackPlan, requestTranscode, stopTranscode, subtitleUrl, trackEntries, TrackEntry } from '../playback';
+import { Abortable, Item } from '../api/types';
+import { bifFrameAt, findNextEpisode, inSpan, Markers, parseMarkers, Bif, decidePlayback, hasPreviewIndex, loadBif, directPlaybackUrl, newTranscodeSession, normalizeLang, PlaybackPlan, requestTranscode, stopTranscode, subtitleUrl, trackEntries, TrackEntry } from '../playback';
 import { getMetadata } from '../api/library';
 import { xhrBinary, xhrHttp } from '../api/xhr';
 import { createProgress, Progress } from '../progress';
@@ -13,6 +13,12 @@ import { Ctx, el, identityOf, PlexArg, realTimers, RESUME, resolve } from './con
 var HIDE_MS = 4000; // barre de contrôles : masquée après 4 s sans touche
 var BAR_W = 1680;   // largeur de la barre de progression (px de la scène 1920×1080)
 var SUB_MS = 3000; // durée d'affichage d'un sous-titre dont AVPlay ne donne pas la durée
+var CARD_S = 10;   // compte à rebours avant l'épisode suivant
+var AUTO_MAX = 3;  // épisodes enchaînés d'affilée sans touche, avant « Vous regardez toujours ? »
+var END_SLACK = 2000; // un marqueur de générique qui finit à moins de 2 s de la fin du fichier vaut « fin de l'épisode »
+
+// État partagé d'un enchaînement d'épisodes (passé de lecteur en lecteur) : épisodes lancés par le compte à rebours depuis la dernière touche.
+export interface Chain { auto: number; }
 
 function two(n: number): string { return (n < 10 ? '0' : '') + n; }
 // hh:mm:ss, toujours avec les heures.
@@ -32,14 +38,15 @@ export function cleanSubtitle(text: string): string {
 }
 
 interface Choice { label: string; apply(): void; }
-type Mode = 'loading' | 'play' | 'error';
+// ended : le flux est fini (ou arrêté pour la question « Vous regardez toujours ? »), le lecteur ne répond plus que Retour et les boutons du dialogue.
+type Mode = 'loading' | 'play' | 'error' | 'ended';
 
 // Écran lecteur (HANDOFF §5.4) : démarre directement à `startMs` (0, RESUME ou une position, choisi par l'appelant), lecture directe par AVPlay (wrapper de tv-core).
 // Pendant la lecture rien à l'écran : Gauche/Droite = sauts (même rafale accélérée partout, indicateur discret du cumul, saut automatique en fin de rafale) ;
 // Entrée = pause + barre ; Haut/Bas = barre, focus sur les boutons (Lecture/Pause, Audio, Sous-titres, sous-menus) ; Haut depuis les boutons = focus sur la barre de
 // progression : même déplacement mais la vidéo continue et rien ne part tout seul (Entrée confirme, Retour annule). Retour ferme la barre, puis quitte le lecteur.
 // Hors TV, le wrapper signale l'absence de webapis : aucune lecture simulée.
-export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): Panel {
+export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number, chainArg?: Chain): Panel {
   var c = resolve(arg) as Ctx;
   var doc = c.doc;
   var timers = arg.timers || realTimers();
@@ -71,6 +78,11 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): P
   var sub = el(doc, 'plex-pl-sub', '');
   var menu = el(doc, 'plex-pl-menu');
   var dialog = el(doc, 'plex-pl-dialog');
+  var skip = el(doc, 'plex-pl-skip', '');   // « Passer l'intro / le générique », seul en bas à droite pendant le marqueur
+  var card = el(doc, 'plex-pl-card');       // « Épisode suivant dans N s »
+  var cardTitle = el(doc, 'plex-pl-card-title', '');
+  var cardSub = el(doc, 'plex-pl-card-sub', '');
+  var cardHint = el(doc, 'plex-pl-card-hint', 'Entrée : lancer maintenant · Retour : annuler');
   var text = el(doc, 'plex-pl-text', 'Chargement…');
   var btns = el(doc, 'plex-pl-btns');
   track.appendChild(bar);
@@ -80,7 +92,8 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): P
   ui.appendChild(ctls); ui.appendChild(state); ui.appendChild(modeLine);
   jumpBox.appendChild(jumpSum); jumpBox.appendChild(jumpTo);
   dialog.appendChild(text); dialog.appendChild(btns);
-  root.appendChild(sub); root.appendChild(jumpBox); root.appendChild(ui); root.appendChild(menu); root.appendChild(dialog);
+  card.appendChild(cardTitle); card.appendChild(cardSub); card.appendChild(cardHint);
+  root.appendChild(sub); root.appendChild(skip); root.appendChild(card); root.appendChild(jumpBox); root.appendChild(ui); root.appendChild(menu); root.appendChild(dialog);
 
   var mode: Mode = 'loading';
   var closed = false;
@@ -104,6 +117,12 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): P
   var choices: Choice[] = [], mi = 0;
   // Barre de contrôles : ouverte ou non ; focus sur la barre de progression ('track') ou sur la rangée de boutons ('btns', bi = bouton).
   // jumping : une position visée est en attente dans le lecteur (jumpBase : d'où la rafale est partie) ; holding : le lecteur est en mode maintien.
+  // Épisode suivant (null : film, dernier épisode ou pas encore trouvé) ; marqueurs Plex de l'épisode ; bouton de saut visible ;
+  // carte de compte à rebours (cardCancelled : annulée par Retour pour cet épisode, jusqu'à la sortie du générique).
+  var chain: Chain = chainArg || { auto: 0 };
+  var nextItem: Item | null = null, nextReq: Abortable | null = null;
+  var markers: Markers = { intro: null, credits: null }, skipKind: 'intro' | 'credits' | null = null;
+  var cardOn = false, cardLeft = 0, cardTimer: any = null, cardCancelled = false;
   var barOpen = false, zone: 'track' | 'btns' = 'btns', bi = 0, jumping = false, jumpBase = 0, holding = false;
 
   // Index de prévisualisation (BIF) : chargé seulement quand le focus entre sur la barre de progression, libéré en la quittant (ou en quittant le lecteur).
@@ -170,10 +189,16 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): P
     { label: function () { return 'Audio'; }, run: function () { openMenu('audio'); } },
     { label: function () { return 'Sous-titres'; }, run: function () { openMenu('subtitle'); } }
   ];
+  // Boutons de la barre : « Épisode suivant » s'ajoute pour un épisode qui en a un.
+  function ctlList(): Array<{ label(): string; run(): void }> {
+    var l = ctlDefs.slice();
+    if (nextItem) l.push({ label: function () { return 'Épisode suivant'; }, run: function () { goNext(false); } });
+    return l;
+  }
   function paintCtl(): void {
     while (ctls.children.length) ctls.removeChild(ctls.children[0]);
-    for (var i = 0; i < ctlDefs.length; i++) ctls.appendChild(el(doc, zone === 'btns' && i === bi ? 'plex-pl-ctl focus' : 'plex-pl-ctl', ctlDefs[i].label()));
-    ctls.appendChild(el(doc, 'plex-pl-ctl plex-pl-next', '')); // emplacement réservé : Épisode suivant (carte suivante), jamais focalisable
+    var defs = ctlList();
+    for (var i = 0; i < defs.length; i++) ctls.appendChild(el(doc, zone === 'btns' && i === bi ? 'plex-pl-ctl focus' : 'plex-pl-ctl', defs[i].label()));
     track.className = zone === 'track' ? 'plex-pl-track focus' : 'plex-pl-track';
   }
   // Maintien côté lecteur : actif seulement tant que le focus est sur la barre de progression (le quitter abandonne la cible).
@@ -268,6 +293,8 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): P
     clearHide();
     clearSub();
     releaseIndex();
+    hideCard();
+    if (nextReq) { nextReq.abort(); nextReq = null; }
     if (metaReq) { metaReq.abort(); metaReq = null; }
     if (progress) progress.stop(false);
     if (player) player.destroy();
@@ -321,6 +348,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): P
         if (awaitFrame && mode === 'play') { awaitFrame = false; recordMeasure('lecture', Date.now() - t0); }
         if (mode !== 'play') return;
         paintTime(ms);
+        markersAt(ms);
       },
       timers: timers,
       // Rafale d'appuis ± (même mécanisme partout) : barre fermée, indicateur discret du cumul et du pas, le saut part à la fin de la rafale ;
@@ -369,7 +397,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): P
         state.textContent = 'Sous-titres indisponibles';
         showBar();
       },
-      onEnd: function () { leave(true); },
+      onEnd: atEnd,
       onError: fail,
       onSuspend: function (pos) { suspendPos = pos; leave(false); }
     });
@@ -479,11 +507,119 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): P
     full = v;
     durationMs = v.duration || plan.part.duration || durationMs;
     title.textContent = v.title;
+    markers = parseMarkers(v.Marker);
+    nextReq = findNextEpisode(http, identityOf(arg), c.session, v, function (n) {
+      nextReq = null;
+      if (closed) return;
+      if (n && !n.grandparentRatingKey) n.grandparentRatingKey = v.grandparentRatingKey;
+      nextItem = n;
+      if (n && barOpen) paintCtl();
+    });
     begin();
-  }) || null;
+  }, false, true) || null;
   // Une série ou une saison n'a pas de fichier : la fiche doit passer un épisode ou un film.
   if (item.type === 'show' || item.type === 'season') fail(new Error('une ' + (item.type === 'show' ? 'série' : 'saison') + ' ne se lit pas : choisir un épisode'));
   else ask('Chargement…', []);
+
+  // ----- Marqueurs, saut, enchaînement -----
+  function paintSkip(kind: 'intro' | 'credits' | null): void {
+    skipKind = kind;
+    if (kind) skip.textContent = kind === 'intro' ? 'Passer l’intro' : 'Passer le générique';
+    setClass(skip, 'plex-pl-skip', kind !== null);
+  }
+  // Position courante par rapport aux marqueurs : bouton de saut pendant l'intro ou le générique ; avec un épisode suivant, le générique lance la carte.
+  function markersAt(ms: number): void {
+    if (mode !== 'play') return;
+    var inCred = inSpan(markers.credits, ms);
+    if (inCred && nextItem && !cardCancelled) {
+      if (!cardOn) showCard();
+      paintSkip(null);
+      return;
+    }
+    if (cardOn) hideCard(); // sorti du générique (retour en arrière)
+    if (!inCred) cardCancelled = false;
+    var want: 'intro' | 'credits' | null = inSpan(markers.intro, ms) ? 'intro' : inCred ? 'credits' : null;
+    if (want !== skipKind) paintSkip(want);
+  }
+  function doSkip(): void {
+    var kind = skipKind, sp = kind === 'intro' ? markers.intro : markers.credits;
+    paintSkip(null);
+    if (!sp) return;
+    if (kind === 'credits' && durationMs > 0 && sp.end >= durationMs - END_SLACK) { finish(); return; }
+    player!.seekTo(sp.end);
+  }
+  // Fin de l'épisode voulue par l'utilisateur : le suivant s'il existe (vu), sinon retour à la fiche.
+  function finish(): void { if (nextItem) goNext(true); else leave(true); }
+
+  function paintCard(): void { cardTitle.textContent = 'Épisode suivant dans ' + cardLeft + ' s'; }
+  function showCard(): void {
+    var n = nextItem!;
+    cardOn = true; cardLeft = CARD_S;
+    cardSub.textContent = (n.parentIndex !== undefined ? 'S' + n.parentIndex + ' ' : '') + (n.index !== undefined ? 'E' + n.index + ' · ' : '') + n.title;
+    paintCard();
+    setClass(card, 'plex-pl-card', true);
+    tickCard();
+  }
+  function tickCard(): void {
+    cardTimer = timers.setTimeout(function () {
+      cardTimer = null;
+      cardLeft--;
+      if (cardLeft <= 0) { hideCard(); proceed(true); return; }
+      paintCard();
+      tickCard();
+    }, 1000);
+  }
+  function hideCard(): void {
+    cardOn = false;
+    if (cardTimer !== null) { timers.clearTimeout(cardTimer); cardTimer = null; }
+    setClass(card, 'plex-pl-card', false);
+  }
+  // Retour sur la carte : plus d'enchaînement pour cet épisode, la lecture (ou la fin) reste à l'écran.
+  function cancelCard(): void { hideCard(); cardCancelled = true; }
+
+  // Le flux est fini, ou arrêté pour la question : la progression est close (vu) avant tout enchaînement.
+  function toEnded(pausePlayer: boolean): void {
+    if (mode === 'ended') return;
+    mode = 'ended';
+    if (pausePlayer && player) player.pause();
+    if (progress) progress.stop(true);
+    closeBar();
+    paintSkip(null);
+    clearSub();
+    jumping = false;
+    setClass(jumpBox, 'plex-pl-jump', false);
+  }
+  function atEnd(): void {
+    if (closed || mode === 'error' || mode === 'ended') return;
+    if (!nextItem || cardCancelled) { leave(true); return; }
+    var counting = cardOn;
+    toEnded(false);
+    if (counting) { hideCard(); proceed(true); } else showCard();
+  }
+  // Enchaînement lancé par le compte à rebours : après AUTO_MAX épisodes sans touche, on demande d'abord.
+  function proceed(auto: boolean): void {
+    if (auto) {
+      if (chain.auto >= AUTO_MAX) {
+        toEnded(true);
+        ask('Vous regardez toujours ?', [
+          { label: 'Continuer', run: function () { chain.auto = 0; goNext(true); } },
+          { label: 'Arrêter', run: function () { leave(false); } }
+        ]);
+        return;
+      }
+      chain.auto++;
+    }
+    goNext(true);
+  }
+  // Épisode suivant dans un nouveau lecteur (celui-ci est fermé : progression close, session de transcodage arrêtée) ; watched : marqué vu avant de partir.
+  function goNext(watched: boolean): void {
+    var n = nextItem;
+    if (!n || closed) return;
+    if (progress) progress.stop(watched);
+    cleanup();
+    c.nav.pop();
+    c.nav.push(createPlayerPanel(arg, n, 0, chain));
+  }
 
   // Choix d'une piste dans le menu : nouvelle décision avec les deux pistes explicites. Lecture directe → directe sans fichier externe :
   // en place (setSelectTrack). Sinon (transcodage, sous-titre externe, autre mode) : le flux est relancé à la position courante.
@@ -524,6 +660,8 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): P
     awaitFrame = false;
     live(false);
     closeBar();
+    hideCard();
+    paintSkip(null);
     jumping = false;
     setClass(jumpBox, 'plex-pl-jump', false);
     ask('Chargement…', []);
@@ -601,6 +739,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): P
     if (k === 'play') { resume(); return true; }
     if (k === 'playpause') { if (paused) resume(); else { pause(); openBar('btns'); } return true; }
     if (!barOpen) {
+      if (k === 'enter' && skipKind && !jumping) { doSkip(); return true; }
       if (k === 'back') { if (jumping) player!.cancelSeek(); else leave(false); }
       else if (k === 'left') jumpKey(-1);
       else if (k === 'right') jumpKey(1);
@@ -619,9 +758,9 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): P
     }
     if (k === 'back') closeBar();
     else if (k === 'left') { bi = Math.max(0, bi - 1); paintCtl(); }
-    else if (k === 'right') { bi = Math.min(ctlDefs.length - 1, bi + 1); paintCtl(); }
+    else if (k === 'right') { bi = Math.min(ctlList().length - 1, bi + 1); paintCtl(); }
     else if (k === 'up') openBar('track');
-    else if (k === 'enter') ctlDefs[bi].run();
+    else if (k === 'enter') ctlList()[bi].run();
     armHide();
     return true;
   }
@@ -629,6 +768,9 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number): P
   return {
     el: root,
     onKey: function (k: Key): boolean {
+      chain.auto = 0; // une touche : l'utilisateur est là
+      if (cardOn && k === 'enter') { hideCard(); goNext(true); return true; }
+      if (cardOn && k === 'back') { cancelCard(); return true; }
       if (mode === 'play') return playKey(k);
       if (k === 'back') { leave(false); return true; }
       if (mode === 'loading' || !buttons.length) return true;
