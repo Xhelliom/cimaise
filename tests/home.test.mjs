@@ -123,6 +123,9 @@ test('focus : D-pad via le moteur tv-core, un seul élément focalisé, titre su
   assert.equal(p.onKey('back'), false, 'Retour est laissé au routeur');
 });
 
+// Le bac coupe son contenu (overflow:hidden dès 690 px) : bord haut visible + marge anneau/agrandissement (17 px, comme en bas).
+const BAC_VISIBLE_TOP = 690 + 17;
+
 test('défilement : la tuile focalisée est entièrement visible, rangée 2 (et suivantes) comprise', () => {
   const { p, press } = mount();
   const rail = one(p.el, 'rail');
@@ -131,14 +134,14 @@ test('défilement : la tuile focalisée est entièrement visible, rangée 2 (et 
     const i = byClass(p.el, 'tuile').findIndex((x) => x.className.includes('focus'));
     const box = H.tileBox(i);
     const t = box.top + ty(rail), b = box.bottom + ty(rail);
-    assert.ok(t >= 0 && b <= 1080 - 17, `tuile ${i} : ${t}–${b}`);
+    assert.ok(t >= BAC_VISIBLE_TOP && b <= 1080 - 17, `tuile ${i} : ${t}–${b}`);
     seen.push(i);
   };
   check();
   for (const k of ['down', 'down', 'down']) { press(k); check(); }
   assert.deepEqual(seen.slice(0, 4), [0, 4, 8, 8], 'dernière rangée complète : reste sur place');
   press('right', 'right', 'right'); check();
-  press('up'); check(); press('up'); check();
+  press('up'); check(); press('up'); // rangée 0 → pastilles : plus de tuile focalisée
   assert.equal(ty(rail), 0, 'rangée 1 : pas de décalage');
   // rangée 2 explicite, tuile par tuile
   for (let r = 0; r < 12; r++) {
@@ -148,7 +151,7 @@ test('défilement : la tuile focalisée est entièrement visible, rangée 2 (et 
     for (let c = 0; c < r % 4; c++) m.press('right');
     const rl = one(m.p.el, 'rail');
     const box = H.tileBox(r);
-    assert.ok(box.top + ty(rl) >= 0 && box.bottom + ty(rl) <= 1080 - 17, `tuile ${r}`);
+    assert.ok(box.top + ty(rl) >= BAC_VISIBLE_TOP && box.bottom + ty(rl) <= 1080 - 17, `tuile ${r}`);
   }
   assert.ok(H.railOffset(1) > 0, 'la rangée 2 impose un défilement');
 });
