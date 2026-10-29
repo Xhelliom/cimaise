@@ -98,7 +98,7 @@ test('écran : salutation, horloge, date, 3 pastilles, titre = app focalisée, 1
   assert.equal(one(p.el, 'salut').textContent, 'Bonsoir');
   assert.equal(one(p.el, 'horloge').textContent, '20:45');
   assert.equal(one(p.el, 'date').textContent, 'jeudi 29 octobre');
-  assert.deepEqual(byClass(p.el, 'pastille').map((x) => x.textContent), ['Réglages', 'Smart Hub', 'Réseau']);
+  assert.deepEqual(byClass(p.el, 'pastille').map((x) => x.textContent), ['Réglages', 'Smart Hub']);
   assert.equal(byClass(p.el, 'tuile').length, 12);
   assert.equal(one(p.el, 'titre').textContent, 'PLEX-INT');
   assert.equal(byClass(p.el, 'focus').length, 1);
@@ -303,8 +303,8 @@ test('Entrée : launchApp avec l’id ; module interne via callback ; erreur rem
   assert.equal(e.calls.errors.length, 1);
   assert.equal(e.calls.errors[0].message, 'NO_TIZEN');
   const pa = mount();
-  pa.press('up', 'right', 'right', 'enter');
-  assert.deepEqual(pa.calls.pastille, ['reseau']);
+  pa.press('up', 'right', 'right', 'enter'); // Réseau n'est plus focalisable : le focus s'arrête sur Smart Hub
+  assert.deepEqual(pa.calls.pastille, ['smarthub']);
   const pb = mount();
   pb.press('up', 'enter');
   assert.deepEqual(pb.calls.pastille, ['reglages']);
@@ -666,4 +666,38 @@ test('tuiles : préférence mémorisée dans cimaise.v1 (prefs.homeTiles), défa
   assert.equal(H.loadHomeTiles(junk), 4);
   junk.setItem('cimaise.v1', '{pas du json');
   assert.equal(H.loadHomeTiles(junk), 4);
+});
+
+test('Réseau : alerte non focalisable, visible seulement si coupé, pilotée par événement', () => {
+  let push = null, stopped = 0;
+  const watch = (cb) => { push = cb; return () => stopped++; };
+  const { p } = mount({ watchNetwork: watch });
+  const alerte = () => one(p.el, 'reseau');
+  assert.equal(alerte().textContent, 'Réseau coupé');
+  assert.equal(alerte().className.includes('on'), false, 'caché tant que le réseau est là');
+  assert.equal(byClass(p.el, 'pastille').some((x) => x.textContent.includes('Réseau')), false);
+  push(false);
+  assert.equal(alerte().className.includes('on'), true);
+  push(true);
+  assert.equal(alerte().className.includes('on'), false);
+  p.destroy();
+  assert.equal(stopped, 1, 'écoute retirée à la destruction');
+});
+
+test('Réseau : hors TV (API absente) l’indicateur reste caché, sans planter', () => {
+  const { p } = mount({ watchNetwork: () => { throw new Error('NO_WEBAPIS'); } });
+  assert.equal(one(p.el, 'reseau').className.includes('on'), false);
+});
+
+test('Réseau : l’état initial coupé s’affiche tout de suite', () => {
+  const { p } = mount({ watchNetwork: (cb) => { cb(false); return () => {}; } });
+  assert.equal(one(p.el, 'reseau').className.includes('on'), true);
+});
+
+test('Préférence Smart Hub : ID configurable, vide par défaut', () => {
+  const m = {};
+  const store = { getItem: (k) => (k in m ? m[k] : null), setItem: (k, v) => { m[k] = String(v); }, removeItem: (k) => { delete m[k]; } };
+  assert.equal(H.loadSmartHubTarget(store), '');
+  H.saveSmartHubTarget('x.y', store);
+  assert.equal(H.loadSmartHubTarget(store), 'x.y');
 });

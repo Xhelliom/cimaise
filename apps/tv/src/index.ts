@@ -1,9 +1,9 @@
 // App cimaise : accueil Dock v2 alimenté par le catalogue persistant ; Plex et réglages sont des chunks
 // (plex.js, settings.js) injectés à la première ouverture. Démarrage en deux temps : horloge + tuiles d'abord,
 // puis (setTimeout 0) police décorative et touches média.
-import { mark, toggleDiag, keyLatency, normalizeKey, hasTizen, registerKeys, REGISTER_KEYS, listInstalledApps } from '../../../packages/tv-core/src/index';
+import { mark, toggleDiag, keyLatency, normalizeKey, hasTizen, registerKeys, REGISTER_KEYS, listInstalledApps, launchApp, hideApp } from '../../../packages/tv-core/src/index';
 import { Router, lazy, chunkLoader, Panel } from '../../../packages/tv-core/src/index';
-import { createHome, loadHomeMode, saveHomeMode, loadHomeTiles, saveHomeTiles } from '../../../packages/launcher/src/home';
+import { createHome, loadHomeMode, saveHomeMode, loadHomeTiles, saveHomeTiles, loadSmartHubTarget } from '../../../packages/launcher/src/home';
 import { loadCatalog, saveCatalog, launchEntry } from '../../../packages/launcher/src/catalog';
 
 interface Chunk { createPanel(arg?: any): Panel; }
@@ -15,6 +15,17 @@ var settings = lazy<Chunk>(chunkLoader('settings'));
 var catalog = loadCatalog();
 var mode = loadHomeMode();
 var tiles = loadHomeTiles();
+
+// Pastille Smart Hub : l'app cible vient des préférences (jamais d'ID en dur) ; sans cible, ou si son lancement échoue,
+// repli sur hide() de l'app courante, qui ramène au Smart Hub.
+function openSmartHub(): void {
+  var leave = function () {
+    try { hideApp(); } catch (e) { home.notify('Smart Hub : sortie impossible (hors TV ?)'); }
+  };
+  var target = loadSmartHubTarget();
+  if (!target) { leave(); return; }
+  try { launchApp(target, undefined, leave); } catch (e) { leave(); }
+}
 
 var home = createHome({
   catalog: catalog,
@@ -40,7 +51,7 @@ var home = createHome({
   },
   // Lancement impossible (pas d'ID relevé, hors TV…) : l'accueil affiche lui-même un message ; le diagnostic reste à la touche 0.
   onPastille: function (name) {
-    if (name !== 'reglages') return; // Smart Hub, Réseau : pas encore branchés
+    if (name === 'smarthub') { openSmartHub(); return; }
     router.pushLazy(settings, function (m) {
       return m.createPanel({
         catalog: catalog,

@@ -36,6 +36,23 @@ export function exitApp(): void {
   getTizen().application.getCurrentApplication().exit();
 }
 
+// Masque l'app et ramène à l'écran précédent de la TV (le Smart Hub quand l'app a été lancée depuis lui) ; l'app reste en mémoire.
+export function hideApp(): void {
+  getTizen().application.getCurrentApplication().hide();
+}
+
+// Suit l'état du réseau par événement (webapis.network, privilège network.public) : cb(true) = joignable, cb(false) = coupé.
+// Appelle cb une fois avec l'état courant. Renvoie la fonction qui retire l'écoute. Hors TV : DeviceError NO_WEBAPIS.
+export function watchNetwork(cb: (online: boolean) => void): () => void {
+  var net = getWebapis().network;
+  cb(!!net.isConnectedToGateway());
+  var id = net.addNetworkStateChangeListener(function (state: number) {
+    if (state === net.NetworkState.GATEWAY_DISCONNECTED) cb(false);
+    else if (state === net.NetworkState.GATEWAY_CONNECTED) cb(true);
+  });
+  return function () { net.removeNetworkStateChangeListener(id); };
+}
+
 export interface InstalledApp { id: string; name: string; icon?: string; }
 
 // Lance une app par son ID. Si `launch` échoue, repli sur launchAppControl (opération par défaut).
