@@ -459,3 +459,37 @@ test('device.watchNetwork : état initial + événements webapis.network, retrai
     assert.equal(removed, 7);
   } finally { delete globalThis.window; }
 });
+
+test('langues : défauts audio français / sous-titres aucun, mémorisés dans cimaise.v1 sans changer la version', () => {
+  const s = memStore();
+  assert.deepEqual(core.loadLangPrefs(s), { audioLang: 'fra', subLang: '' });
+  core.saveLangPrefs({ audioLang: 'eng' }, s);
+  core.saveLangPrefs({ subLang: 'fra' }, s);
+  assert.deepEqual(core.loadLangPrefs(s), { audioLang: 'eng', subLang: 'fra' });
+  assert.equal(JSON.parse(s.getItem('cimaise.v1')).version, 2);
+  assert.deepEqual(core.loadLangPrefs(memStore({ 'cimaise.v1': JSON.stringify({ version: 2, prefs: { plexAudioLang: 42, plexSubLang: {} } }) })), { audioLang: 'fra', subLang: '' });
+  assert.deepEqual(core.LANG_CHOICES.slice(0, 2).map((c) => c.code), ['fra', 'eng']);
+});
+
+test('langues : le choix fait sur une série est retenu pour ses autres épisodes, sans toucher aux autres séries', () => {
+  const s = memStore();
+  core.saveLangPrefs({ audioLang: 'fra', subLang: '' }, s);
+  core.rememberSeries('900', { audioLang: 'jpn' }, s);
+  core.rememberSeries('900', { subLang: 'fra' }, s);
+  assert.deepEqual(core.langPrefsFor('900', s), { audioLang: 'jpn', subLang: 'fra' });
+  assert.deepEqual(core.langPrefsFor('901', s), { audioLang: 'fra', subLang: '' });
+  assert.deepEqual(core.langPrefsFor(undefined, s), { audioLang: 'fra', subLang: '' });
+  core.rememberSeries('900', { subLang: '' }, s);
+  assert.equal(core.langPrefsFor('900', s).subLang, '', 'sous-titres coupés retenus aussi');
+  core.saveLangPrefs({ subLang: 'eng' }, s);
+  assert.equal(core.langPrefsFor('900', s).subLang, '', 'le choix de la série prime sur le réglage global');
+});
+
+test('langues : la mémoire par série reste bornée (les plus anciennes disparaissent)', () => {
+  const s = memStore();
+  for (let i = 0; i < 250; i++) core.rememberSeries('k' + i, { audioLang: 'eng' }, s);
+  const m = JSON.parse(s.getItem('cimaise.v1')).prefs.plexSeries;
+  assert.equal(Object.keys(m).length, 200);
+  assert.equal(m.k0, undefined);
+  assert.equal(m.k249.audioLang, 'eng');
+});

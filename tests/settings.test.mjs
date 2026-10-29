@@ -288,3 +288,25 @@ test('Découvrir : logo + nom + description pour une app connue, son nom (pas d�
   assert.ok(texts(inconnue).includes('Inconnue'), 'le nom sur la tuile');
   assert.equal(texts(inconnue).length, 2, 'aucune description pour une inconnue');
 });
+
+test('Langues par défaut : audio (français) et sous-titres (aucun) en tête des Réglages, Entrée / gauche / droite les parcourent', () => {
+  const a = [], s = [];
+  const { panel, press } = open({ audioLang: 'fra', subLang: '', onAudioLang: (c) => a.push(c), onSubLang: (c) => s.push(c) });
+  const t = texts(panel.el);
+  assert.ok(t.indexOf('Langue audio par défaut') < t.indexOf('Langue des sous-titres') && t.indexOf('Langue des sous-titres') < t.indexOf('Affichage de l’accueil'), t.join('|'));
+  press('up', 'up', 'up', 'up'); // Découvrir → Tuiles → Affichage → Sous-titres → Audio
+  assert.ok(focused(panel.el).some((f) => f.includes('Langue audio par défaut')), focused(panel.el).join());
+  assert.ok(texts(panel.el).includes('Français'));
+  press('right');
+  assert.deepEqual(a, ['eng']);
+  press('enter');
+  assert.deepEqual(a, ['eng', 'jpn']);
+  press('left');
+  assert.deepEqual(a, ['eng', 'jpn', 'eng']);
+  press('down');
+  assert.ok(texts(panel.el).includes('Aucun'));
+  press('right');
+  assert.deepEqual(s, ['fra']);
+  press('left', 'left');
+  assert.deepEqual(s, ['fra', ''], 'borne basse : Aucun');
+});

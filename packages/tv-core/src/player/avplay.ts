@@ -15,6 +15,8 @@ export interface PlayerEvents {
   onEnd?: () => void;
   onError?: (err: Error) => void;
   onSubtitle?: (text: string, durationMs: number) => void;
+  // Sous-titre externe refusé par AVPlay : la lecture continue sans (distinct de onError, fatal).
+  onSubtitleError?: (err: Error) => void;
   // Position visée par une rafale d'appuis ±, en attente d'application ; null quand le seek est parti ou abandonné.
   onSeekPending?: (targetMs: number | null) => void;
   // Un seek échoué n'arrête pas la lecture : on reste où on est (distinct de onError, fatal).
@@ -31,7 +33,8 @@ export interface PlayerOptions extends PlayerEvents {
   timers?: { setTimeout(fn: () => void, ms: number): any; clearTimeout(id: any): void };
 }
 
-export interface OpenOptions { rect?: Rect; startMs?: number; }
+// subtitleUrl : fichier de sous-titres externe (SRT à côté de la vidéo), posé avant prepareAsync (setExternalSubtitlePath).
+export interface OpenOptions { rect?: Rect; startMs?: number; subtitleUrl?: string; }
 
 export interface Player {
   open(url: string, opts: OpenOptions, done: (err: Error | null) => void): void;
@@ -203,6 +206,11 @@ export function createPlayer(opts?: PlayerOptions): Player {
         a.setListener(listener());
         var r = oo.rect || { x: 0, y: 0, w: 1920, h: 1080 };
         a.setDisplayRect(r.x, r.y, r.w, r.h);
+        // Rendu natif coupé : le texte arrive par onsubtitlechange et s'affiche dans la page (taille et ombre maîtrisées, sans flou).
+        try { a.setSilentSubtitle(true); } catch (e) { /* sans effet : AVPlay affichera ses propres sous-titres */ }
+        if (oo.subtitleUrl) {
+          try { a.setExternalSubtitlePath(oo.subtitleUrl); } catch (e) { if (o.onSubtitleError) o.onSubtitleError(toError(e)); }
+        }
       } catch (e) {
         release();
         done(toError(e));

@@ -66,7 +66,7 @@ test('cycle : open → setListener → setDisplayRect → prepareAsync → play'
   let res = 'pending';
   p.open('http://x/a.mkv', { rect: { x: 0, y: 0, w: 1280, h: 720 } }, (e) => { res = e; });
   assert.equal(res, null);
-  assert.deepEqual(api.calls, ['open:http://x/a.mkv', 'setListener', 'rect:0,0,1280,720', 'prepareAsync', 'play']);
+  assert.deepEqual(api.calls, ['open:http://x/a.mkv', 'setListener', 'rect:0,0,1280,720', 'silent:true', 'prepareAsync', 'play']);
 });
 
 test('reprise : seekTo avant play', () => {
@@ -279,4 +279,28 @@ test('docs/decisions.md documente webapis.js et les privilèges AVPlay', () => {
   assert.match(d, /\$WEBAPIS\/webapis\/webapis\.js/);
   assert.match(d, /http:\/\/developer\.samsung\.com\/privilege\/avplay/);
   assert.match(d, /http:\/\/tizen\.org\/privilege\/internet/);
+});
+
+test('sous-titre externe : chemin posé après open et avant prepareAsync ; un refus n’arrête pas la lecture', () => {
+  const api = fakeApi({ setExternalSubtitlePath: (u) => api.calls.push('ext:' + u) });
+  const p = core.createPlayer({ api, doc: fakeDoc() });
+  let err = 'pas rappelé';
+  p.open('http://v', { subtitleUrl: 'http://s.srt' }, (e) => { err = e; });
+  assert.equal(err, null);
+  const c = api.calls;
+  assert.ok(c.indexOf('open:http://v') < c.indexOf('ext:http://s.srt') && c.indexOf('ext:http://s.srt') < c.indexOf('prepareAsync'), c.join());
+  const ev = [];
+  const api2 = fakeApi({ setExternalSubtitlePath: () => { throw new Error('refusé'); } });
+  const p2 = core.createPlayer({ api: api2, doc: fakeDoc(), onSubtitleError: (e) => ev.push(e.message), onError: (e) => ev.push('FATAL ' + e.message) });
+  p2.open('http://v', { subtitleUrl: 'http://s.srt' }, (e) => { err = e; });
+  assert.equal(err, null);
+  assert.ok(api2.calls.includes('play'));
+  assert.deepEqual(ev, ['refusé']);
+});
+
+test('sous-titres : le rendu natif est coupé à l’ouverture (le texte vient des événements onsubtitlechange)', () => {
+  const api = fakeApi();
+  const p = core.createPlayer({ api, doc: fakeDoc() });
+  p.open('u', {}, () => {});
+  assert.ok(api.calls.includes('silent:true'));
 });
