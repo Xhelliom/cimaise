@@ -82,7 +82,9 @@ export function createDetailPanel(arg: PlexArg, stub: Item): Panel {
 
   function say(text: string): void { msg.textContent = text; }
 
+  var curSeason: Item | null = null;
   function loadEpisodes(season: Item): void {
+    curSeason = season;
     if (epCancel) epCancel();
     epTitle.textContent = season.title;
     epCancel = c.data.children(season.ratingKey, function (l) {
@@ -92,10 +94,12 @@ export function createDetailPanel(arg: PlexArg, stub: Item): Panel {
   }
 
   paint();
-  cancels.push(c.data.metadata(stub.ratingKey, function (full) {
-    item = full;
-    paint();
-  }));
+  var metaCancel: (() => void) | null = null;
+  function loadMeta(): void {
+    if (metaCancel) metaCancel();
+    metaCancel = c.data.metadata(stub.ratingKey, function (full) { item = full; paint(); });
+  }
+  loadMeta();
   if (seasonList) {
     cancels.push(c.data.children(stub.ratingKey, function (l) {
       seasons = l;
@@ -143,10 +147,13 @@ export function createDetailPanel(arg: PlexArg, stub: Item): Panel {
     resume: function () {
       held = false;
       paint();
+      loadMeta();   // retour de lecture : progression et « Reprendre » à jour
+      if (curSeason) loadEpisodes(curSeason);
       if (seasonList) { seasonList.restore(); episodeList!.restore(); }
     },
     destroy: function () {
       for (var i = 0; i < cancels.length; i++) cancels[i]();
+      if (metaCancel) metaCancel();
       if (epCancel) epCancel();
       if (seasonList) { seasonList.release(); episodeList!.release(); }
     }

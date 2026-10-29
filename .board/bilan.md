@@ -1,20 +1,12 @@
-# Bilan — bibliothèque de logos et descriptions
+# Bilan — remontée de la progression au serveur
 
 ## Fait
-- 20 apps connues (`packages/launcher/src/catalog/known-apps/`) : 19 logos Wikimedia Commons (PNG 256 px, palette, 0,7 à 4,7 Ko chacun) + pictogramme Smart Hub dessiné pour le projet (Samsung n'a pas de logo libre pour Smart Hub / mode Art), description d'une ligne en français.
-- Rattachement par nom (casse, accents, « + »/« plus », ponctuation, suffixes « officiel », « app »), jamais par ID.
-- Ordre : icône TV, puis logo bibliothèque, puis monogramme (`applyIcon`, statut `logo` dans le diagnostic).
-- Dock : logo + description sous le titre. Réglages → Découvrir : logo + nom + description ; inconnues = monogramme.
-- Build : dossier `logos/` copié dans `dist/` (jamais bundlé) ; aperçu navigateur sert `/app/logos/`.
-- Provenance : `THIRD_PARTY_NOTICES.md` (nouveau, à la racine).
-- `npm run check` : vert (212+ tests).
-
-## Poids
-- Logos : 57,0 Ko. `.wgt` : 43,0 → 102,3 Ko (budget 1,5 Mo).
-- `app.js` : 18 038 → 21 050 o (+3 012 o) : ce n'est PAS « inchangé » ; c'est la table nom→logo/description, nécessaire au Dock au premier affichage. Aucune image dans le JS. `settings.js` : +3,0 Ko (copie de la table, chunk séparé).
+- `packages/plex/src/progress.ts` : `createProgress` (horloge et transport injectables). `/:/timeline` à chaque changement d'état (playing/paused) et toutes les 10 s ; `stopped` à l'arrêt avec la position (reste côté serveur pour « Reprendre ») ; scrobble dès 90 % ou fin de flux, une seule fois (retenté tant qu'il échoue). Erreurs réseau et transport qui lève : sans effet, nouvel essai au tick suivant. En-têtes X-Plex-* complets via `serverGet`.
+- Caches : `Cache.remove`, `Data.progressed` (fiche `m:` corrigée sur place : viewOffset / viewCount ; « En cours », saison et série invalidés). Fiche et accueil se rechargent à `resume()`.
+- Tests : `tests/plex-progress.test.mjs` (11), faux serveur et horloge simulée, aucun accès réseau. `npm run check` vert (223 tests).
 
 ## Non fait / à noter
-- Rendu visuel du Dock non vérifié : le navigateur n'a pas pu joindre l'aperçu local. Position de `.desc` (top 646 px) et coins arrondis des images à contrôler sur l'aperçu/TV.
-- Logo « Max » = « HBO Max (2025) » (seul disponible sur Commons).
-- Statut des logos : « domaine public (logo de texte) » côté Commons, mais marques déposées ; retrait documenté dans les notices.
-- Descriptions affichées seulement dans le Dock et la liste Découvrir (pas sur les lignes du catalogue).
+- Aucun écran de lecture n'existe encore (`onPlay` est un stub) : `createProgress` n'est donc branché à aucun lecteur. Le raccordement (AVPlay onTime/onEnd/onSuspend → `playing/paused/stop`, puis `data.progressed` dans `onFinish`) relève de la carte du lecteur.
+- Le `stopped` final n'est pas retenté s'il échoue (rien ne suit) ; la dernière timeline à 10 s max reste côté serveur.
+- Pas de test DOM du rechargement au `resume()` (vérifié par typecheck et tests existants seulement).
+- Validation réelle sur la TV avec Stéphane.

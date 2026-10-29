@@ -31,6 +31,8 @@ export interface Data {
   page(sectionKey: string, start: number, size: number, on: On<Page>, err?: Err): Cancel;
   metadata(ratingKey: string, on: On<Item>, err?: Err): Cancel;
   children(ratingKey: string, on: On<Item[]>, err?: Err): Cancel;
+  // Retour de lecture : la fiche est corrigée sur place, « En cours » et les parents (saison, série) sont rechargés.
+  progressed(it: Item, offsetMs: number, watched: boolean): void;
 }
 
 export function createData(http: Http, id: Identity, s: ServerRef, cache: Cache): Data {
@@ -71,6 +73,18 @@ export function createData(http: Http, id: Identity, s: ServerRef, cache: Cache)
     },
     children: function (rk, on, err) {
       return load<Item[]>('c:' + rk, TTL_META, function (cb) { return getChildren(http, id, s, rk, cb); }, slimAll, on, err);
+    },
+    progressed: function (it, offsetMs, watched) {
+      var hit = cache.get<Item>('m:' + it.ratingKey);
+      if (hit) {
+        var m: any = {};
+        for (var k in hit.value) if (hit.value.hasOwnProperty(k) && k !== 'viewOffset') m[k] = (hit.value as any)[k];
+        if (watched) m.viewCount = (m.viewCount || 0) + 1; else if (offsetMs > 0) m.viewOffset = Math.round(offsetMs);
+        cache.set('m:' + it.ratingKey, m);
+      }
+      cache.remove('ondeck');
+      if (it.parentRatingKey) cache.remove('c:' + it.parentRatingKey);
+      if (it.grandparentRatingKey) { cache.remove('m:' + it.grandparentRatingKey); cache.remove('c:' + it.grandparentRatingKey); }
     }
   };
 }
