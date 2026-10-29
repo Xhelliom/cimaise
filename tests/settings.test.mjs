@@ -216,3 +216,24 @@ test('scrollOffset : déplacement minimal, bornes', () => {
   assert.equal(S.scrollOffset(500, 1, 300), S.ROW_H);
   assert.equal(S.scrollOffset(0, 299, 300), 300 * S.ROW_H - S.VIEW_H);
 });
+
+test('Découvrir : logo + nom + description pour une app connue, monogramme pour une inconnue', () => {
+  const r = open();
+  r.calls.impl = (ok) => ok([
+    { id: 'n.id', name: 'NETFLIX' },
+    { id: 'd.id', name: 'Disney Plus', icon: 'file:///d.png' },
+    { id: 'x.id', name: 'Inconnue' },
+  ]);
+  r.press('enter');
+  const lignes = all(r.panel.el, (e) => /(^| )ligne( |$)/.test(e.className));
+  const find = (nom) => lignes.filter((l) => texts(l).includes(nom)).pop(); // la dernière : la liste découverte, après le catalogue
+  const netflix = find('NETFLIX'), disney = find('Disney Plus'), inconnue = find('Inconnue');
+  const img = (l) => all(l, (e) => e.tag === 'img').map((i) => i.attrs.src);
+  assert.deepEqual(img(netflix), ['logos/netflix.png']);
+  assert.ok(texts(netflix).includes('Séries, films et documentaires en streaming.'));
+  assert.deepEqual(img(disney), ['file:///d.png'], 'icône TV d’abord');
+  assert.ok(texts(disney).some((t) => /Disney/.test(t) && t !== 'Disney Plus'));
+  assert.deepEqual(img(inconnue), []);
+  assert.ok(texts(inconnue).includes('I'));
+  assert.equal(texts(inconnue).length, 2, 'aucune description pour une inconnue');
+});

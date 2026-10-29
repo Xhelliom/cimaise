@@ -372,3 +372,31 @@ test('icônes : toute app découverte est tracée, rapport plafonné', () => {
   assert.ok(lines.length <= 23);
   assert.match(lines[lines.length - 1], /^\+ \d+ autres$/);
 });
+
+test('icônes : ordre icône TV, puis logo de la bibliothèque, puis monogramme', () => {
+  core.resetIcons();
+  const tile = iconTile();
+  core.applyIcon(iconDoc(), tile, '/opt/a.png', 'Netflix', 'N', 'logos/netflix.png');
+  const img = tile.children[0];
+  assert.equal(img.attrs.src, 'file:///opt/a.png');
+  img.onerror();
+  assert.equal(img.attrs.src, '/opt/a.png');
+  img.onerror();
+  assert.equal(img.attrs.src, 'logos/netflix.png', 'TV illisible : logo de la bibliothèque');
+  img.onload();
+  assert.match(core.iconReport(), /Netflix \[logo\]/);
+  assert.equal(tile.textContent, '');
+
+  const nue = iconTile();
+  core.applyIcon(iconDoc(), nue, '', 'Plex', 'P', 'logos/plex.png');
+  assert.equal(nue.children[0].attrs.src, 'logos/plex.png', 'sans iconPath : logo directement');
+  nue.children[0].onerror();
+  assert.equal(nue.children.length, 0);
+  assert.equal(nue.textContent, 'P', 'logo illisible : monogramme');
+
+  const ok = iconTile();
+  core.applyIcon(iconDoc(), ok, 'file:///tv.png', 'YouTube', 'Y', 'logos/youtube.png');
+  ok.children[0].onload();
+  assert.equal(ok.children[0].attrs.src, 'file:///tv.png', 'TV chargée : le logo n’est pas utilisé');
+  assert.match(core.iconReport(), /YouTube \[ok\]/);
+});

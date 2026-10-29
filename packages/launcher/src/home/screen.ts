@@ -4,6 +4,7 @@ import { Focus } from '../../../tv-core/src/focus';
 import { Panel } from '../../../tv-core/src/router/router';
 import { launchApp as deviceLaunch } from '../../../tv-core/src/device';
 import { CatalogEntry } from '../catalog/model';
+import { knownApp } from '../catalog/known-apps';
 import { greeting, formatClock, formatDate, tintGradient, tileInk, COLS, railOffset } from './model';
 
 export type PastilleName = 'reglages' | 'smarthub' | 'reseau';
@@ -71,7 +72,7 @@ export function createHome(opts: HomeOptions): HomePanel {
     pastilleEls.push(pe);
     nav.appendChild(pe);
   }
-  var titre = div('titre');
+  var titre = div('titre'), desc = div('desc');
   var message = div('message');
   var bac = div('bac'), rail = div('rail');
   bac.appendChild(rail);
@@ -80,6 +81,7 @@ export function createHome(opts: HomeOptions): HomePanel {
   el.appendChild(header);
   el.appendChild(nav);
   el.appendChild(titre);
+  el.appendChild(desc);
   el.appendChild(bac);
   el.appendChild(message);
 
@@ -143,12 +145,17 @@ export function createHome(opts: HomeOptions): HomePanel {
       shownRow = row;
       rail.style.transform = 'translateY(' + -railOffset(row) + 'px)';
     }
+    var known = zone === 'tiles' && catalog[grid.index] ? knownApp(catalog[grid.index].name) : null;
+    if (desc.textContent !== (known ? known.desc : '')) desc.textContent = known ? known.desc : '';
     if (zone === 'tiles' && catalog[grid.index]) {
       titre.textContent = catalog[grid.index].name;
       tint(catalog[grid.index].color);
     } else if (zone === 'pastilles') titre.textContent = PASTILLES[chips.index].label;
     else titre.textContent = '';
   }
+
+  // Ordre : icône de la TV, logo de la bibliothèque (par nom), monogramme. Le logo ne se charge qu'à l'affichage.
+  function logoOf(name: string): string | undefined { var k = knownApp(name); return k ? k.logoUrl : undefined; }
 
   function buildTiles(): void {
     while (rail.firstChild) rail.removeChild(rail.firstChild);
@@ -157,7 +164,7 @@ export function createHome(opts: HomeOptions): HomePanel {
       var t = div('tuile');
       t.style.background = catalog[i].color;
       t.style.color = tileInk(catalog[i].color);
-      applyIcon(doc, t, catalog[i].icon || '', catalog[i].name, catalog[i].name ? catalog[i].name.charAt(0).toUpperCase() : '?');
+      applyIcon(doc, t, catalog[i].icon || '', catalog[i].name, catalog[i].name ? catalog[i].name.charAt(0).toUpperCase() : '?', logoOf(catalog[i].name));
       tiles.push(t);
       rail.appendChild(t);
     }

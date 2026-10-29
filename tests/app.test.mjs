@@ -94,7 +94,8 @@ test('le focus suit les flèches et le titre suit le focus', () => {
   a.flush();
   a.key(RIGHT); a.key(RIGHT);
   assert.equal(find(a.root, 'titre')[0].textContent, 'Netflix');
-  assert.deepEqual(find(a.root, 'tuile').filter((n) => n.className === 'tuile focus').map((n) => n.textContent), ['N']);
+  // Netflix a un logo de bibliothèque : la tuile n'a plus de monogramme, on la repère par son rang.
+  assert.deepEqual(find(a.root, 'tuile').map((n, i) => (n.className === 'tuile focus' ? i : -1)).filter((i) => i >= 0), [2]);
   a.key(DOWN);
   assert.equal(find(a.root, 'titre')[0].textContent, 'Smart Hub'); // dernière rangée incomplète
 });

@@ -337,3 +337,29 @@ test('échec de lancement (rappel ou exception) : message « lancement impossibl
   b.press('right', 'enter');
   assert.equal(one(b.p.el, 'message').textContent, 'PLEX : lancement impossible');
 });
+
+const kcat = [
+  { id: 'a', name: 'Netflix', color: '#e50914', type: 'tv' },
+  { id: 'b', name: 'Disney+', color: '#113ccf', type: 'tv', icon: 'file:///tv/d.png' },
+  { id: 'c', name: 'Ma super app', color: '#5a5a5f', type: 'tv' },
+];
+
+test('Dock : logo de la bibliothèque sans icône TV, icône TV d’abord sinon, monogramme si inconnue', () => {
+  const { p } = mount({ catalog: kcat });
+  const [n, d, c] = byClass(p.el, 'tuile');
+  assert.equal(n.children[0].attrs.src, 'logos/netflix.png');
+  assert.equal(d.children[0].attrs.src, 'file:///tv/d.png');
+  d.children[0].onerror();
+  assert.equal(d.children[0].attrs.src, 'logos/disney.png');
+  assert.equal(c.children.length, 0);
+  assert.equal(c.textContent, 'M');
+});
+
+test('Dock : description de l’app focalisée sous le titre, vide pour une app inconnue', () => {
+  const { p, press } = mount({ catalog: kcat });
+  assert.equal(one(p.el, 'titre').textContent, 'Netflix');
+  assert.equal(one(p.el, 'desc').textContent, 'Séries, films et documentaires en streaming.');
+  press('right', 'right');
+  assert.equal(one(p.el, 'titre').textContent, 'Ma super app');
+  assert.equal(one(p.el, 'desc').textContent, '');
+});
