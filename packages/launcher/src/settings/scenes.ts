@@ -133,9 +133,10 @@ export function createScenesView(doc: Document, ha: HaSettings, redraw: () => vo
   function press(k: Key): boolean {
     if (edit) {
       // Pendant la saisie, le clavier de la TV est maître : seuls Entrée (valide) et Retour (annule) sont à nous.
-      if (k === 'enter') endEdit(true);
-      else if (k === 'back') endEdit(false);
-      return true;
+      // Les autres touches (flèches du curseur) vont au champ.
+      if (k === 'enter') { endEdit(true); return true; }
+      if (k === 'back') { endEdit(false); return true; }
+      return false;
     }
     var rs = rows(), r = rs[sel];
     if (k === 'up' || k === 'down') {

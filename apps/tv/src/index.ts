@@ -126,6 +126,8 @@ document.addEventListener('keydown', function (e) {
 // Diagnostic caché (horodatages) : touche 0 de la télécommande (pavé numérique) ou du clavier.
 // Sonde formats : touche 1 (ou pavé 1) pendant que le diagnostic est ouvert ; le diagnostic se referme, l'écran de la sonde le remplace.
 document.addEventListener('keydown', function (e) {
+  var tag = e.target && (e.target as HTMLElement).tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA') return; // saisie en cours (adresse, jeton) : les chiffres sont du texte
   if (e.keyCode === 48 || e.keyCode === 96) { toggleDiag(); return; }
   if ((e.keyCode === 49 || e.keyCode === 97) && isDiagOpen()) {
     toggleDiag();

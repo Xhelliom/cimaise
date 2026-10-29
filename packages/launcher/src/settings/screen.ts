@@ -240,7 +240,10 @@ export function createSettings(opts: SettingsOptions): Panel {
     if (view) {
       // Retour : referme le champ de saisie, sinon la section ; le reste est géré par la section.
       if (k === 'back' && !view.editing()) { view = null; render(); return true; }
+      var wasEditing = view.editing();
       var handled = view.press(k);
+      // Pendant la saisie, pas de reconstruction : le champ garderait son focus et le clavier à l'écran resterait ouvert.
+      if (wasEditing && view.editing()) return handled;
       render();
       return handled;
     }

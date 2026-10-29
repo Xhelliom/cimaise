@@ -95,7 +95,7 @@ test('saisie : Retour annule sans enregistrer ; pendant la saisie les flèches n
   enter();
   press('enter');
   field().value = 'autre';
-  press('down', 'up');
+  panel.onKey('down'); panel.onKey('up'); // laissées au champ, la liste ne bouge pas
   assert.ok(field());
   press('back');
   assert.ok(!field());
@@ -174,4 +174,19 @@ test('six scènes au plus : la 7e est refusée avec un message', () => {
   press('enter');
   assert.equal(log.chosen.length, 0);
   assert.ok(texts(panel.el).some((t) => /six/i.test(t)));
+});
+
+test('saisie : une flèche pendant la saisie laisse le champ attaché et focalisé, et passe au champ', () => {
+  const { panel, enter, field } = open({ url: 'http://ha:8123', token: 't' });
+  enter();
+  panel.onKey('enter');
+  const input = field();
+  assert.ok(input && input.focused);
+  input.focused = false; // un re-rendu ne le refocaliserait pas : on vérifie qu'il n'a pas lieu
+  for (const k of ['left', 'right', 'down', 'up']) assert.equal(panel.onKey(k), false, k + ' non consommée : elle va au champ');
+  assert.equal(field(), input, 'même champ, jamais détaché');
+  assert.ok(input.parent, 'toujours dans le DOM');
+  assert.equal(input.focused, false, 'aucun re-rendu pendant la saisie');
+  panel.onKey('back');
+  assert.ok(!field());
 });
