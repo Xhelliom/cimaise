@@ -523,3 +523,18 @@ test('accueil : verticalement, la rangée active et son titre tiennent dans 0–
     p.onKey('down');
   }
 });
+
+test('accueil : les images restent chargées sur la rangée précédente (partiellement visible) et une rangée de marge au-delà', async () => {
+  const d = deps();
+  const p = ui.createHomePanel(d.arg);
+  await tick(); await tick();
+  const rows = byClass(p.el, 'plex-row');
+  const count = (i) => srcs(rows[i]).length;
+  const before = count(0);
+  assert.ok(before > 0, 'rangée 0 chargée');
+  p.onKey('down'); // la rangée 0 passe au-dessus, à moitié visible
+  assert.equal(count(0), before, 'rangée précédente : images conservées');
+  assert.ok(count(1) > 0, 'rangée active chargée');
+  p.onKey('up');
+  assert.equal(count(0), before, 'retour en haut : images présentes');
+});

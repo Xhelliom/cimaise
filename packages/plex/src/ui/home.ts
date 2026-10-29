@@ -15,8 +15,8 @@ var LIFT = 160;
 
 interface Hub { title: string; box: HTMLElement; list: VirtualList; items: any[]; }
 
-// Accueil : En cours, Ajoutés récemment, Bibliothèques. Les rangées vides disparaissent ; seules la rangée courante et
-// la suivante chargent leurs images, la précédente (hors écran) est libérée.
+// Accueil : En cours, Ajoutés récemment, Bibliothèques. Les rangées vides disparaissent ; les rangées à plus d'une rangée
+// du visible (au-dessus comme en dessous) sont libérées ; une rangée partiellement visible garde ses images.
 export function createHomePanel(arg: PlexArg): Panel {
   var c = resolve(arg) as Ctx;
   var doc = c.doc;
@@ -33,7 +33,8 @@ export function createHomePanel(arg: PlexArg): Panel {
   function visible(): Hub[] { return hubs.filter(function (h) { return h.items.length > 0; }); }
   function wants(h: Hub): boolean {
     var v = visible(), k = v.indexOf(h);
-    return !held && k >= 0 && (k === active || k === active + 1);
+    // active + suivante (visibles), plus une rangée de marge au-dessus (demi-cachée par le décalage) et en dessous
+    return !held && k >= 0 && k >= active - 1 && k <= active + 2;
   }
 
   function addHub(title: string, tile: (it: any, withImage: boolean) => any, open: (it: any) => void): Hub {

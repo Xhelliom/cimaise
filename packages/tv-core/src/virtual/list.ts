@@ -179,8 +179,8 @@ export class VirtualList {
         this.free.push(t);
       }
     }
-    // Images : lignes visibles (partielles comprises) + la suivante entière ; la marge du haut reste vide.
-    var loadHi = (this.top + this.visLines + 1) * cross - 1;
+    // Images : lignes visibles (partielles comprises) + une ligne de marge au-dessus et en dessous.
+    var loadHi = (this.top + this.visLines + this.margin) * cross - 1;
     for (var i = lo; i <= hi; i++) {
       t = this.active[i];
       if (!t) {
@@ -191,7 +191,7 @@ export class VirtualList {
         this.bind(t);
         this.layer.appendChild(t.el);
       }
-      if (!t.src && !this.held && i <= loadHi && i >= this.top * cross) {
+      if (!t.src && !this.held && i <= loadHi) {
         var url = t.img.getAttribute('data-src');
         if (url) { t.img.setAttribute('src', url); t.src = true; }
       }
