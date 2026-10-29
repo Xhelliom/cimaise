@@ -7,3 +7,8 @@ Fait :
 
 Non fait :
 - Taille téléchargée et mémoire non mesurées : aucune part du serveur n'a encore d'index ; en attente que Stéphane génère les miniatures. Le chemin `/library/parts/{id}/indexes/sd` reste à confirmer sur un vrai index.
+
+## Reprise : test d'abort durci
+- Fait : `previewSetup` garde les objets `r` renvoyés par `httpBinary` (`p.handles`). Le test « quitter la barre pendant le téléchargement l'interrompt » vérifie `handles[0].aborted === true` juste après `down`, puis qu'une réponse tardive n'affiche aucune image. Mutation vérifiée : sans `bifReq.abort()` le test échoue.
+- Code du lecteur inchangé. `npm run check` vert (543 tests).
+- Non fait : mesures de taille et de mémoire (en attente de Stéphane, consigne).

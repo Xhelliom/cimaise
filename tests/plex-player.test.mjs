@@ -1053,16 +1053,18 @@ const withIndex = (flag) => () => {
 function previewSetup(flag, binary) {
   const urls = { made: [], revoked: [] };
   const reqs = [];
+  const handles = [];
   const httpBinary = (req, cb) => {
     reqs.push(req);
     const r = { aborted: false, abort() { r.aborted = true; } };
+    handles.push(r);
     setImmediate(() => { if (!r.aborted) binary(cb, req); });
     return r;
   };
   const s = setup({ meta: withIndex(flag), arg: {
     httpBinary, blobUrl: { create: (buf) => { const u = 'blob:' + new Uint8Array(buf)[2]; urls.made.push(u); return u; }, revoke: (u) => urls.revoked.push(u) },
   } });
-  return { s, urls, reqs };
+  return { s, urls, reqs, handles };
 }
 const okBif = (cb) => cb(null, { status: 200, body: makeBif([0, 10, 20, 30]) });
 const previewOf = (panel) => byClass(panel.el, 'plex-pl-preview')[0];
@@ -1132,12 +1134,21 @@ test('aperçu : l’index est libéré en quittant la barre, à la fermeture de 
 });
 
 test('aperçu : quitter la barre pendant le téléchargement l’interrompt', async () => {
-  const p = previewSetup({ indexes: 'sd' }, () => {});
+  const late = [];
+  const p = previewSetup({ indexes: 'sd' }, (cb) => late.push(cb)); // réponse libérée à la main
   const panel = ui.createPlayerPanel(p.s.arg, MOVIE);
   await flush(); p.s.player.ready();
   panel.onKey('up'); panel.onKey('up');
   assert.equal(p.reqs.length, 1);
+  assert.equal(p.handles[0].aborted, false);
   panel.onKey('down');
+  assert.equal(p.handles[0].aborted, true, 'abort() appelé dès la sortie de la barre');
+  // Réponse tardive d'un transport qui ignore l'abort : aucune image.
+  await flush();
+  late.forEach((cb) => cb(null, { status: 200, body: makeBif([0, 10, 20, 30]) }));
+  p.s.player.events.onSeekPending(11000, 0);
+  assert.equal(p.urls.made.length, 0, 'aucune image après abort');
+  assert.ok(!previewOf(panel).classList.contains('on'));
   panel.destroy();
   assert.equal(p.reqs.length, 1);
 });
