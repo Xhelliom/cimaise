@@ -145,6 +145,21 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
         bar.style.transform = 'scaleX(' + (durationMs > 0 ? Math.min(1, ms / durationMs) : 0) + ')';
         time.textContent = formatTime(ms) + ' / ' + formatTime(durationMs);
       },
+      timers: timers,
+      // Rafale d'appuis ± : la barre montre la position visée, le seek part à l'arrêt de la rafale.
+      onSeekPending: function (ms) {
+        if (closed || mode !== 'play') return;
+        if (ms === null) { state.textContent = paused ? 'Pause' : ''; return; }
+        bar.style.transform = 'scaleX(' + (durationMs > 0 ? Math.min(1, ms / durationMs) : 0) + ')';
+        time.textContent = formatTime(ms) + ' / ' + formatTime(durationMs);
+        state.textContent = '→ ' + formatTime(ms);
+        show();
+      },
+      onSeekError: function () {
+        if (closed || mode !== 'play') return;
+        state.textContent = 'Déplacement impossible';
+        show();
+      },
       onEnd: function () { leave(true); },
       onError: fail,
       onSuspend: function (pos) { suspendPos = pos; leave(false); }

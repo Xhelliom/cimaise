@@ -1,4 +1,12 @@
-# Bilan
-Fait : depuis « En cours », la fiche garde l'épisode visé (saison + épisode focalisés, Lire/Reprendre le lit) ; fiche de série ouverte autrement : Lire = OnDeck (?includeOnDeck=1) sinon 1er épisode, libellé « Reprendre S1 E8 » / « Lire S1 E1 » ; le lecteur refuse show/season avec un message explicite. `npm run check` vert (290 pass).
-Vérifié sur le vrai serveur (lecture seule, via .local/plex.env, jamais affiché) : `?includeOnDeck=1` renvoie `OnDeck.Metadata` = un objet épisode (jamais vue → épisode 1, entamée → suivant, terminée → pas d'OnDeck). Le code gérait déjà cette forme, aucune correction. Fixtures `show-ondeck.json` / `show-finished.json` générées par `scripts/plex/capture-show-fixtures.mjs` ; les tests « à suivre » et « sans à suivre » les lisent. Forme notée dans docs/decisions.md.
-Non fait : rien d'essayé sur la Frame.
+# Bilan — avance/recul rapides du lecteur
+
+Cause racine : le wrapper AVPlay (`tv-core/src/player/avplay.ts`) lançait un `seekTo` natif à chaque appui, sans attendre le précédent, et `forward/rewind` lisaient `getCurrentTime()` (périmé pendant un seek en vol). Une rafale d'appuis enchaînait donc des seeks concurrents → PLAYER_ERROR_SEEK_FAILED, que le listener `onerror` traitait comme fatal (écran « Lecture impossible »). Le correctif est dans le wrapper partagé, pas dans l'UI.
+
+Fait :
+- Appuis ± cumulés (pas 10 s ×3, 30 s ×3, puis 60 s), un seul seek après 400 ms de silence ; position visée affichée sur la barre (`onSeekPending`).
+- Un seul seek en vol ; les suivants sont fusionnés (le dernier gagne) et partent au rappel.
+- Cible bornée à [0, durée − 5 s].
+- Erreur de seek (rappel ou `onerror` *SEEK*) : non fatale, `onSeekError` → message discret « Déplacement impossible », lecture intacte.
+- Tests dans `tests/player.test.mjs` (appuis rapides, seek pendant seek, hors bornes, erreurs). `npm run check` : 300 tests OK.
+
+Non fait : pas de test sur la TV réelle (à valider par Stéphane : rafale longue sur Avancer).
