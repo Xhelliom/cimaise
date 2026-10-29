@@ -1,12 +1,9 @@
-# Bilan — remontée de la progression au serveur
+# Bilan — remontée de la progression de lecture
 
-## Fait
-- `packages/plex/src/progress.ts` : `createProgress` (horloge et transport injectables). `/:/timeline` à chaque changement d'état (playing/paused) et toutes les 10 s ; `stopped` à l'arrêt avec la position (reste côté serveur pour « Reprendre ») ; scrobble dès 90 % ou fin de flux, une seule fois (retenté tant qu'il échoue). Erreurs réseau et transport qui lève : sans effet, nouvel essai au tick suivant. En-têtes X-Plex-* complets via `serverGet`.
-- Caches : `Cache.remove`, `Data.progressed` (fiche `m:` corrigée sur place : viewOffset / viewCount ; « En cours », saison et série invalidés). Fiche et accueil se rechargent à `resume()`.
-- Tests : `tests/plex-progress.test.mjs` (11), faux serveur et horloge simulée, aucun accès réseau. `npm run check` vert (223 tests).
+**Fait** (commit 5e8f090 + celui-ci)
+- `packages/plex/src/progress.ts` : timeline `/:/timeline` toutes les 10 s et à chaque changement d'état, scrobble à 90 %, échecs réseau sans effet (nouvel essai au tick suivant).
+- Caches « En cours » et fiche corrigés par `Data.progressed`, rechargés par les panneaux au `resume()`.
+- Tests : `tests/plex-progress.test.mjs` (horloge simulée, faux serveur) et, ajoutés ici dans `tests/plex-ui.test.mjs`, trois tests de rechargement par les panneaux (accueil → `/library/onDeck` redemandé et réaffiché ; fiche film → « Reprendre » + barre ; fiche série → fiche et épisodes de la saison courante redemandés). Vérifié : retirer `loadDeck()`, `loadMeta()` ou `loadEpisodes(curSeason)` du `resume()` fait échouer ces tests.
+- `npm run check` : 226 tests verts. Aucun appel vers un vrai serveur.
 
-## Non fait / à noter
-- Aucun écran de lecture n'existe encore (`onPlay` est un stub) : `createProgress` n'est donc branché à aucun lecteur. Le raccordement (AVPlay onTime/onEnd/onSuspend → `playing/paused/stop`, puis `data.progressed` dans `onFinish`) relève de la carte du lecteur.
-- Le `stopped` final n'est pas retenté s'il échoue (rien ne suit) ; la dernière timeline à 10 s max reste côté serveur.
-- Pas de test DOM du rechargement au `resume()` (vérifié par typecheck et tests existants seulement).
-- Validation réelle sur la TV avec Stéphane.
+**Reste** : le branchement à AVPlay (lecture réelle) et la validation des vrais appels timeline/scrobble se feront sur la TV avec Stéphane.
