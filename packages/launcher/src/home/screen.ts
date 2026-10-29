@@ -1,3 +1,4 @@
+import { applyIcon } from '../../../tv-core/src/icon';
 import { Key } from '../../../tv-core/src/keys';
 import { Focus } from '../../../tv-core/src/focus';
 import { Panel } from '../../../tv-core/src/router/router';
@@ -157,9 +158,7 @@ export function createHome(opts: HomeOptions): HomePanel {
       t.style.background = catalog[i].color;
       t.style.color = tileInk(catalog[i].color);
       if (catalog[i].icon) {
-        var img = doc.createElement('img');
-        img.setAttribute('src', catalog[i].icon as string);
-        t.appendChild(img);
+        applyIcon(doc, t, catalog[i].icon as string, catalog[i].name, catalog[i].name ? catalog[i].name.charAt(0).toUpperCase() : '?');
       } else t.textContent = catalog[i].name ? catalog[i].name.charAt(0).toUpperCase() : '?';
       tiles.push(t);
       rail.appendChild(t);

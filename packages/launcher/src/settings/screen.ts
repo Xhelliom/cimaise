@@ -1,3 +1,4 @@
+import { applyIcon } from '../../../tv-core/src/icon';
 import { Key } from '../../../tv-core/src/keys';
 import { Panel } from '../../../tv-core/src/router/router';
 import { AppEntry, DiscoveredApp, removeAt, moveItem, setTint, nextTint, addDiscovered, ROW_H, scrollOffset } from './model';
@@ -64,9 +65,7 @@ export function createSettings(opts: SettingsOptions): Panel {
     var t = div('tuile');
     if (tint) t.style.background = tint;
     if (icon) {
-      var img = doc.createElement('img');
-      img.setAttribute('src', icon);
-      t.appendChild(img);
+      applyIcon(doc, t, icon, name, monogram(name));
     } else t.textContent = monogram(name);
     return t;
   }

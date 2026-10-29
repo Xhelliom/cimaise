@@ -295,3 +295,52 @@ test('device.listInstalledApps : 300 entrées, seules les apps visibles, triées
     assert.equal(got[0].name, 'Alpha');
   } finally { delete globalThis.window; }
 });
+
+test('icônes : un chemin absolu sans schéma est essayé en file:// puis tel quel', () => {
+  assert.deepEqual(core.iconCandidates('/opt/usr/apps/x/icon.png'), ['file:///opt/usr/apps/x/icon.png', '/opt/usr/apps/x/icon.png']);
+  assert.deepEqual(core.iconCandidates('file:///a.png'), ['file:///a.png']);
+  assert.deepEqual(core.iconCandidates('http://h/a.png'), ['http://h/a.png']);
+  assert.deepEqual(core.iconCandidates('res/a.png'), ['res/a.png']);
+  assert.deepEqual(core.iconCandidates(''), []);
+});
+
+function iconDoc() {
+  return { createElement: () => {
+    const img = { attrs: {}, parentNode: null, setAttribute(k, v) { this.attrs[k] = v; } };
+    return img;
+  } };
+}
+function iconTile() {
+  const t = { children: [], textContent: '' };
+  t.appendChild = (c) => { c.parentNode = t; t.children.push(c); };
+  t.removeChild = (c) => { t.children.splice(t.children.indexOf(c), 1); c.parentNode = null; };
+  return t;
+}
+
+test('icônes : repli sur la variante suivante, résultat dans le diagnostic', () => {
+  const tile = iconTile();
+  core.applyIcon(iconDoc(), tile, '/opt/a.png', 'Netflix', 'N');
+  const img = tile.children[0];
+  assert.equal(img.attrs.src, 'file:///opt/a.png');
+  img.onerror();
+  assert.equal(img.attrs.src, '/opt/a.png');
+  img.onload();
+  assert.match(core.iconReport(), /Netflix \[ok\] \/opt\/a\.png(\n|$)/);
+  const t2 = iconTile();
+  core.applyIcon(iconDoc(), t2, '/opt/b.png', 'Plex', 'P');
+  t2.children[0].onload();
+  assert.match(core.iconReport(), /Plex \[ok\] \/opt\/b\.png -> file:\/\/\/opt\/b\.png/);
+  assert.equal(tile.textContent, '');
+});
+
+test('icônes : illisible -> image retirée, monogramme affiché, échec tracé', () => {
+  const tile = iconTile();
+  core.applyIcon(iconDoc(), tile, 'file:///x.png', 'YouTube', 'Y');
+  tile.children[0].onerror();
+  assert.equal(tile.children.length, 0);
+  assert.equal(tile.textContent, 'Y');
+  assert.match(core.iconReport(), /YouTube \[échec\] file:\/\/\/x\.png/);
+  const vide = iconTile();
+  core.applyIcon(iconDoc(), vide, '', 'Z', 'Z');
+  assert.equal(vide.textContent, 'Z');
+});
