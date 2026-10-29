@@ -25,6 +25,8 @@ const item = (name) => {
   assert.ok(s, 'fixture absente : ' + name);
   return JSON.parse(JSON.stringify(s.MediaContainer.Metadata[0]));
 };
+// Ancien défaut (audio français sinon piste par défaut, sous-titres coupés) : les tests de décision (codec, transcodage) n'en dépendent pas.
+const LEGACY = { mode: 'fr', subLang: '' };
 const codes = (plan) => plan.reasons.map((r) => r.code);
 const ID = { clientId: 'test-client-uuid', product: 'Cimaise', version: '0.0.0', platform: 'Tizen', device: 'Frame' };
 const SERVER = { uri: 'https://192-0-2-10.' + '0'.repeat(32) + '.plex.direct:32400', token: 'FAKE-SERVER-TOKEN' };
@@ -69,7 +71,7 @@ test('pistes : audio de la langue préférée (fra) même si la piste par défau
   const eng = streams.filter((s) => s.streamType === 2 && s.languageCode === 'eng')[0];
   const t = pb.chooseTracks(streams, { audioLang: 'eng' });
   assert.equal(t.audio.id, eng.id);
-  assert.equal(pb.chooseTracks(streams, {}).audio.languageCode, 'fra', 'langue préférée par défaut : fra');
+  assert.equal(pb.chooseTracks(streams, LEGACY).audio.languageCode, 'fra', 'langue préférée par défaut : fra');
   assert.equal(pb.chooseTracks(streams, { audioLang: 'fr' }).audio.languageCode, 'fra', 'code à 2 lettres accepté');
 });
 
@@ -83,23 +85,23 @@ test('pistes : dans la langue préférée, préfère un codec que la TV lit', ()
   const aac = streams.filter((s) => s.codec === 'aac')[0];
   assert.equal(pb.chooseTracks(streams, { audioLang: 'fra' }).audio.id, aac.id);
   const dtsLike = [{ id: 1, streamType: 2, codec: 'dca', languageCode: 'fra' }, { id: 2, streamType: 2, codec: 'ac3', languageCode: 'fra' }];
-  assert.equal(pb.chooseTracks(dtsLike, {}).audio.id, 2);
+  assert.equal(pb.chooseTracks(dtsLike, LEGACY).audio.id, 2);
 });
 
 test('pistes : sous-titres coupés par défaut (même si une piste est « défaut » ou « sélectionnée »)', () => {
   const streams = item('mkv-h264-ac3-srt-externe').Media[0].Part[0].Stream;
-  assert.equal(pb.chooseTracks(streams, {}).subtitle, null);
+  assert.equal(pb.chooseTracks(streams, LEGACY).subtitle, null);
   const mp4 = item('mp4-h264-aac').Media[0].Part[0].Stream; // srt externe marquée selected par le serveur
   assert.ok(mp4.some((s) => s.streamType === 3 && s.selected));
-  assert.equal(pb.chooseTracks(mp4, {}).subtitle, null);
+  assert.equal(pb.chooseTracks(mp4, LEGACY).subtitle, null);
 });
 
 test('pistes : sous-titres forcés activés quand leur langue est celle de l’audio choisi', () => {
-  const t = pb.chooseTracks(item('mkv-h264-ac3-srt-force').Media[0].Part[0].Stream, {});
+  const t = pb.chooseTracks(item('mkv-h264-ac3-srt-force').Media[0].Part[0].Stream, LEGACY);
   assert.equal(t.audio.languageCode, 'fra');
   assert.equal(t.subtitle.forced, true);
   assert.equal(t.subtitle.languageCode, 'fra');
-  const hdr = pb.chooseTracks(item('mkv-hevc-hdr10').Media[0].Part[0].Stream, {});
+  const hdr = pb.chooseTracks(item('mkv-hevc-hdr10').Media[0].Part[0].Stream, LEGACY);
   assert.equal(hdr.subtitle.forced, true);
 });
 
@@ -108,24 +110,24 @@ test('pistes : forcés d’une autre langue que l’audio ignorés ; forcé srt 
     { id: 1, streamType: 2, codec: 'ac3', languageCode: 'fra' },
     { id: 2, streamType: 3, codec: 'srt', languageCode: 'eng', forced: true },
   ];
-  assert.equal(pb.chooseTracks(streams, {}).subtitle, null);
+  assert.equal(pb.chooseTracks(streams, LEGACY).subtitle, null);
   streams.push({ id: 3, streamType: 3, codec: 'pgs', languageCode: 'fra', forced: true }, { id: 4, streamType: 3, codec: 'srt', languageCode: 'fra', forced: true });
-  assert.equal(pb.chooseTracks(streams, {}).subtitle.id, 4);
+  assert.equal(pb.chooseTracks(streams, LEGACY).subtitle.id, 4);
   streams.pop();
-  assert.equal(pb.chooseTracks(streams, {}).subtitle.id, 3);
+  assert.equal(pb.chooseTracks(streams, LEGACY).subtitle.id, 3);
 });
 
 test('pistes : fichier sans audio ni sous-titres', () => {
-  const t = pb.chooseTracks([{ id: 1, streamType: 1, codec: 'h264' }], {});
+  const t = pb.chooseTracks([{ id: 1, streamType: 1, codec: 'h264' }], LEGACY);
   assert.equal(t.audio, null);
   assert.equal(t.subtitle, null);
-  assert.deepEqual(pb.chooseTracks(undefined, {}), { audio: null, subtitle: null });
+  assert.deepEqual(pb.chooseTracks(undefined, LEGACY), { audio: null, subtitle: null });
 });
 
 // --- Décision : lecture directe -------------------------------------------------------------------------------
 
 test('décision : MP4 H.264/AAC → lecture directe, raison expliquée', () => {
-  const plan = pb.decidePlayback(item('mp4-h264-aac'), {});
+  const plan = pb.decidePlayback(item('mp4-h264-aac'), LEGACY);
   assert.equal(plan.mode, 'direct');
   assert.deepEqual(plan.reasons, []);
   assert.match(plan.reason, /^Lecture directe/);
@@ -152,7 +154,7 @@ test('décision : MKV HEVC E-AC3 avec SRT interne et externe → direct, SRT cho
 });
 
 test('décision : HEVC HDR10 (smpte2084) en MKV → direct, HDR10 cité dans la raison', () => {
-  const plan = pb.decidePlayback(item('mkv-hevc-hdr10'), {});
+  const plan = pb.decidePlayback(item('mkv-hevc-hdr10'), LEGACY);
   assert.equal(plan.mode, 'direct');
   assert.match(plan.reason, /HDR10/);
   assert.equal(plan.subtitleMode, 'embedded', 'sous-titre forcé fra (srt interne)');
@@ -175,7 +177,7 @@ test('décision : sous-titres explicitement coupés (subtitleId null) malgré un
 // --- Décision : transcodage -----------------------------------------------------------------------------------
 
 test('décision : audio DTS → transcodage, raison audio-codec', () => {
-  const plan = pb.decidePlayback(item('mkv-h264-dts'), {});
+  const plan = pb.decidePlayback(item('mkv-h264-dts'), LEGACY);
   assert.equal(plan.mode, 'transcode');
   assert.deepEqual(codes(plan), ['audio-codec']);
   assert.match(plan.reason, /^Transcodage/);
@@ -189,7 +191,7 @@ test('décision : TrueHD imposé → transcodage audio ; par défaut la piste AC
   const forced = pb.decidePlayback(it, { audioId: truehd.id });
   assert.equal(forced.mode, 'transcode');
   assert.deepEqual(codes(forced), ['audio-codec']);
-  const dflt = pb.decidePlayback(it, {});
+  const dflt = pb.decidePlayback(it, LEGACY);
   assert.equal(dflt.mode, 'direct');
   assert.equal(dflt.audio.id, ac3.id);
 });
@@ -197,7 +199,7 @@ test('décision : TrueHD imposé → transcodage audio ; par défaut la piste AC
 test('décision : PGS demandé → transcodage avec sous-titres incrustés', () => {
   const it = item('mkv-h264-ac3-pgs');
   const pgs = it.Media[0].Part[0].Stream.filter((s) => s.codec === 'pgs')[0];
-  assert.equal(pb.decidePlayback(it, {}).mode, 'direct', 'PGS présent mais non choisi : lecture directe');
+  assert.equal(pb.decidePlayback(it, LEGACY).mode, 'direct', 'PGS présent mais non choisi : lecture directe');
   const plan = pb.decidePlayback(it, { subtitleId: pgs.id });
   assert.equal(plan.mode, 'transcode');
   assert.deepEqual(codes(plan), ['subtitle-format']);
@@ -218,7 +220,7 @@ test('décision : ASS et VobSub demandés → transcodage avec incrustation', ()
 });
 
 test('décision : AVI MPEG-4 → transcodage (conteneur et codec vidéo), plusieurs raisons', () => {
-  const plan = pb.decidePlayback(item('avi-mpeg4-mp3'), {});
+  const plan = pb.decidePlayback(item('avi-mpeg4-mp3'), LEGACY);
   assert.equal(plan.mode, 'transcode');
   assert.deepEqual(codes(plan), ['container', 'video-codec']);
   assert.match(plan.reason, /avi/);
@@ -226,7 +228,7 @@ test('décision : AVI MPEG-4 → transcodage (conteneur et codec vidéo), plusie
 });
 
 test('décision : AV1 + Opus → transcodage (vidéo et audio)', () => {
-  const plan = pb.decidePlayback(item('mkv-av1-opus'), {});
+  const plan = pb.decidePlayback(item('mkv-av1-opus'), LEGACY);
   assert.equal(plan.mode, 'transcode');
   assert.deepEqual(codes(plan), ['video-codec', 'audio-codec']);
 });
@@ -243,7 +245,7 @@ test('décision : sous-titre image/ASS en plus d’un audio non lisible → les 
 function variant(mutate) {
   const it = item('mp4-h264-aac');
   mutate(it, it.Media[0], it.Media[0].Part[0], it.Media[0].Part[0].Stream[0]);
-  return pb.decidePlayback(it, {});
+  return pb.decidePlayback(it, LEGACY);
 }
 
 test('décision : H.264 10 bits (Hi10P) → transcodage, raison video-profile', () => {
@@ -282,7 +284,7 @@ test('décision : plusieurs versions → la première lisible en direct est rete
   const it = item('avi-mpeg4-mp3');
   const good = item('mp4-h264-aac').Media[0];
   it.Media.push(good);
-  const plan = pb.decidePlayback(it, {});
+  const plan = pb.decidePlayback(it, LEGACY);
   assert.equal(plan.mode, 'direct');
   assert.equal(plan.mediaIndex, 1);
   assert.equal(plan.media.id, good.id);
@@ -294,7 +296,7 @@ test('décision : plusieurs versions toutes illisibles → celle qui a le moins 
   it.Media.unshift(it.Media[0]);
   it.Media[0] = JSON.parse(JSON.stringify(it.Media[1]));
   it.Media.push(dts);
-  const plan = pb.decidePlayback(it, {});
+  const plan = pb.decidePlayback(it, LEGACY);
   assert.equal(plan.mode, 'transcode');
   assert.equal(plan.mediaIndex, 2);
   assert.deepEqual(codes(plan), ['audio-codec']);
@@ -303,20 +305,20 @@ test('décision : plusieurs versions toutes illisibles → celle qui a le moins 
 test('décision : aucune partie jouable → transcodage impossible, erreur explicite', () => {
   const it = item('mp4-h264-aac');
   it.Media = [];
-  assert.throws(() => pb.decidePlayback(it, {}), /aucun média/i);
+  assert.throws(() => pb.decidePlayback(it, LEGACY), /aucun média/i);
   const it2 = item('mp4-h264-aac');
   it2.Media[0].Part = [];
-  assert.throws(() => pb.decidePlayback(it2, {}), /aucune partie/i);
+  assert.throws(() => pb.decidePlayback(it2, LEGACY), /aucune partie/i);
 });
 
 test('décision : fiche sans Stream (liste de bibliothèque) → repli sur les champs du Media', () => {
   const it = item('mp4-h264-aac');
   delete it.Media[0].Part[0].Stream;
-  assert.equal(pb.decidePlayback(it, {}).mode, 'direct');
+  assert.equal(pb.decidePlayback(it, LEGACY).mode, 'direct');
   const it2 = item('mp4-h264-aac');
   delete it2.Media[0].Part[0].Stream;
   it2.Media[0].audioCodec = 'dca';
-  assert.deepEqual(codes(pb.decidePlayback(it2, {})), ['audio-codec']);
+  assert.deepEqual(codes(pb.decidePlayback(it2, LEGACY)), ['audio-codec']);
 });
 
 test('décision : jeu complet des fixtures — verdict attendu pour chacune', () => {
@@ -327,24 +329,24 @@ test('décision : jeu complet des fixtures — verdict attendu pour chacune', ()
     'mkv-h264-ac3-srt-force': 'direct', 'mkv-h264-ac3-vobsub': 'direct', 'avi-mpeg4-mp3': 'transcode', 'mkv-av1-opus': 'transcode',
   };
   assert.ok(samples.length >= 5 && samples.length <= 12);
-  for (const s of samples) assert.equal(pb.decidePlayback(item(s.name), {}).mode, expected[s.name], s.name);
+  for (const s of samples) assert.equal(pb.decidePlayback(item(s.name), LEGACY).mode, expected[s.name], s.name);
 });
 
 // --- URL de lecture directe -----------------------------------------------------------------------------------
 
 test('URL directe : construite sur l’URI plex.direct, avec le jeton', () => {
-  const plan = pb.decidePlayback(item('mp4-h264-aac'), {});
+  const plan = pb.decidePlayback(item('mp4-h264-aac'), LEGACY);
   const url = pb.directPlaybackUrl(SERVER, plan);
   assert.equal(url, SERVER.uri + plan.part.key + '?X-Plex-Token=FAKE-SERVER-TOKEN');
   assert.match(url, /^https:\/\/192-0-2-10\.0{32}\.plex\.direct:32400\/library\/parts\//);
 });
 
 test('URL directe : refuse une IP ou un hôte hors plex.direct, sans l’afficher', () => {
-  const plan = pb.decidePlayback(item('mp4-h264-aac'), {});
+  const plan = pb.decidePlayback(item('mp4-h264-aac'), LEGACY);
   for (const uri of ['http://192.0.2.10:32400', 'https://192.0.2.10:32400', 'https://example.com:32400', 'https://evil.plex.direct.example.com', 'https://x@192.0.2.10/.plex.direct']) {
     assert.throws(() => pb.directPlaybackUrl({ uri, token: 'T' }, plan), (e) => /plex\.direct/.test(e.message) && e.message.indexOf('192.0.2.10') < 0, uri);
   }
-  assert.throws(() => pb.directPlaybackUrl(SERVER, pb.decidePlayback(item('avi-mpeg4-mp3'), {})), /transcodage/i, 'plan de transcodage : pas d’URL directe');
+  assert.throws(() => pb.directPlaybackUrl(SERVER, pb.decidePlayback(item('avi-mpeg4-mp3'), LEGACY)), /transcodage/i, 'plan de transcodage : pas d’URL directe');
 });
 
 test('URL du sous-titre externe : plex.direct + jeton ; interne ou sans sous-titre : null', () => {
@@ -352,9 +354,9 @@ test('URL du sous-titre externe : plex.direct + jeton ; interne ou sans sous-tit
   const ext = it.Media[0].Part[0].Stream.filter((s) => s.key)[0];
   const plan = pb.decidePlayback(it, { subtitleId: ext.id });
   assert.equal(pb.subtitleUrl(SERVER, plan), SERVER.uri + ext.key + '?X-Plex-Token=FAKE-SERVER-TOKEN');
-  assert.equal(pb.subtitleUrl(SERVER, pb.decidePlayback(it, {})), null);
+  assert.equal(pb.subtitleUrl(SERVER, pb.decidePlayback(it, LEGACY)), null);
   const emb = item('mkv-hevc-hdr10');
-  assert.equal(pb.subtitleUrl(SERVER, pb.decidePlayback(emb, {})), null, 'forcé interne');
+  assert.equal(pb.subtitleUrl(SERVER, pb.decidePlayback(emb, LEGACY)), null, 'forcé interne');
   assert.throws(() => pb.subtitleUrl({ uri: 'http://192.0.2.10:32400', token: 'T' }, plan), /plex\.direct/);
 });
 
@@ -375,7 +377,7 @@ const OK_DECISION = { status: 200, body: JSON.stringify({ MediaContainer: { gene
 
 test('transcodage : GET decision puis URL start.m3u8 avec les mêmes paramètres', async () => {
   const it = item('mkv-h264-dts');
-  const plan = pb.decidePlayback(it, {});
+  const plan = pb.decidePlayback(it, LEGACY);
   const http = fakeHttp(OK_DECISION);
   const [err, r] = await sync((cb) => pb.requestTranscode(http, ID, SERVER, plan, 'sess-1', cb));
   assert.equal(err, null);
@@ -415,13 +417,13 @@ test('transcodage : PGS → subtitles=burn avec l’identifiant de la piste', as
 test('transcodage : choisit mediaIndex de la version retenue', async () => {
   const it = item('avi-mpeg4-mp3');
   it.Media.push(item('mkv-h264-dts').Media[0]);
-  const plan = pb.decidePlayback(it, {});
+  const plan = pb.decidePlayback(it, LEGACY);
   const [, r] = await sync((cb) => pb.requestTranscode(fakeHttp(OK_DECISION), ID, SERVER, plan, 's', cb));
   assert.equal(new URL(r.url).searchParams.get('mediaIndex'), '1');
 });
 
 test('transcodage : décision refusée par le serveur, HTTP en erreur, corps invalide, plan direct', async () => {
-  const plan = pb.decidePlayback(item('mkv-h264-dts'), {});
+  const plan = pb.decidePlayback(item('mkv-h264-dts'), LEGACY);
   const refused = { status: 200, body: JSON.stringify({ MediaContainer: { generalDecisionCode: 2000, generalDecisionText: 'Impossible' } }) };
   let [err] = await sync((cb) => pb.requestTranscode(fakeHttp(refused), ID, SERVER, plan, 's', cb));
   assert.match(err.message, /Impossible/);
@@ -429,7 +431,7 @@ test('transcodage : décision refusée par le serveur, HTTP en erreur, corps inv
   assert.equal(err.status, 500);
   [err] = await sync((cb) => pb.requestTranscode(fakeHttp({ status: 200, body: '{}' }), ID, SERVER, plan, 's', cb));
   assert.match(err.message, /décision/i);
-  const direct = pb.decidePlayback(item('mp4-h264-aac'), {});
+  const direct = pb.decidePlayback(item('mp4-h264-aac'), LEGACY);
   const http = fakeHttp(OK_DECISION);
   [err] = await sync((cb) => pb.requestTranscode(http, ID, SERVER, direct, 's', cb));
   assert.match(err.message, /directe/i);
@@ -437,7 +439,7 @@ test('transcodage : décision refusée par le serveur, HTTP en erreur, corps inv
 });
 
 test('transcodage : refuse un serveur hors plex.direct avant toute requête', async () => {
-  const plan = pb.decidePlayback(item('mkv-h264-dts'), {});
+  const plan = pb.decidePlayback(item('mkv-h264-dts'), LEGACY);
   const http = fakeHttp(OK_DECISION);
   const [err] = await sync((cb) => pb.requestTranscode(http, ID, { uri: 'http://192.0.2.10:32400', token: 'T' }, plan, 's', cb));
   assert.match(err.message, /plex\.direct/);
@@ -511,10 +513,10 @@ test('sous-titres : la langue demandée donne la piste complète (même langue q
 });
 
 test('sous-titres : défaut « aucun » → coupés, sauf piste forcée dans la langue de l’audio (s’active seule)', () => {
-  assert.equal(pb.decidePlayback(item('mkv-h264-ac3-srt-force'), {}).subtitle.id, 10303);
+  assert.equal(pb.decidePlayback(item('mkv-h264-ac3-srt-force'), LEGACY).subtitle.id, 10303);
   assert.equal(pb.decidePlayback(item('mkv-h264-ac3-srt-force'), { subLang: '' }).subtitle.id, 10303);
-  assert.equal(pb.decidePlayback(item('mp4-h264-aac'), {}).subtitle, null);
-  assert.equal(pb.decidePlayback(item('mp4-h264-aac'), {}).subtitleMode, 'off');
+  assert.equal(pb.decidePlayback(item('mp4-h264-aac'), LEGACY).subtitle, null);
+  assert.equal(pb.decidePlayback(item('mp4-h264-aac'), LEGACY).subtitleMode, 'off');
 });
 
 test('pistes : audio de la langue demandée, repli sur la première piste si elle n’existe pas', () => {
@@ -523,7 +525,7 @@ test('pistes : audio de la langue demandée, repli sur la première piste si ell
 });
 
 test('pistes : étiquettes du menu (langue, codec, forcés, incrustés)', () => {
-  const plan = pb.decidePlayback(item('mkv-h264-ac3-ass'), {});
+  const plan = pb.decidePlayback(item('mkv-h264-ac3-ass'), LEGACY);
   const e = pb.trackEntries(plan);
   const audio = e.filter((x) => x.kind === 'audio').map((x) => x.label);
   assert.deepEqual(audio, ['Audio · Italien · AC3', 'Audio · Anglais · AC3']);
@@ -537,7 +539,7 @@ test('pistes : étiquettes du menu (langue, codec, forcés, incrustés)', () => 
 // --- Transcodage fiable : session, reprise, qualité, erreurs (carte « transcodage HLS fiable ») -----------------
 
 test('transcodage : audio seul (DTS) → vidéo copiée (directStream), pas d’incrustation, débit LAN et définition d’origine', async () => {
-  const plan = pb.decidePlayback(item('mkv-h264-dts'), {});
+  const plan = pb.decidePlayback(item('mkv-h264-dts'), LEGACY);
   assert.deepEqual(codes(plan), ['audio-codec']);
   const [, r] = await sync((cb) => pb.requestTranscode(fakeHttp(OK_DECISION), ID, SERVER, plan, 's', cb));
   const q = new URL(r.url).searchParams;
@@ -550,7 +552,7 @@ test('transcodage : audio seul (DTS) → vidéo copiée (directStream), pas d’
 });
 
 test('transcodage : reprise à une position (offset en secondes) dans la décision et le flux', async () => {
-  const plan = pb.decidePlayback(item('mkv-h264-dts'), {});
+  const plan = pb.decidePlayback(item('mkv-h264-dts'), LEGACY);
   const http = fakeHttp(OK_DECISION);
   const [, r] = await sync((cb) => pb.requestTranscode(http, ID, SERVER, plan, 's', cb, 3723500));
   assert.equal(new URL(r.url).searchParams.get('offset'), '3723');
@@ -558,7 +560,7 @@ test('transcodage : reprise à une position (offset en secondes) dans la décisi
 });
 
 test('transcodage : vidéo non copiable (AV1, sous-titres incrustés) → audioOnly faux', async () => {
-  const plan = pb.decidePlayback(item('mkv-av1-opus'), {});
+  const plan = pb.decidePlayback(item('mkv-av1-opus'), LEGACY);
   const [, r] = await sync((cb) => pb.requestTranscode(fakeHttp(OK_DECISION), ID, SERVER, plan, 's', cb));
   assert.equal(r.audioOnly, false);
 });
@@ -584,7 +586,7 @@ test('transcodage : arrêt de session = GET /video/:/transcode/universal/stop?se
 });
 
 test('transcodage : erreurs du serveur → message clair (occupé, refusé, injoignable), sans adresse', async () => {
-  const plan = pb.decidePlayback(item('mkv-h264-dts'), {});
+  const plan = pb.decidePlayback(item('mkv-h264-dts'), LEGACY);
   let [err] = await sync((cb) => pb.requestTranscode(fakeHttp({ status: 503, body: '' }), ID, SERVER, plan, 's', cb));
   assert.match(err.message, /occupé/);
   [err] = await sync((cb) => pb.requestTranscode(fakeHttp({ status: 429, body: '' }), ID, SERVER, plan, 's', cb));
@@ -596,4 +598,83 @@ test('transcodage : erreurs du serveur → message clair (occupé, refusé, injo
   assert.match(err.message, /transcodage/i);
   assert.equal(err.status, 500);
   assert.ok(!err.message.includes('192'));
+});
+
+// --- Langues : modes « VO sous-titrée » (défaut), « Français si disponible », « Personnalisé » -------------------
+
+const pick = (name, prefs) => {
+  const t = pb.chooseTracks(item(name).Media[0].Part[0].Stream, prefs);
+  return { audio: t.audio && t.audio.languageCode, sub: t.subtitle && { lang: t.subtitle.languageCode, codec: t.subtitle.codec, forced: !!t.subtitle.forced, ext: !!t.subtitle.key } };
+};
+
+test('VO : la piste audio « default » du fichier ; à défaut la première ; langue inconnue → vide', () => {
+  const s = (id, lang, def) => ({ id, streamType: 2, codec: 'ac3', languageCode: lang, default: def });
+  assert.equal(pb.originalLang(item('mkv-av1-opus').Media[0].Part[0].Stream), 'eng', 'fra en premier mais eng « default »');
+  assert.equal(pb.originalLang([s(1, 'fra'), s(2, 'eng')]), 'fra', 'aucun « default » : la première');
+  assert.equal(pb.originalLang([{ id: 1, streamType: 1 }]), '');
+  assert.equal(pb.originalLang(undefined), '');
+});
+
+test('mode VO (défaut) : film VO anglaise → audio anglais + sous-titres français (SRT externe)', () => {
+  assert.deepEqual(pick('mkv-h264-dts', {}), { audio: 'eng', sub: { lang: 'fra', codec: 'srt', forced: false, ext: true } });
+  assert.deepEqual(pick('mkv-h264-dts', { mode: 'vo' }), pick('mkv-h264-dts', {}), 'le défaut est « vo »');
+  // limite documentée : ici la piste « default » du fichier est le doublage français, c’est donc elle que le mode VO prend
+  assert.equal(pick('mkv-h264-ac3-vobsub', {}).audio, 'fra');
+});
+
+test('mode VO : film français → audio français, aucun sous-titre complet (seulement le forcé)', () => {
+  const r = pick('mkv-h264-ac3-srt-force', {});
+  assert.equal(r.audio, 'fra');
+  assert.deepEqual(r.sub, { lang: 'fra', codec: 'srt', forced: true, ext: false }, 'forcé de la langue de l’audio, jamais la piste complète');
+  const sans = [{ id: 1, streamType: 2, codec: 'ac3', languageCode: 'fra', default: true }, { id: 2, streamType: 3, codec: 'srt', languageCode: 'fra' }, { id: 3, streamType: 3, codec: 'srt', languageCode: 'eng' }];
+  assert.equal(pb.chooseTracks(sans, {}).subtitle, null, 'VO française : aucun sous-titre');
+});
+
+test('mode VO : sans sous-titres français → anglais ; SRT préféré à ASS / PGS de même langue', () => {
+  // VO italienne, pas de sous-titres français : anglais, en SRT externe (lecture directe) plutôt qu’en ASS
+  assert.deepEqual(pick('mkv-h264-ac3-ass', {}), { audio: 'ita', sub: { lang: 'eng', codec: 'srt', forced: false, ext: true } });
+  // VO anglaise : le français SRT interne passe avant les deux pistes PGS françaises
+  assert.deepEqual(pick('mkv-av1-opus', {}), { audio: 'eng', sub: { lang: 'fra', codec: 'srt', forced: false, ext: false } });
+  const pgsSeul = [{ id: 1, streamType: 2, codec: 'ac3', languageCode: 'eng', default: true }, { id: 2, streamType: 3, codec: 'pgs', languageCode: 'fra' }, { id: 3, streamType: 3, codec: 'srt', languageCode: 'eng', key: '/x' }];
+  assert.equal(pb.chooseTracks(pgsSeul, {}).subtitle.id, 2, 'le français, même en PGS, avant l’anglais');
+  pgsSeul.push({ id: 4, streamType: 3, codec: 'srt', languageCode: 'fra', key: '/y' });
+  assert.equal(pb.chooseTracks(pgsSeul, {}).subtitle.id, 4, 'SRT avant PGS dans la même langue');
+});
+
+test('mode VO : sous-titres forcés de la langue de l’audio activés quand rien d’autre n’est choisi', () => {
+  const streams = [
+    { id: 1, streamType: 2, codec: 'ac3', languageCode: 'eng', default: true },
+    { id: 2, streamType: 3, codec: 'srt', languageCode: 'eng', forced: true },
+    { id: 3, streamType: 3, codec: 'srt', languageCode: 'deu', forced: true },
+  ];
+  assert.equal(pb.chooseTracks(streams, {}).subtitle.id, 2, 'aucun français ni anglais complet : le forcé anglais (langue de l’audio)');
+  assert.equal(pb.chooseTracks(streams, { subLang: '' }).subtitle.id, 2, 'sous-titres coupés : le forcé reste');
+  assert.equal(pick('mkv-hevc-hdr10', {}).sub.forced, true, 'film français réel : forcé français');
+});
+
+test('mode « Français si disponible » : audio français sinon VO + sous-titres français', () => {
+  const fr = { mode: 'fr' };
+  assert.deepEqual(pick('mkv-h264-ac3-srt-externe', fr), { audio: 'fra', sub: null }, 'doublage français : aucun sous-titre');
+  assert.equal(pick('mkv-av1-opus', fr).audio, 'fra', 'fra existe même si la VO est eng');
+  assert.deepEqual(pick('mkv-h264-dts', fr), { audio: 'eng', sub: { lang: 'fra', codec: 'srt', forced: false, ext: true } }, 'pas de français : VO + sous-titres fr');
+  assert.deepEqual(pick('mkv-h264-ac3-ass', fr).sub, { lang: 'ita', codec: 'ass', forced: true, ext: false }, 'pas de sous-titres français : pas d’anglais de repli dans ce mode, seulement le forcé de l’audio');
+});
+
+test('mode Personnalisé : langues audio dans l’ordre, sous-titres seulement si l’audio n’est pas compris', () => {
+  const c = (audioList, subList) => ({ mode: 'custom', audioList, subList });
+  // anglais compris : audio anglais (2e choix, la 1re absente), aucun sous-titre
+  assert.deepEqual(pick('mkv-h264-ac3-srt-externe', c(['jpn', 'eng'], ['fra'])), { audio: 'eng', sub: null });
+  // aucune langue de la liste n’existe : VO, et sous-titres de la liste dans l’ordre
+  assert.deepEqual(pick('mkv-h264-dts', c(['jpn'], ['spa', 'fra'])), { audio: 'eng', sub: { lang: 'fra', codec: 'srt', forced: false, ext: true } });
+  // liste de sous-titres vide : seulement les forcés
+  assert.equal(pick('mkv-h264-dts', c(['jpn'], [])).sub, null);
+  assert.equal(pick('mkv-h264-ac3-ass', c(['eng'], ['fra'])).audio, 'eng');
+  assert.equal(pick('mkv-h264-ac3-ass', c(['eng'], ['fra'])).sub, null, 'audio compris (eng) : aucun');
+});
+
+test('choix de la série (audioLang / subLang) : prime sur le mode', () => {
+  const r = pb.chooseTracks(item('mkv-h264-ac3-srt-externe').Media[0].Part[0].Stream, { mode: 'vo', audioLang: 'eng', subLang: 'fra' });
+  assert.equal(r.audio.languageCode, 'eng');
+  assert.equal(r.subtitle.languageCode, 'fra');
+  assert.equal(pb.chooseTracks(item('mkv-h264-dts').Media[0].Part[0].Stream, { mode: 'vo', subLang: '' }).subtitle, null, 'coupés pour cette série');
 });

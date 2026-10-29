@@ -355,7 +355,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
     var next: PlaybackPlan;
     try {
       next = decidePlayback(full, {
-        audioLang: g.audioLang, subLang: g.subLang,
+        mode: g.mode, audioList: g.audioList, subList: g.subList, audioLang: g.audioLang, subLang: g.subLang,
         audioId: e.kind === 'audio' ? e.id! : cur.audio ? cur.audio.id : undefined,
         subtitleId: e.kind === 'subtitle' ? e.id : cur.subtitle ? cur.subtitle.id : null
       });

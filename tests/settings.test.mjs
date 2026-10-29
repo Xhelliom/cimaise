@@ -313,26 +313,11 @@ test('Découvrir : logo + nom + description pour une app connue, son nom (pas d�
   assert.equal(texts(inconnue).length, 2, 'aucune description pour une inconnue');
 });
 
-test('Langues par défaut : audio (français) et sous-titres (aucun) en tête des Réglages, Entrée / gauche / droite les parcourent', () => {
-  const a = [], s = [];
-  const { panel, press } = open({ audioLang: 'fra', subLang: '', onAudioLang: (c) => a.push(c), onSubLang: (c) => s.push(c) });
+test('Réglages globaux : plus de langues audio / sous-titres (elles sont dans les Réglages du module Plex)', () => {
+  const { panel } = open({});
   const t = texts(panel.el);
-  assert.ok(t.indexOf('Langue audio par défaut') < t.indexOf('Langue des sous-titres') && t.indexOf('Langue des sous-titres') < t.indexOf('Affichage de l’accueil'), t.join('|'));
-  press('up', 'up', 'up', 'up'); // Découvrir → Tuiles → Affichage → Sous-titres → Audio
-  assert.ok(focused(panel.el).some((f) => f.includes('Langue audio par défaut')), focused(panel.el).join());
-  assert.ok(texts(panel.el).includes('Français'));
-  press('right');
-  assert.deepEqual(a, ['eng']);
-  press('enter');
-  assert.deepEqual(a, ['eng', 'jpn']);
-  press('left');
-  assert.deepEqual(a, ['eng', 'jpn', 'eng']);
-  press('down');
-  assert.ok(texts(panel.el).includes('Aucun'));
-  press('right');
-  assert.deepEqual(s, ['fra']);
-  press('left', 'left');
-  assert.deepEqual(s, ['fra', ''], 'borne basse : Aucun');
+  assert.ok(!t.some((x) => /Langue audio|Langue des sous-titres/.test(x)), t.join('|'));
+  assert.ok(t.includes('Affichage de l’accueil') && t.includes('Tuiles à l’écran'));
 });
 
 test('fillIds : « Plex - Free Movies ＆ TV » (nom réel de la Frame) rattaché à Plex officiel, pas à Plex intégré ni à YouTube', () => {

@@ -1,10 +1,12 @@
-# Bilan — transcodage HLS fiable dans le lecteur
+# Bilan — audio et sous-titres : VO sous-titrée, réglages du module Plex
 
 ## Fait
-- Session de transcodage stable par lecture, arrêtée à la sortie et sur erreur ; reprise à un offset ; sauts lointains = nouvelle session à la position (pas de seekTo hors segment) ; qualité LAN ; erreurs du transcodeur → message + « Ouvrir Plex officiel » ; session dans la timeline (commits 227f9d6, 399ba1b).
-- Correctif de la revue (critère 3) : le filtre `mode === 'loading'` de `onEnd`/`onError` (packages/plex/src/ui/player.ts) supprimait aussi les erreurs du premier chargement et du nouveau flux. Remplacé par un compteur de génération dans `packages/tv-core/src/player/avplay.ts` (incrémenté par `release()`, vérifié par chaque événement du listener) : seuls les événements d'un flux fermé sont ignorés. `onEnd: leave(true)` / `onError: fail` restaurés.
-- Tests : un test avplay (flux fermé ignoré, nouveau flux transmis) ; faux lecteur Plex qui ignore les événements d'un flux fermé (`streamEvents`), deux tests de relance conservés ; deux nouveaux tests : onerror seul pendant le premier prepareAsync, et pendant le chargement après un saut lointain → écran d'erreur, « Ouvrir Plex officiel », session arrêtée.
-- `npm run check` vert (427 tests).
+- Réglages de langues déplacés des Réglages globaux vers **Plex → Réglages** (4ᵉ rangée de l'accueil Plex, `packages/plex/src/ui/settings.ts`).
+- Migration du schéma `cimaise.v1` v2 → v3 (`plexAudioLang`/`plexSubLang` → `plexLang`, mode `custom`), testée.
+- Modes : « VO sous-titrée » (défaut), « Français si disponible », « Personnalisé » (3 langues audio + 3 de sous-titres ordonnées) ; forcés de la langue de l'audio toujours activés ; SRT préféré à PGS/ASS de même langue (`playback/tracks.ts`).
+- VO : Plex ne fournit pas de langue d'origine (vérifié sur le serveur, lecture seule) → piste audio « default », sinon la première. Règle et limites dans `docs/decisions.md`.
+- Choix manuel par série toujours prioritaire. `npm run check` vert (511 tests).
 
-## Pas fait
-- Aucune validation contre le vrai serveur ni sur la TV (priorité (b) de docs/plex-audit.md) : tests sur faux serveur uniquement, comme demandé.
+## Non fait / à noter
+- Migration : l'ancien « audio X + sous-titres Y toujours » n'existe plus (le mode Personnalisé n'affiche les sous-titres que si l'audio n'est pas compris) ; documenté.
+- Non testé sur la TV (écran Réglages Plex, navigation télécommande) : à valider physiquement.

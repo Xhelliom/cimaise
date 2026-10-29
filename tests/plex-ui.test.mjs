@@ -163,7 +163,7 @@ test('images : toujours /photo/:/transcode, à la taille exacte d’affichage', 
 });
 
 // ---- accueil -------------------------------------------------------------------------------------------------
-test('accueil : trois rangées, affichage immédiat du cache (réseau muet), images en transcodeur', async () => {
+test('accueil : quatre rangées (dont Réglages), affichage immédiat du cache (réseau muet), images en transcodeur', async () => {
   const store = memStore();
   const warm = deps({ store });
   const p0 = ui.createHomePanel(warm.arg);
@@ -173,7 +173,7 @@ test('accueil : trois rangées, affichage immédiat du cache (réseau muet), ima
   const cold = deps({ store, http: fakeHttp([], { silent: true }) });
   const p = ui.createHomePanel(cold.arg);
   const titles = byClass(p.el, 'plex-hub-title').map((n) => n.textContent);
-  assert.deepEqual(titles, ['En cours', 'Ajoutés récemment', 'Bibliothèques']);
+  assert.deepEqual(titles, ['En cours', 'Ajoutés récemment', 'Bibliothèques', 'Réglages']);
   assert.ok(texts(p.el).some((t) => /Titre de série 1/.test(t)), 'tuiles de la rangée En cours déjà là');
   const s = srcs(p.el);
   assert.ok(s.length > 0);
@@ -187,9 +187,10 @@ test('accueil : télécommande — droite/bas déplacent le focus, Entrée sur u
   assert.equal(byClass(p.el, 'on').length, 1, 'une seule rangée active');
   assert.equal(byClass(byClass(p.el, 'on')[0], 'focus').length, 1);
   assert.equal(p.onKey('right'), true);
-  assert.equal(p.onKey('down'), true); assert.equal(p.onKey('down'), true);
+  assert.equal(p.onKey('down'), true); assert.equal(p.onKey('down'), true); assert.equal(p.onKey('down'), true);
   assert.equal(p.onKey('down'), false, 'dernière rangée : la touche reste au routeur');
   assert.equal(p.onKey('back'), false, 'Retour est laissé au routeur (dépile)');
+  p.onKey('up');
   p.onKey('enter');
   assert.equal(d.pushed.length, 1);
   assert.ok(byClass(d.pushed[0].el, 'plex-library').length === 1);
@@ -200,11 +201,88 @@ test('accueil : seules les rangées visibles et la suivante chargent leurs image
   const p = ui.createHomePanel(d.arg);
   await tick(); await tick();
   const rows = byClass(p.el, 'plex-row');
-  assert.equal(rows.length, 3);
+  assert.equal(rows.length, 4);
   const loaded = (r) => srcs(r).length;
   assert.ok(loaded(rows[0]) > 0 && loaded(rows[1]) > 0);
   // « Bibliothèques » n’a pas d’image du tout (aplat) : rien à précharger
   assert.equal(loaded(rows[2]), 0);
+});
+
+// ---- Réglages du module : langues audio / sous-titres -----------------------------------------------------------
+const stored = (store) => JSON.parse(store.getItem('cimaise.v1')).prefs.plexLang;
+const rowsOf = (p) => byClass(p.el, 'plex-set-row').map((r) => byClass(r, 'plex-set-name')[0].textContent + ' = ' + byClass(r, 'plex-set-val')[0].textContent);
+
+test('Réglages Plex : une entrée de l’accueil ouvre les langues ; défaut « VO sous-titrée », rien n’est écrit tant qu’on ne change rien', async () => {
+  const d = deps();
+  const home = ui.createHomePanel(d.arg);
+  await tick(); await tick();
+  home.onKey('down'); home.onKey('down'); home.onKey('down'); // En cours → Ajoutés → Bibliothèques → Réglages
+  home.onKey('enter');
+  assert.equal(d.pushed.length, 1);
+  const p = d.pushed[0];
+  assert.equal(byClass(p.el, 'plex-settings').length, 1);
+  assert.deepEqual(rowsOf(p), ['Langues du lecteur = VO sous-titrée']);
+  assert.ok(texts(p.el).some((t) => /version originale/.test(t)), 'explication du mode');
+  assert.equal(d.arg.store.getItem('cimaise.v1'), null);
+});
+
+test('Réglages Plex : le mode se change à la télécommande et est enregistré (cimaise.v1, prefs.plexLang)', () => {
+  const d = deps();
+  const p = ui.createSettingsPanel(d.arg);
+  assert.equal(p.onKey('right'), true);
+  assert.deepEqual(rowsOf(p), ['Langues du lecteur = Français si disponible']);
+  assert.deepEqual(stored(d.arg.store), { mode: 'fr', audio: ['fra'], subs: ['fra'] });
+  p.onKey('enter'); // Personnalisé : les listes apparaissent
+  assert.equal(stored(d.arg.store).mode, 'custom');
+  assert.equal(rowsOf(p).length, 7);
+  p.onKey('enter'); // boucle sur « VO sous-titrée »
+  assert.equal(stored(d.arg.store).mode, 'vo');
+  assert.equal(rowsOf(p).length, 1);
+  p.onKey('left');
+  assert.equal(stored(d.arg.store).mode, 'vo', 'borne basse');
+  assert.equal(p.onKey('back'), false, 'Retour reste au routeur');
+});
+
+test('Réglages Plex : mode Personnalisé — trois langues audio et trois de sous-titres, ordonnées, sans trou ni doublon dans le stockage', () => {
+  const d = deps();
+  const p = ui.createSettingsPanel(d.arg);
+  p.onKey('enter'); p.onKey('enter'); // vo → fr → custom
+  p.onKey('down');
+  assert.deepEqual(rowsOf(p).slice(1, 4), ['Audio 1 = Français', 'Audio 2 = Aucune', 'Audio 3 = Aucune']);
+  p.onKey('right'); // Audio 1 : Anglais
+  p.onKey('down'); p.onKey('right'); p.onKey('right'); // Audio 2 : Aucune → Français → Anglais (doublon : ignoré à l’enregistrement)
+  assert.deepEqual(stored(d.arg.store).audio, ['eng']);
+  p.onKey('left'); // Audio 2 : Français
+  assert.deepEqual(stored(d.arg.store).audio, ['eng', 'fra']);
+  p.onKey('down'); p.onKey('down'); // Sous-titres 1 (Français)
+  assert.equal(rowsOf(p)[4], 'Sous-titres 1 = Français');
+  p.onKey('left'); // Aucune
+  assert.deepEqual(stored(d.arg.store).subs, []);
+  p.onKey('down'); p.onKey('right'); p.onKey('right'); // Sous-titres 2 : Anglais ; 1 reste vide (trou comblé)
+  assert.deepEqual(stored(d.arg.store).subs, ['eng']);
+  // la première langue audio est obligatoire : pas de « Aucune »
+  p.onKey('up'); p.onKey('up'); p.onKey('up'); p.onKey('up'); // Audio 1
+  p.onKey('left'); p.onKey('left'); p.onKey('left');
+  assert.equal(rowsOf(p)[1].split(' = ')[1], 'Français');
+  assert.ok(stored(d.arg.store).audio.length >= 1);
+});
+
+test('Réglages Plex : les valeurs migrées de l’ancien schéma s’affichent (mode Personnalisé)', () => {
+  const store = memStore();
+  store.setItem('cimaise.v1', JSON.stringify({ version: 2, prefs: { plexAudioLang: 'eng', plexSubLang: 'fra' } }));
+  const p = ui.createSettingsPanel(deps({ store }).arg);
+  const r = rowsOf(p);
+  assert.equal(r[0], 'Langues du lecteur = Personnalisé');
+  assert.equal(r[1], 'Audio 1 = Anglais');
+  assert.equal(r[4], 'Sous-titres 1 = Français');
+});
+
+test('Réglages Plex : un stockage qui refuse l’écriture ne casse pas l’écran', () => {
+  const d = deps();
+  d.arg.store.setItem = () => { throw new Error('quota'); };
+  const p = ui.createSettingsPanel(d.arg);
+  assert.doesNotThrow(() => p.onKey('right'));
+  assert.deepEqual(rowsOf(p), ['Langues du lecteur = Français si disponible']);
 });
 
 // ---- bibliothèque --------------------------------------------------------------------------------------------
@@ -476,7 +554,7 @@ test('réouverture : token et session stockés → accueil Plex directement, auc
   const p = ui.createPlexPanel(d.arg);
   await tick(); await tick();
   assert.equal(byClass(p.el, 'plex-login').length, 0);
-  assert.deepEqual(byClass(p.el, 'plex-hub-title').map((n) => n.textContent), ['En cours', 'Ajoutés récemment', 'Bibliothèques']);
+  assert.deepEqual(byClass(p.el, 'plex-hub-title').map((n) => n.textContent), ['En cours', 'Ajoutés récemment', 'Bibliothèques', 'Réglages']);
   assert.ok(!d.arg.http.calls.some((c) => /plex\.tv/.test(c.url)));
 });
 
@@ -563,8 +641,8 @@ test('accueil : verticalement, la rangée active et son titre tiennent dans 0–
   const ty = (e) => { const m = /translate3d\(0,\s*(-?[\d.]+)px/.exec(e.style.transform || ''); return m ? +m[1] : 0; };
   const layer = byClass(p.el, 'plex-hubs')[0];
   const wraps = byClass(p.el, 'plex-hub');
-  assert.equal(wraps.length, 3);
-  for (let a = 0; a < 3; a++) {
+  assert.equal(wraps.length, 4);
+  for (let a = 0; a < 4; a++) {
     const y = (i) => ty(layer) + ty(wraps[i]);
     assert.ok(y(a) + titleTop >= 0 && y(a) + titleTop + titleH <= 1080, 'titre actif ' + a);
     assert.ok(y(a) + tileTop >= 0 && y(a) + tileBottom <= 1080, 'tuiles actives ' + a);

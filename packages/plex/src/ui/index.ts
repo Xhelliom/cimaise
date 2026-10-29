@@ -7,3 +7,4 @@ export * from './library';
 export * from './detail';
 export * from './login';
 export * from './player';
+export * from './settings';

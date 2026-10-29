@@ -5,6 +5,7 @@ import { createRow, VirtualList } from '../../../tv-core/src/virtual/list';
 import { Ctx, el, openable, PlexArg, resolve, tileInfo } from './context';
 import { createLibraryPanel } from './library';
 import { createDetailPanel } from './detail';
+import { createSettingsPanel } from './settings';
 import { POSTER } from './images';
 
 var PITCH = 560;   // distance entre deux rangées (titre à y = 200, puis 760, comme le Dock)
@@ -15,7 +16,7 @@ var LIFT = 160;
 
 interface Hub { title: string; box: HTMLElement; list: VirtualList; items: any[]; }
 
-// Accueil : En cours, Ajoutés récemment, Bibliothèques. Les rangées vides disparaissent ; les rangées à plus d'une rangée
+// Accueil : En cours, Ajoutés récemment, Bibliothèques, Réglages (langues du lecteur). Les rangées vides disparaissent ; les rangées à plus d'une rangée
 // du visible (au-dessus comme en dessous) sont libérées ; une rangée partiellement visible garde ses images.
 export function createHomePanel(arg: PlexArg): Panel {
   var c = resolve(arg) as Ctx;
@@ -30,6 +31,8 @@ export function createHomePanel(arg: PlexArg): Panel {
   var cancels: Array<() => void> = [];
   var held = false;
 
+  // Hors « Réglages », toujours là : sert à savoir si le serveur a répondu.
+  function loaded(): boolean { return visible().length > (prefsHub.items.length ? 1 : 0); }
   function visible(): Hub[] { return hubs.filter(function (h) { return h.items.length > 0; }); }
   function wants(h: Hub): boolean {
     var v = visible(), k = v.indexOf(h);
@@ -76,7 +79,7 @@ export function createHomePanel(arg: PlexArg): Panel {
       hubs[j].list.setActive(on);
       hubs[j].list.refresh();
     }
-    status.textContent = v.length ? '' : status.textContent;
+    status.textContent = loaded() ? '' : status.textContent;
   }
 
   function setItems(h: Hub, items: any[]): void {
@@ -85,13 +88,17 @@ export function createHomePanel(arg: PlexArg): Panel {
     relayout();
   }
 
-  function fail(e: Error): void { if (!visible().length) status.textContent = 'Serveur Plex injoignable : ' + e.message; }
+  function fail(e: Error): void { if (!loaded()) status.textContent = 'Serveur Plex injoignable : ' + e.message; }
 
   var onDeck = addHub('En cours', function (it, img) { return tileInfo(c.session, it, img); }, openItem);
   var recent = addHub('Ajoutés récemment', function (it, img) { return tileInfo(c.session, it, img); }, openItem);
   var libs = addHub('Bibliothèques', function (s: Section) { return { title: s.title, image: null }; }, function (s: Section) {
     c.nav.push(createLibraryPanel(arg, { key: s.key, title: s.title }));
   });
+  var prefsHub = addHub('Réglages', function (s: { title: string }) { return { title: s.title, image: null }; }, function () {
+    c.nav.push(createSettingsPanel(arg));
+  });
+  setItems(prefsHub, [{ title: 'Langues audio et sous-titres' }]);
   var deckCancel: (() => void) | null = null;
   function loadDeck(): void {
     if (deckCancel) deckCancel();

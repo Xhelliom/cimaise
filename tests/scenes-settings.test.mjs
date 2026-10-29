@@ -55,7 +55,7 @@ function open(ha = {}) {
   });
   const press = (...ks) => ks.forEach((k) => assert.equal(panel.onKey(k), true, k));
   // Atteint la ligne « Scènes Home Assistant » (tout en haut) et l'ouvre.
-  const enter = () => { press('up', 'up', 'up', 'up', 'up', 'enter'); };
+  const enter = () => { press('up', 'up', 'up', 'enter'); };
   const field = () => all(panel.el, (e) => e.tag === 'input')[0];
   return { panel, log, press, enter, field };
 }
