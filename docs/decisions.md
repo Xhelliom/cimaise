@@ -155,19 +155,13 @@ est un provisoire (M3). Retour à la racine : confirmation de sortie du routeur.
 dont police Outfit 19,06 Ko + OFL.txt 4,29 Ko ; `.wgt` blank 4,82 Ko. `npm test` passe en `--test-concurrency=1` : plusieurs fichiers
 reconstruisaient `dist/` en parallèle et se marchaient dessus.
 
-## Certificate Manager : mode web (noVNC) et mode `--neko` (2026-10-29)
+## Certificate Manager : mode web (noVNC) (2026-10-29)
 
 **Problème.** `cert-manager.sh` exigeait un `DISPLAY` local ; la VM `dev` (Incus) n'a pas de session graphique et se pilote en SSH.
 
 **Mode web (défaut sans `DISPLAY`, ou `--web`).** Dans le conteneur (`scripts/tizen/web-session.sh`) : Xvfb 1600×1000, openbox,
 x11vnc (lié à localhost, mot de passe) et noVNC/websockify sur le port `--port N` / `CIMAISE_WEB_PORT` (6080 par défaut, réseau hôte).
 Mot de passe de 8 caractères tiré au hasard à chaque lancement, affiché une fois dans le terminal, passé au conteneur par l'environnement
-(jamais en argument, jamais dans un fichier du dépôt ni un log). Coût : 4 paquets apt (xvfb, openbox, x11vnc, novnc + websockify) dans
+(jamais en argument : x11vnc le lit dans un fichier 0600 temporaire du conteneur, via `-passwdfile` ; jamais dans un fichier du dépôt ni un log). Coût : 4 paquets apt (xvfb, openbox, x11vnc, novnc + websockify) dans
 l'image des outils, sans effet sur l'app TV.
 
-**Mode `--neko` (coexiste).** Vérifié sur la VM : le conteneur `neko` (ghcr.io/m1k1o/neko/google-chrome:3.2.0) tourne en `--network host`
-avec `DISPLAY=:99.0` ; son Xorg (`-nolisten tcp`) écoute aussi sur le socket **abstrait** `@/tmp/.X11-unix/X99`, qui vit dans le
-namespace réseau de l'hôte. Un conteneur jetable en `--network host` (même en uid 1000, sans Xauthority) s'y connecte : `xdotool
-getdisplaygeometry` → 1920×1080. Le socket fichier, lui, est inaccessible depuis l'hôte (`/proc/<pid>/root` est refusé pour un non-root)
-et il n'y a rien à monter. `--neko` fixe donc `DISPLAY=:99`, sans montage ni cookie X ; le conteneur neko n'est ni modifié ni
-redémarré. Fragilité : dépend de neko en réseau hôte et d'un Xorg sans contrôle d'accès ; si l'un change, retomber sur le mode web.

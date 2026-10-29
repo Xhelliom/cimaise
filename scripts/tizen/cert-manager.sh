@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 # Ouvre le Certificate Manager de Tizen Studio (extension Samsung) : sur l'affichage de l'hôte (DISPLAY),
-# dans un navigateur (--web, par défaut sans DISPLAY : Xvfb + VNC + noVNC) ou sur le X de neko (--neko).
+# dans un navigateur (--web, par défaut sans DISPLAY : Xvfb + VNC + noVNC).
 # Stéphane se connecte lui-même à son compte Samsung : ce script ne saisit ni identifiant ni mot de passe.
 # À la fermeture, les .p12 créés sont rangés dans .local/certs/ (author.p12, distributor.p12).
 set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-# Modes : --web (noVNC, défaut sans DISPLAY), --neko (X du conteneur neko), sinon l'affichage de l'hôte.
+# Modes : --web (noVNC, défaut sans DISPLAY), sinon l'affichage de l'hôte.
 MODE=""; WEB_PORT="${CIMAISE_WEB_PORT:-6080}"
 while [ $# -gt 0 ]; do
   case "$1" in
-    --web) MODE=web;; --neko) MODE=neko;;
+    --web) MODE=web;;
     --port) WEB_PORT="${2:?--port attend un numéro}"; shift;;
-    *) die "option inconnue : $1 (--web, --neko, --port N)";;
+    *) die "option inconnue : $1 (--web, --port N)";;
   esac; shift
 done
 [ -n "$MODE" ] || { [ -n "${DISPLAY:-}" ] && MODE=host || MODE=web; }
@@ -34,14 +34,6 @@ if [ "$MODE" = web ]; then
     echo "avertissement : le Certificate Manager s'est terminé avec une erreur" >&2
   unset PW CIMAISE_VNC_PW
 else
-  if [ "$MODE" = neko ]; then
-    # X de neko (DISPLAY=:99), vérifié : neko tourne en --network host et son Xorg accepte, sans
-    # Xauthority, les connexions locales sur le socket ABSTRAIT @/tmp/.X11-unix/X99, que libxcb
-    # essaie de toute façon. Le conteneur ayant le réseau hôte, ni socket ni cookie à monter.
-    # Le conteneur neko n'est ni modifié ni redémarré.
-    export DISPLAY=:99
-    DOCKER_RUN_EXTRA=(-e "DISPLAY=$DISPLAY" -e GDK_BACKEND=x11 -e "GTK_THEME=Adwaita" "${CERT_MOUNT[@]}")
-  else
     [ -n "${DISPLAY:-}" ] || die "DISPLAY absent"
     [ -d /tmp/.X11-unix ] || die "/tmp/.X11-unix absent : aucun serveur X11/XWayland à joindre"
     # Le conteneur partage le réseau et le nom de l'hôte (les entrées Xauthority sont par nom d'hôte).
@@ -52,8 +44,8 @@ else
     elif [ -f "$HOME/.Xauthority" ]; then
       DOCKER_RUN_EXTRA+=(-e XAUTHORITY=/tmp/.Xauthority -v "$HOME/.Xauthority:/tmp/.Xauthority:ro")
     fi
-  fi
-  run_in_container /home/tizen/tizen-studio/tools/certificate-manager/certificate-manager || \
+  # cwd hors dépôt : Eclipse y crée un workspace/ (.metadata).
+  run_in_container bash -c 'cd "$(mktemp -d)" && exec /home/tizen/tizen-studio/tools/certificate-manager/certificate-manager' || \
     echo "avertissement : le Certificate Manager s'est terminé avec une erreur" >&2
 fi
 
