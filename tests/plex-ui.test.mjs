@@ -497,3 +497,29 @@ test('alignement : titres de rangée, première tuile, grille et fiche sur la m�
   assert.equal(px(/\.plex-lib-title\{[^}]*left:(\d+)px/), rowLeft);
   assert.equal(px(/\.plex-grid\{left:(\d+)px/) + px(/\.plex-grid \.vlayer\{margin:\d+px 0 0 (\d+)px/), rowLeft);
 });
+
+test('accueil : verticalement, la rangée active et son titre tiennent dans 0–1080 ; la précédente est entière ou hors écran', async () => {
+  const d = deps();
+  const p = ui.createHomePanel(d.arg);
+  await tick(); await tick();
+  const css = readFileSync('packages/plex/src/plex.css', 'utf8');
+  const px = (re) => +re.exec(css)[1];
+  const titleTop = px(/\.plex-hub-title\{[^}]*top:(\d+)px/), titleH = 48; // 40 px de police
+  const rowTop = px(/\.plex-row\{left:\d+px;top:(\d+)px/);
+  const layerMargin = +/\.plex-row \.vlayer,\.plex-grid \.vlayer\{margin:(\d+)px/.exec(css)[1];
+  const tileTop = rowTop + layerMargin, tileBottom = tileTop + 360 + 72; // affiche + étiquette
+  const ty = (e) => { const m = /translate3d\(0,\s*(-?[\d.]+)px/.exec(e.style.transform || ''); return m ? +m[1] : 0; };
+  const layer = byClass(p.el, 'plex-hubs')[0];
+  const wraps = byClass(p.el, 'plex-hub');
+  assert.equal(wraps.length, 3);
+  for (let a = 0; a < 3; a++) {
+    const y = (i) => ty(layer) + ty(wraps[i]);
+    assert.ok(y(a) + titleTop >= 0 && y(a) + titleTop + titleH <= 1080, 'titre actif ' + a);
+    assert.ok(y(a) + tileTop >= 0 && y(a) + tileBottom <= 1080, 'tuiles actives ' + a);
+    if (a > 0) {
+      const top = y(a - 1) + tileTop, bottom = y(a - 1) + tileBottom;
+      assert.ok(bottom <= 0 || (top >= 0 && bottom <= 1080), 'rangée précédente coupée : ' + top + '–' + bottom);
+    }
+    p.onKey('down');
+  }
+});

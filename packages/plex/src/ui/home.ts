@@ -9,6 +9,9 @@ import { POSTER } from './images';
 
 var PITCH = 560;   // distance entre deux rangées (titre à y = 200, puis 760, comme le Dock)
 var GAP = 48;
+// Sous la première rangée, la couche remonte de LIFT en plus : les tuiles de la rangée précédente (jusqu'à y = 702 dans
+// leur cadre, étiquettes comprises) finissent au-dessus de 0 au lieu d'être coupées ; le titre actif reste à y = 200 - LIFT.
+var LIFT = 160;
 
 interface Hub { title: string; box: HTMLElement; list: VirtualList; items: any[]; }
 
@@ -65,7 +68,7 @@ export function createHomePanel(arg: PlexArg): Panel {
       k++;
     }
     if (active > v.length - 1) active = Math.max(0, v.length - 1);
-    layer.style.transform = 'translate3d(0,' + -PITCH * active + 'px,0)';
+    layer.style.transform = 'translate3d(0,' + -(PITCH * active + (active > 0 ? LIFT : 0)) + 'px,0)';
     for (var j = 0; j < hubs.length; j++) {
       var on = v[active] === hubs[j];
       hubs[j].box.className = on ? 'plex-row on' : 'plex-row';
