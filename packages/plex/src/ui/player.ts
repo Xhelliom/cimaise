@@ -69,7 +69,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
   var paused = false, menuOpen = false;
   var suspendPos = -1;
   // Sous-titres rendus par la page (AVPlay est coupé) : subsOn = la piste choisie est lue par AVPlay (interne ou externe), pas incrustée.
-  var subsOn = false, subTimer: any = null, seriesKey = item.grandparentRatingKey;
+  var extFailed = false, subsOn = false, subTimer: any = null, seriesKey = item.grandparentRatingKey;
   // Mesure (diagnostic) : Entrée sur Lire → première image (1er temps de lecture signalé par AVPlay). Avec la question de reprise, part du choix.
   var t0 = Date.now(), awaitFrame = false;
   var hideTimer: any = null;
@@ -192,7 +192,9 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
       },
       onSubtitle: showSub,
       onSubtitleError: function () {
-        if (closed || mode !== 'play') return;
+        if (closed) return;
+        extFailed = true; // refus synchrone pendant open() : signalé une fois la lecture lancée (applyTracks)
+        if (mode !== 'play') return;
         subsOn = false;
         clearSub();
         state.textContent = 'Sous-titres indisponibles';
@@ -216,6 +218,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
     var p = player!;
     function opened(url: string): void {
       var oo: OpenOptions = {};
+      extFailed = false;
       if (startMs > 0) oo.startMs = startMs;
       try {
         var su = subtitleUrl(c.session, plan!);
@@ -269,6 +272,11 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
     if (!doSub) return;
     clearSub();
     var t: Track | null = null;
+    if (plan!.subtitleMode === 'external' && extFailed) {
+      subsOn = false;
+      state.textContent = 'Sous-titres indisponibles';
+      return;
+    }
     if (plan!.subtitleMode === 'embedded') t = avplayTrack('text', 3, plan!.subtitle);
     else if (plan!.subtitleMode === 'external') {
       for (var i = tracks.length - 1; i >= 0 && !t; i--) if (tracks[i].kind === 'text') t = tracks[i];

@@ -1,5 +1,10 @@
-# Bilan — Sous-titres et pistes audio
+# Bilan — sous-titres et pistes audio (Plex)
 
-Fait : (1) SRT interne (`setSelectTrack`) et externe (`setExternalSubtitlePath` avant `prepareAsync`), rendu maison en bas de l'écran (52 px, ombre statique, sans flou) à partir de `onsubtitlechange`, rendu natif coupé ; (2) PGS/ASS/VobSub sans piste lisible dans la langue : transcodage `subtitles=burn` (déjà dans `decide`, couvert par tests sur fiches réelles) ; (3) menu des pistes (Haut) : langue, codec, « forcés », « externe », « incrustés », piste courante marquée ; changement en place ou relance du flux à la position courante ; (4) Réglages : langue audio (français) et langue des sous-titres (aucun), mémorisées ; choix retenu par série (par langue) ; (5) forcés actifs seuls. `npm run check` vert (402 tests, nouveaux : playback, tv-core, player, settings, plex-player).
+## Fait
+- SRT interne (setSelectTrack) et externe (setExternalSubtitlePath, rendu maison via onsubtitlechange, bas d'écran, sans flou).
+- PGS/ASS/VobSub : transcodage avec sous-titres incrustés.
+- Menu des pistes (Haut), langues par défaut dans Réglages, choix retenu par série, forcés automatiques.
+- Correctif de cette passe : un refus de setExternalSubtitlePath pendant open() (mode encore « loading ») est mémorisé (`extFailed`) ; en mode externe après échec, aucune piste TEXT n'est choisie (plus de sous-titres internes par erreur) et « Sous-titres indisponibles » s'affiche au démarrage de la lecture. Test ajouté (fichier avec piste interne + refus). `npm run check` vert (403 tests).
 
-Pas fait / réserves : tout est **non testé sur la TV** (faux AVPlay seulement). Hypothèses à valider : `onsubtitlechange` arrive avec `setSilentSubtitle(true)` ; la piste du SRT externe est la dernière piste TEXT ; relance d'un flux transcodé avec la même session. Choix de design à confirmer : lorsqu'une langue de sous-titres est réglée, la piste complète est prise même si elle est dans la langue de l'audio. Tests écrits avant le code (rouges : 26 échecs), puis verts.
+## Non fait
+- Rien de connu. Rendu réel sur la TV non vérifié (aucun accès TV ici).

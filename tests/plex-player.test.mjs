@@ -532,6 +532,18 @@ test('sous-titres : un sous-titre externe refusé par AVPlay n’arrête pas la 
   assert.ok(!has(s.panel.el, /Lecture impossible/));
 });
 
+test('sous-titres : externe refusé pendant l’ouverture → aucune piste interne choisie à la place, message une fois la lecture lancée', async () => {
+  const s = await playing('mkv-h264-ac3-pgs', { plexSubLang: 'fra' });
+  s.player.tracks = [{ kind: 'audio', index: 1, info: {} }, { kind: 'text', index: 2, info: {} }];
+  s.player.events.onSubtitleError(new Error('AVPlay : refusé')); // synchrone dans open(), avant le prêt
+  s.player.calls.length = 0;
+  s.player.ready();
+  assert.ok(!s.player.calls.some((c) => /^select:text/.test(c)), s.player.calls.join());
+  assert.ok(has(s.panel.el, /Sous-titres indisponibles/));
+  s.player.events.onSubtitle('Interne', 1000);
+  assert.equal(subLine(s.panel).textContent, '');
+});
+
 test('PGS / VobSub / ASS : transcodage avec sous-titres incrustés, demandé au serveur (subtitles=burn)', async () => {
   const s = await playing('mkv-h264-ac3-vobsub', { plexAudioLang: 'fra', plexSubLang: 'eng' }, { transcode: true });
   const req = s.arg.http.calls.find((c) => /transcode\/universal\/decision/.test(c.url));
