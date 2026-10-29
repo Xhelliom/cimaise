@@ -67,7 +67,7 @@ scripts/tizen/setup-profile.sh               # liste ensuite les profils : « ci
 
 ### 7. App minimale et `config.xml`
 Dans `apps/tv/` : `index.html` (une page avec du texte et un compteur de touches), `config.xml` avec :
-- `<tizen:application id="cimaise00.Cimaise" package="cimaise00" required_version="5.0"/>` (HANDOFF §3 : **abaisser** `required_version`, sinon refus à l'installation) ;
+- `<tizen:application id="cimaise001.Cimaise" package="cimaise001" required_version="5.0"/>` (HANDOFF §3 : **abaisser** `required_version`, sinon refus à l'installation) ;
 - `<tizen:profile name="tv-samsung"/>`.
 `APP_ID` dans `.local/tizen.env` doit correspondre à l'`id`. Ces fichiers sont l'objet d'une autre carte.
 

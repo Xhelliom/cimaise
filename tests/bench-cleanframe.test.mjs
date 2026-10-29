@@ -44,8 +44,8 @@ test('identité distincte de cimaise', () => {
   const cfg = readFileSync('bench/cleanframe/work/app/config.xml', 'utf8');
   const m = cfg.match(/<tizen:application id="([^"]+)" package="([^"]+)"/);
   assert.ok(m);
-  assert.notEqual(m[2], 'cimaise00');
-  assert.notEqual(m[1], 'cimaise00.Cimaise');
+  assert.notEqual(m[2], 'cimaise001');
+  assert.notEqual(m[1], 'cimaise001.Cimaise');
   assert.match(m[2], /^[A-Za-z0-9]{10}$/);
   assert.ok(m[1].startsWith(m[2] + '.'));
 });

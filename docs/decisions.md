@@ -63,7 +63,7 @@ par es-check ; polyfills ciblés à ajouter au besoin, avec leur poids ici.
 
 ## Identité et `config.xml` de l'app (2026-10-28)
 
-**Décision.** `apps/tv/config.xml` : application `cimaise00.Cimaise`, package `cimaise00`,
+**Décision.** `apps/tv/config.xml` : application `cimaise001.Cimaise`, package `cimaise001`,
 widget id `https://local.cimaise/app`, profil `tv-samsung`, `required_version="5.0"`.
 L'identité est **définitive** (un changement casse les mises à jour sur place).
 
@@ -136,7 +136,7 @@ lire le message de `sdb`/`vd_appinstall` et ajuster.
 
 ## apps/tv devient l'app cimaise ; page vide en cible séparée `apps/blank` (2026-10-29)
 
-**Décision.** `apps/tv` = accueil Dock (`cimaise00.Cimaise`, identité inchangée). La page vide de référence (mesure plancher M1,
+**Décision.** `apps/tv` = accueil Dock (`cimaise001.Cimaise`, identité inchangée). La page vide de référence (mesure plancher M1,
 HANDOFF §6 bis) est déplacée telle quelle dans `apps/blank` avec **sa propre identité** `cimaiseblk.Blank` (package `cimaiseblk`,
 widget `https://local.cimaise/blank`) : les deux s'installent côte à côte. `npm run build` (`scripts/build/all.mjs`) produit
 `apps/tv/build/cimaise-unsigned.wgt` et `apps/blank/build/blank-unsigned.wgt`.
@@ -237,3 +237,17 @@ aucun fichier du dépôt modifié ; journal réseau filtré sur plex.tv, URL san
 
 **Écart avec la réalité.** `expiresIn` réel = 900 s (les fixtures disaient 1500/1800) : corrigé dans `pin-*.json`. Le délai du client (15 min) était déjà bon.
 La réponse réelle a des champs en plus (`qr`, `trusted`, `location`, `expiresAt`…), ignorés. Les `pin-*.json` restent écrits à la main (créer un PIN écrit chez plex.tv).
+
+## Package à 10 caractères et privilèges de lancement (2026-10-29)
+
+**Constat sur la Frame.** La page vide (`cimaiseblk`) et CleanFrame (`cmbnchcf01`) s'installent ; cimaise était refusée
+(`install failed[118, -19], reason: Parsing error`) : `cimaise00` fait 9 caractères, Tizen exige exactement 10.
+**Décision.** Package `cimaise001`, application `cimaise001.Cimaise`. L'app n'ayant jamais été installée, aucune mise à jour sur place
+n'est cassée ; l'identité redevient définitive. Le package fait 10 caractères alphanumériques, vérifié par `wgt.test.mjs` (apps/tv et apps/blank) et `bench-cleanframe.test.mjs` (bench).
+`.local/tizen.env` (APP_ID) doit être mis à jour à la main ; aucun ID d'app de la TV n'est versionné.
+
+**Privilèges.** Ajoutés dans `apps/tv/config.xml` : `http://tizen.org/privilege/application.launch` (`tizen.application.launch` et `launchAppControl`,
+utilisés par `device.launchApp`) et `http://tizen.org/privilege/application.info` (`tizen.application.getAppsInfo`, inventaire à la demande depuis Réglages).
+D'après la doc Tizen Application API ; **non testé sur la TV** (à confirmer au prochain lancement d'une app depuis l'accueil).
+
+**Empaquetage.** `package.sh` réduit le nom de sortie à `[A-Za-z0-9._-]` (espaces → `-`, reste supprimé : `CleanFrame (bench).wgt` → `CleanFrame-bench.wgt`). Raison : le repli `vd_appinstall` est relu par le shell de la TV, où espaces et parenthèses cassent la commande ; c'est le chemin de la TV de référence. `install.sh` refuse avec un message clair tout `.wgt` au nom différent. Testé (faux packager, repli forcé) dans `scripts/tizen/test.sh`, que `npm run check` n'exécute pas.

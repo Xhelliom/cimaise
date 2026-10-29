@@ -12,6 +12,11 @@ WGT="${1:-$(ls -t "$REPO_ROOT"/dist/*.wgt 2>/dev/null | head -n1)}"
 [ -f "${WGT:-}" ] || die ".wgt introuvable (lancer package.sh d'abord)"
 [ "$(dirname "$(realpath "$WGT")")" = "$REPO_ROOT/dist" ] || die "le .wgt doit être dans dist/"
 
+# La TV relit la commande vd_appinstall dans son shell : seul [A-Za-z0-9._-] est sûr dans le nom.
+case "$(basename "$WGT")" in
+  *[!A-Za-z0-9._-]*) die "nom de .wgt invalide « $(basename "$WGT") » : seuls A-Z a-z 0-9 . _ - sont acceptés (relancer package.sh)";;
+esac
+
 sdb_session '
   WGT="/work/dist/$1"; APP="$2"
   PKG_ID="${APP%%.*}"

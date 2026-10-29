@@ -1,11 +1,10 @@
-# Bilan — connexion Plex par PIN (reprise : essai réel)
+# Bilan
 
 ## Fait
-- Écran de connexion, choix du serveur, mémorisation, accueil direct : voir commit 0e02065 ; `npm run check` vert.
-- Essai dans l'aperçu (`npm run dev`, Chromium 1920×1080 dans Playwright v1.49), contre le vrai plex.tv, injection de session bloquée pour ce seul essai :
-  (1) vrai code de 4 caractères affiché, interrogation toutes les ~2,4 s ; (2) Retour ferme l'écran, requête en vol abandonnée, plus aucune requête ensuite.
-- Fixtures `pin-*.json` : `expiresIn` corrigé à 900 (réel). Résultat consigné dans `docs/decisions.md`.
+- Cartes précédentes (package `cimaise001`, privilèges `application.launch`/`application.info`, test de longueur des 3 config.xml, sortie sans espace) : déjà dans la branche.
+- Correctif critère 3 : `scripts/tizen/package.sh` remplace désormais le `.wgt` sûr précédent (`mv -f`) au lieu de s'arrêter ; plus de `.wgt` avec espaces laissé dans `dist/`.
+- Test ajouté dans `scripts/tizen/test.sh` : `package.sh` deux fois de suite, aucun `.wgt` avec espace, puis `install.sh` sans argument réussit.
+- `npm run check` vert (180 tests).
 
 ## Non fait
-- Étape 3 (valider le code sur plex.tv/link, vérifier token + serveur + session stockés, locale choisie, réouverture directe) : **demande l'opérateur** (compte de Stéphane). Prouvé seulement par les tests à transport factice.
-- Capture non publiée sur la carte (pas d'outil `publish_file` dans cette session) : `.../scratchpad/plex-pin.png` en local ; elle montre un code PIN périmé, aucun token.
+- Rien de la carte. Le garde-fou « refuse d'écraser » est supprimé : seul le fichier au nom non sûr, qu'écrit le packager, déclenche le renommage, donc il ne peut pas venir d'une autre source.

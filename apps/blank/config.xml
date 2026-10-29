@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   Page vide de référence (mesure plancher de M1, HANDOFF §6 bis). Identité PROPRE, distincte de
-  l'app cimaise (apps/tv, cimaise00.Cimaise) : les deux s'installent côte à côte sur la TV.
+  l'app cimaise (apps/tv, cimaise001.Cimaise) : les deux s'installent côte à côte sur la TV.
   DÉFINITIF : ne plus modifier id, package ni certificat auteur, sinon les mises à jour sur place
   échouent (HANDOFF §10).
 
