@@ -6,6 +6,7 @@ import { HomeMode, normalizeMode, normalizeTiles, TILES_CHOICES } from '../home/
 import { fillIds } from '../catalog/model';
 import { knownApp } from '../catalog/known-apps';
 import { LANG_CHOICES, langLabel } from '../../../tv-core/src/langprefs';
+import { HaSettings, ScenesView, createScenesView } from './scenes';
 
 export interface SettingsOptions {
   catalog: AppEntry[];
@@ -20,6 +21,7 @@ export interface SettingsOptions {
   onAudioLang?: (code: string) => void;      // le propriétaire persiste
   subLang?: string;                          // langue des sous-titres par défaut ; '' = aucun (sauf pistes forcées)
   onSubLang?: (code: string) => void;         // le propriétaire persiste
+  ha?: HaSettings;                           // section « Scènes » (Home Assistant) ; absente = ligne non proposée
   onClose: () => void;
   doc?: Document;
 }
@@ -43,7 +45,9 @@ var CSS =
   '.reglages .bouton{font-weight:500;color:#fff}' +
   '.reglages .etat{position:absolute;left:120px;bottom:72px;font-size:28px;font-weight:300;color:rgba(255,255,255,.6)}' +
   '.reglages .titre-section{position:absolute;left:24px;height:96px;display:flex;align-items:center;font-size:26px;font-weight:500;color:rgba(255,255,255,.5)}' +
-  '.reglages .deja{font-size:26px;color:rgba(255,255,255,.5)}';
+  '.reglages .deja{font-size:26px;color:rgba(255,255,255,.5)}' +
+  '.reglages .rang{width:48px;font-size:28px;font-weight:500;color:rgba(255,255,255,.5)}' +
+  '.reglages .champ{flex:none;width:720px;height:64px;box-sizing:border-box;padding:0 24px;border:0;border-radius:20px;background:#fff;color:#111;font:500 30px Outfit,sans-serif}';
 
 var CHIPS = ['Couleur', 'Déplacer', 'Retirer'];
 
@@ -57,7 +61,8 @@ export function createSettings(opts: SettingsOptions): Panel {
   var tiles = normalizeTiles(opts.tiles);
   var audioLang = opts.audioLang || 'fra';
   var subLang = opts.subLang || '';
-  var row = 0;      // -4 = langue audio ; -3 = langue des sous-titres ; -2 = affichage de l'accueil ; -1 = tuiles à l'écran ; 0 = bouton Découvrir ; 1..n = catalogue ; ensuite apps découvertes
+  var view: ScenesView | null = null;   // section Scènes ouverte
+  var row = 0;      // -5 = section Scènes ; -4 = langue audio ; -3 = langue des sous-titres ; -2 = affichage de l'accueil ; -1 = tuiles à l'écran ; 0 = bouton Découvrir ; 1..n = catalogue ; ensuite apps découvertes
   var chip = 0;
   var grabbed = false;
   var status = '';
@@ -92,8 +97,8 @@ export function createSettings(opts: SettingsOptions): Panel {
   function rowCount(): number { return 1 + catalog.length + found.length; }
 
   // Ligne sélectionnable -> position dans la liste (le titre de section occupe une ligne non sélectionnable).
-  function posOf(r: number): number { return r + 4 + (found.length && r > catalog.length ? 1 : 0); }
-  function totalPos(): number { return 5 + catalog.length + (found.length ? 1 + found.length : 0); }
+  function posOf(r: number): number { return r + 5 + (found.length && r > catalog.length ? 1 : 0); }
+  function totalPos(): number { return 6 + catalog.length + (found.length ? 1 + found.length : 0); }
 
   function absRow(node: HTMLElement, pos: number): HTMLElement {
     node.style.top = pos * ROW_H + 'px';
@@ -104,33 +109,43 @@ export function createSettings(opts: SettingsOptions): Panel {
   function render(): void {
     while (el.firstChild) el.removeChild(el.firstChild);
     var h = doc.createElement('h1');
-    h.textContent = 'Réglages';
+    h.textContent = view ? 'Scènes' : 'Réglages';
     el.appendChild(h);
+    if (view) {
+      el.appendChild(view.render());
+      if (view.status()) el.appendChild(div('etat', view.status()));
+      return;
+    }
     offset = row <= 0 ? 0 : scrollOffset(offset, posOf(row), totalPos()); // la section Accueil et Découvrir restent en haut
     var vue = div('vue'), list = div('liste');
     list.style.transform = 'translateY(' + (offset ? -offset : 0) + 'px)';
     var total = totalPos();
-    var from = Math.max(-4, Math.floor(offset / ROW_H) - 5), to = Math.min(total - 5, Math.ceil(offset / ROW_H) + 7); // pos = position visuelle - 4
+    var from = Math.max(-5, Math.floor(offset / ROW_H) - 5), to = Math.min(total - 6, Math.ceil(offset / ROW_H) + 7); // pos = position visuelle - 5
     var inCat: { [id: string]: boolean } = {};
     for (var q = 0; q < catalog.length; q++) if (catalog[q].id) inCat[catalog[q].id] = true;
     for (var pos = from; pos <= to; pos++) {
-      if (pos === -4 || pos === -3) {
+      if (pos === -5) {
+        if (!opts.ha) continue; // sans Home Assistant à régler : la ligne n'existe pas
+        var sl = div('ligne bouton' + (row === -5 ? ' focus' : ''));
+        sl.appendChild(div('nom', 'Scènes Home Assistant'));
+        list.appendChild(absRow(sl, 0));
+      } else if (pos === -4 || pos === -3) {
         var audio = pos === -4, ll = div('ligne bouton' + (row === pos ? ' focus' : ''));
         ll.appendChild(div('nom', audio ? 'Langue audio par défaut' : 'Langue des sous-titres'));
         ll.appendChild(div('puce' + (row === pos ? ' focus' : ''), audio ? langLabel(audioLang) : subLang ? langLabel(subLang) : 'Aucun'));
-        list.appendChild(absRow(ll, pos + 4));
+        list.appendChild(absRow(ll, pos + 5));
       } else if (pos === -2) {
         var ml = div('ligne bouton' + (row === -2 ? ' focus' : ''));
         ml.appendChild(div('nom', 'Affichage de l’accueil'));
         ml.appendChild(div('puce' + (row === -2 ? ' focus' : ''), mode === 'grille' ? 'Grille' : 'Une rangée'));
-        list.appendChild(absRow(ml, 2));
+        list.appendChild(absRow(ml, 3));
       } else if (pos === -1) {
         var tl = div('ligne bouton' + (row === -1 ? ' focus' : ''));
         tl.appendChild(div('nom', 'Tuiles à l’écran'));
         tl.appendChild(div('puce' + (row === -1 ? ' focus' : ''), '' + tiles));
-        list.appendChild(absRow(tl, 3));
+        list.appendChild(absRow(tl, 4));
       } else if (pos === 0) {
-        list.appendChild(absRow(div('ligne bouton' + (row === 0 ? ' focus' : ''), 'Découvrir les apps installées'), 4));
+        list.appendChild(absRow(div('ligne bouton' + (row === 0 ? ' focus' : ''), 'Découvrir les apps installées'), 5));
       } else if (pos <= catalog.length) {
         var i = pos - 1, on = row === pos;
         var line = div('ligne' + (on ? ' focus' : '') + (on && grabbed ? ' saisie' : ''));
@@ -139,9 +154,9 @@ export function createSettings(opts: SettingsOptions): Panel {
         for (var c = 0; c < CHIPS.length; c++) {
           if (on) line.appendChild(div('puce' + (chip === c ? ' focus' : ''), CHIPS[c]));
         }
-        list.appendChild(absRow(line, pos + 4));
+        list.appendChild(absRow(line, pos + 5));
       } else if (pos === catalog.length + 1) {
-        list.appendChild(absRow(div('titre-section', 'Apps installées'), pos + 4));
+        list.appendChild(absRow(div('titre-section', 'Apps installées'), pos + 5));
       } else {
         var f = pos - catalog.length - 2, fon = row === pos - 1;
         var fl = div('ligne' + (fon ? ' focus' : ''));
@@ -151,7 +166,7 @@ export function createSettings(opts: SettingsOptions): Panel {
         fl.appendChild(nom);
         if (inCat[found[f].id]) fl.appendChild(div('deja', 'Au catalogue'));
         else if (fon) fl.appendChild(div('puce focus', 'Ajouter'));
-        list.appendChild(absRow(fl, pos + 4));
+        list.appendChild(absRow(fl, pos + 5));
       }
     }
     list.style.height = total * ROW_H + 'px';
@@ -207,14 +222,28 @@ export function createSettings(opts: SettingsOptions): Panel {
     render();
   }
 
+  function openScenes(): void {
+    if (!opts.ha) return;
+    view = createScenesView(doc, opts.ha, render);
+    view.open();
+    render();
+  }
+
   function clampRow(): void {
     if (row >= rowCount()) row = rowCount() - 1;
-    if (row < -4) row = -4;
+    if (row < (opts.ha ? -5 : -4)) row = opts.ha ? -5 : -4;
   }
 
   function press(k: Key): boolean {
     var idx = row - 1; // index dans le catalogue si 1 ≤ row ≤ n
     var inCatalog = row >= 1 && row <= catalog.length;
+    if (view) {
+      // Retour : referme le champ de saisie, sinon la section ; le reste est géré par la section.
+      if (k === 'back' && !view.editing()) { view = null; render(); return true; }
+      var handled = view.press(k);
+      render();
+      return handled;
+    }
     if (k === 'back') {
       if (grabbed) grabbed = false; else opts.onClose();
       render();
@@ -238,6 +267,7 @@ export function createSettings(opts: SettingsOptions): Panel {
       else if (row === -1) stepTiles(k === 'left' ? -1 : 1, false);
       else if (inCatalog) chip = Math.max(0, Math.min(CHIPS.length - 1, chip + (k === 'left' ? -1 : 1)));
     } else if (k === 'enter') {
+      if (row === -5) { openScenes(); return true; }
       if (row === -4 || row === -3) { stepLang(row === -4, 1, true); render(); return true; }
       if (row === -2) { toggleMode(); render(); return true; }
       if (row === -1) { stepTiles(1, true); render(); return true; }

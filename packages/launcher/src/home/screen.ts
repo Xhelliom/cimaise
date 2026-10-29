@@ -8,6 +8,8 @@ import { CatalogEntry } from '../catalog/model';
 import { knownApp } from '../catalog/known-apps';
 import { greeting, formatClock, formatDate, tintGradient, tileInk, railOffset, pageShift, rowOffset, tileH, rowTileLeft, rowTileW, BAC_TOP, PAD, GAP, BAC_W, SCREEN_H, HomeMode, DEFAULT_MODE, normalizeTiles } from './model';
 
+export interface SceneItem { id: string; name: string; }
+
 export type PastilleName = 'reglages' | 'smarthub';
 
 export interface HomeOptions {
@@ -20,6 +22,8 @@ export interface HomeOptions {
   // (lève hors TV : l'indicateur reste alors caché).
   watchNetwork?: (cb: (online: boolean) => void) => () => void;
   onPastille: (name: PastilleName) => void;
+  // Activation d'une scène (rangée au-dessus du Dock) ; done(null) = réussi, done(err) = message d'erreur discret. Sans elle, la rangée reste inerte.
+  onScene?: (id: string, done: (err: Error | null) => void) => void;
   onError?: (err: Error) => void;
   now?: () => Date;
   timer?: { set: (fn: () => void, ms: number) => any; clear: (h: any) => void };
@@ -34,11 +38,14 @@ export interface HomePanel extends Panel {
   setCatalog(catalog: CatalogEntry[]): void;
   setMode(mode: HomeMode): void;
   setTiles(n: number): void;
+  setScenes(list: SceneItem[]): void;   // rangée de pastilles scène (au plus 6) ; liste vide = rangée retirée
   notify(text: string): void;   // petit message à l'écran (disparaît seul)
   enrich(): void;               // après la 1re peinture : teinte, description et logos (chargés hors DOM, posés une fois prêts)
 }
 
 var MESSAGE_MS = 4000;
+var SCENES_MAX = 6;
+var SCENE_MARK_MS = 1500; // « ✓ » (et la pastille allumée) restent ce temps après la réponse
 var TINT_DELAY_MS = 150; // la teinte ne suit qu'après cet arrêt du focus ; le focus, lui, bouge tout de suite
 
 var PASTILLES: Array<{ name: PastilleName; label: string }> = [
@@ -105,7 +112,10 @@ export function createHome(opts: HomeOptions): HomePanel {
   var unpainted: Array<{ tile: HTMLElement; file: string; pre: boolean }> = [];
   var grid = new Focus(0, per);
   var chips = new Focus(PASTILLES.length, PASTILLES.length);
-  var zone: 'tiles' | 'pastilles' = 'tiles';
+  var zone: 'tiles' | 'scenes' | 'pastilles' = 'tiles';
+  // Rangée de scènes : construite par setScenes seulement (aucun nœud tant que Home Assistant n'a rien donné).
+  var sceneList: SceneItem[] = [], sceneEls: HTMLElement[] = [], sceneLit: boolean[] = [], sceneTimers: any[] = [], sceneIdx = 0;
+  var sceneWrap: HTMLElement | null = null;
   var shownKey = '';
   var rich = !opts.deferRich;
 
@@ -196,6 +206,10 @@ export function createHome(opts: HomeOptions): HomePanel {
       rail.style.transform = mode === 'grille'
         ? 'translateY(' + -railOffset(row, per) + 'px)'
         : 'translateX(' + -rowOffset(idx, tiles.length, per) + 'px)';
+    }
+    for (var s = 0; s < sceneEls.length; s++) {
+      var scls = 'scene' + (zone === 'scenes' && s === sceneIdx ? ' focus' : '') + (sceneLit[s] ? ' allume' : '');
+      if (sceneEls[s].className !== scls) sceneEls[s].className = scls;
     }
     if (unpainted.length) notePaintedLogos();
     var known = rich && zone === 'tiles' && catalog[grid.index] ? knownApp(catalog[grid.index].name) : null;
@@ -301,14 +315,81 @@ export function createHome(opts: HomeOptions): HomePanel {
     }
   }
 
+  function clearSceneTimers(): void {
+    for (var i = 0; i < sceneTimers.length; i++) if (sceneTimers[i] !== null && sceneTimers[i] !== undefined) timer.clear(sceneTimers[i]);
+    sceneTimers = [];
+  }
+
+  function setScenes(list: SceneItem[]): void {
+    clearSceneTimers();
+    list = list.slice(0, SCENES_MAX);
+    if (sceneWrap && sceneWrap.parentNode) sceneWrap.parentNode.removeChild(sceneWrap);
+    sceneWrap = null;
+    sceneList = list;
+    sceneEls = [];
+    sceneLit = [];
+    if (list.length) {
+      sceneWrap = div('scenes');
+      for (var i = 0; i < list.length; i++) {
+        var pill = div('scene');
+        pill.appendChild(div('pt'));
+        pill.appendChild(div('sn', list[i].name));
+        pill.appendChild(div('sm'));
+        sceneEls.push(pill);
+        sceneLit.push(false);
+        sceneWrap.appendChild(pill);
+      }
+      el.appendChild(sceneWrap);
+    }
+    if (sceneIdx >= list.length) sceneIdx = Math.max(0, list.length - 1);
+    if (zone === 'scenes' && !list.length) zone = catalog.length ? 'tiles' : 'pastilles';
+    paint();
+  }
+
+  function activateScene(): void {
+    var i = sceneIdx, item = sceneList[i];
+    if (sceneLit[i]) return; // déjà en cours (ou « ✓ » encore affiché)
+    var fail = function (err: Error) {
+      sceneLit[i] = false;
+      notify(item.name + ' : ' + (err && err.message ? err.message : 'échec'));
+      paint();
+    };
+    if (!opts.onScene) { notify(item.name + ' : activation indisponible'); return; }
+    sceneLit[i] = true; // retour visuel immédiat, avant la réponse
+    try {
+      opts.onScene(item.id, function (err) {
+        if (sceneList[i] !== item) return; // la liste a changé entre-temps
+        if (err) { fail(err); return; }
+        sceneEls[i].children[2].textContent = '✓';
+        sceneTimers[i] = timer.set(function () {
+          sceneTimers[i] = null;
+          sceneLit[i] = false;
+          sceneEls[i].children[2].textContent = '';
+          paint();
+        }, SCENE_MARK_MS);
+        paint();
+      });
+    } catch (e) { fail(e as Error); return; }
+    paint();
+  }
+
   function press(k: Key): boolean {
+    if (zone === 'scenes') {
+      if (k === 'left' || k === 'right') sceneIdx = Math.max(0, Math.min(sceneList.length - 1, sceneIdx + (k === 'left' ? -1 : 1)));
+      else if (k === 'up') zone = 'pastilles';
+      else if (k === 'down') { if (catalog.length) zone = 'tiles'; }
+      else if (k === 'enter') { activateScene(); return true; }
+      else return false;
+      paint();
+      return true;
+    }
     if (zone === 'tiles') {
-      if (k === 'up') { if (!grid.move('up')) zone = 'pastilles'; }
+      if (k === 'up') { if (!grid.move('up')) zone = sceneEls.length ? 'scenes' : 'pastilles'; }
       else if (k === 'left' || k === 'right' || k === 'down') grid.move(k);
       else if (k === 'enter') { if (catalog.length) activate(); return true; }
       else return false;
     } else {
-      if (k === 'down' && catalog.length) zone = 'tiles';
+      if (k === 'down' && (sceneEls.length || catalog.length)) zone = sceneEls.length ? 'scenes' : 'tiles';
       else if (k === 'left' || k === 'right') chips.move(k);
       else if (k === 'enter') { opts.onPastille(PASTILLES[chips.index].name); return true; }
       else if (k !== 'down' && k !== 'up') return false;
@@ -355,6 +436,7 @@ export function createHome(opts: HomeOptions): HomePanel {
       shownKey = '';
       paint();
     },
+    setScenes: setScenes,
     setTiles: function (n: number) {
       n = normalizeTiles(n);
       if (n === per) return;
@@ -371,6 +453,7 @@ export function createHome(opts: HomeOptions): HomePanel {
       if (fadeTimer !== null) { timer.clear(fadeTimer); fadeTimer = null; }
       if (tintTimer !== null) { timer.clear(tintTimer); tintTimer = null; }
       if (msgTimer !== null) { timer.clear(msgTimer); msgTimer = null; }
+      clearSceneTimers();
     }
   };
 }

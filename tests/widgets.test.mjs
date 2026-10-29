@@ -17,7 +17,7 @@ before(async () => {
   const t = spawnSync('node_modules/.bin/tsc', ['-p', 'packages/widgets/tsconfig.json', '--outDir', es5], { encoding: 'utf8' });
   assert.equal(t.status, 0, t.stdout + t.stderr);
   const out = join(dir, 'widgets.cjs');
-  await build({ entryPoints: [join(es5, 'index.js')], bundle: true, format: 'cjs', target: 'es5', outfile: out, logLevel: 'warning' });
+  await build({ entryPoints: [join(es5, 'widgets/src/index.js')], bundle: true, format: 'cjs', target: 'es5', outfile: out, logLevel: 'warning' });
   ha = createRequire(import.meta.url)(out);
 
   // Faux Home Assistant : enregistre les requêtes, refuse le mauvais jeton.
