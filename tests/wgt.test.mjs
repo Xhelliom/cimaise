@@ -47,7 +47,7 @@ test('config.xml : identité stable, required_version, privilèges, documenté',
   assert.match(cfg, /<tizen:application id="cimaise001\.Cimaise" package="cimaise001" required_version="5\.0"/);
   assert.match(cfg, /<tizen:profile name="tv-samsung"/);
   const privs = [...cfg.matchAll(/<tizen:privilege name="([^"]+)"/g)].map((m) => m[1]);
-  assert.deepEqual(privs, ['http://tizen.org/privilege/tv.inputdevice', 'http://tizen.org/privilege/application.launch', 'http://tizen.org/privilege/application.info', 'http://tizen.org/privilege/internet']);
+  assert.deepEqual(privs, ['http://tizen.org/privilege/tv.inputdevice', 'http://tizen.org/privilege/application.launch', 'http://tizen.org/privilege/application.info', 'http://tizen.org/privilege/internet', 'http://developer.samsung.com/privilege/network.public']);
   assert.match(cfg, /<!--[\s\S]*required_version[\s\S]*-->/);
   assert.match(readFileSync('docs/decisions.md', 'utf8'), /required_version[\s\S]*cimaise001\.Cimaise|cimaise001\.Cimaise[\s\S]*required_version/);
   assert.equal(zip(readFileSync(WGT))['config.xml'].toString(), cfg);

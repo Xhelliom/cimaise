@@ -429,3 +429,33 @@ test('diagnostic : la sonde mesure keydown → 2 requestAnimationFrame', () => {
   t = 1057; q.shift()();
   assert.deepEqual(core.latencyStats(), { n: 1, min: 57, median: 57, max: 57 });
 });
+
+test('device.hideApp : hide() de l’app courante ; hors TV, NO_TIZEN', () => {
+  globalThis.window = {};
+  try { assert.throws(() => core.hideApp(), (e) => e.code === 'NO_TIZEN'); } finally { delete globalThis.window; }
+  let hidden = 0;
+  globalThis.window = { tizen: { application: { getCurrentApplication: () => ({ hide: () => hidden++ }) } } };
+  try { core.hideApp(); } finally { delete globalThis.window; }
+  assert.equal(hidden, 1);
+});
+
+test('device.watchNetwork : état initial + événements webapis.network, retrait de l’écoute', () => {
+  globalThis.window = {};
+  try { assert.throws(() => core.watchNetwork(() => {}), (e) => e.code === 'NO_WEBAPIS'); } finally { delete globalThis.window; }
+  let listener = null, removed = null;
+  const net = {
+    NetworkState: { GATEWAY_DISCONNECTED: 4, GATEWAY_CONNECTED: 5 },
+    isConnectedToGateway: () => true,
+    addNetworkStateChangeListener: (fn) => { listener = fn; return 7; },
+    removeNetworkStateChangeListener: (id) => { removed = id; },
+  };
+  globalThis.window = { webapis: { network: net } };
+  const seen = [];
+  try {
+    const stop = core.watchNetwork((on) => seen.push(on));
+    listener(4); listener(5);
+    assert.deepEqual(seen, [true, false, true]);
+    stop();
+    assert.equal(removed, 7);
+  } finally { delete globalThis.window; }
+});

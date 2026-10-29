@@ -84,7 +84,7 @@ test('chargement différé : après le premier affichage, police et touches méd
   const a = boot();
   a.flush();
   assert.equal(find(a.root, 'titre')[0].textContent, 'Plex intégré');
-  assert.equal(find(a.root, 'pastille').length, 3);
+  assert.equal(find(a.root, 'pastille').length, 2);
   assert.equal(a.body.className, 'late');
   assert.deepEqual(a.loaded, [], 'Plex et réglages restent à la demande');
 });

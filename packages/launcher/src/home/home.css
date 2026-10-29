@@ -42,3 +42,5 @@
 .home .tuile.focus{transform:scale(1.1);box-shadow:0 0 0 6px rgba(255,255,255,.92);position:relative;z-index:1}
 .home .message{position:absolute;left:100px;top:630px;max-width:1720px;padding:18px 36px;border-radius:36px;font-size:32px;font-weight:500;background:rgba(255,255,255,.92);color:#111;z-index:5;opacity:0}
 .home .message.on{opacity:1}
+.home .reseau{position:absolute;left:100px;top:40px;padding:10px 28px;border-radius:30px;font-size:26px;font-weight:500;background:rgba(229,9,20,.85);color:#fff;z-index:4;opacity:0}
+.home .reseau.on{opacity:1}

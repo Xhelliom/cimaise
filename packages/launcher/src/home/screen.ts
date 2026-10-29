@@ -2,12 +2,12 @@ import { applyIcon } from '../../../tv-core/src/icon';
 import { Key } from '../../../tv-core/src/keys';
 import { Focus } from '../../../tv-core/src/focus';
 import { Panel } from '../../../tv-core/src/router/router';
-import { launchApp as deviceLaunch } from '../../../tv-core/src/device';
+import { launchApp as deviceLaunch, watchNetwork as deviceWatchNetwork } from '../../../tv-core/src/device';
 import { CatalogEntry } from '../catalog/model';
 import { knownApp } from '../catalog/known-apps';
 import { greeting, formatClock, formatDate, tintGradient, tileInk, railOffset, pageShift, rowOffset, HomeMode, DEFAULT_MODE, normalizeTiles } from './model';
 
-export type PastilleName = 'reglages' | 'smarthub' | 'reseau';
+export type PastilleName = 'reglages' | 'smarthub';
 
 export interface HomeOptions {
   catalog: CatalogEntry[];
@@ -15,6 +15,9 @@ export interface HomeOptions {
   launchApp?: (id: string, ok?: () => void, fail?: (err: Error) => void) => void;
   // Ouverture des entrées de type 'interne' (ex. Plex intégré) par le routeur ; elles ne passent jamais par device.
   openInternal?: (id: string) => void;
+  // Suivi du réseau par événement : cb(true) = joignable, cb(false) = coupé ; renvoie le retrait de l'écoute. Défaut : tv-core/device
+  // (lève hors TV : l'indicateur reste alors caché).
+  watchNetwork?: (cb: (online: boolean) => void) => () => void;
   onPastille: (name: PastilleName) => void;
   onError?: (err: Error) => void;
   now?: () => Date;
@@ -36,8 +39,7 @@ var TINT_DELAY_MS = 150; // la teinte ne suit qu'après cet arrêt du focus ; le
 
 var PASTILLES: Array<{ name: PastilleName; label: string }> = [
   { name: 'reglages', label: 'Réglages' },
-  { name: 'smarthub', label: 'Smart Hub' },
-  { name: 'reseau', label: 'Réseau' }
+  { name: 'smarthub', label: 'Smart Hub' }
 ];
 
 function has(el: HTMLElement, c: string): boolean { return (' ' + el.className + ' ').indexOf(' ' + c + ' ') >= 0; }
@@ -81,6 +83,7 @@ export function createHome(opts: HomeOptions): HomePanel {
   }
   var titre = div('titre'), desc = div('desc');
   var message = div('message');
+  var reseau = div('reseau', 'Réseau coupé'); // non focalisable : visible seulement si le réseau est coupé
   var bac = div('bac'), rail = div('rail');
   bac.appendChild(rail);
   el.appendChild(layers[0]);
@@ -91,6 +94,7 @@ export function createHome(opts: HomeOptions): HomePanel {
   el.appendChild(desc);
   el.appendChild(bac);
   el.appendChild(message);
+  el.appendChild(reseau);
 
   var tiles: HTMLElement[] = [];
   var grid = new Focus(0, per);
@@ -246,6 +250,11 @@ export function createHome(opts: HomeOptions): HomePanel {
     return true;
   }
 
+  var stopNet: (() => void) | null = null;
+  try {
+    stopNet = (opts.watchNetwork || deviceWatchNetwork)(function (online) { reseau.className = online ? 'reseau' : 'reseau on'; });
+  } catch (e) { /* hors TV : l'indicateur reste caché */ }
+
   el.className = homeClass(0);
   buildTiles();
   refresh();
@@ -281,6 +290,7 @@ export function createHome(opts: HomeOptions): HomePanel {
     resume: function () { stopClock(); tick(); },
     destroy: function () {
       stopClock();
+      if (stopNet) { try { stopNet(); } catch (e) { /* écoute déjà retirée */ } stopNet = null; }
       if (fadeTimer !== null) { timer.clear(fadeTimer); fadeTimer = null; }
       if (tintTimer !== null) { timer.clear(tintTimer); tintTimer = null; }
       if (msgTimer !== null) { timer.clear(msgTimer); msgTimer = null; }

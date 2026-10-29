@@ -18,3 +18,16 @@ export function saveHomeTiles(n: number, store?: Storage): void {
   s.prefs.homeTiles = normalizeTiles(n);
   saveStored(s, store);
 }
+
+// Préférence dans cimaise.v1 (prefs.smartHubApp) : ID de l'app TV que la pastille Smart Hub lance. Vide = repli (quitter vers le Smart Hub).
+// Jamais d'ID en dur : relevé sur la TV (HANDOFF §3).
+export function loadSmartHubTarget(store?: Storage): string {
+  var v = loadStored(store).prefs.smartHubApp;
+  return typeof v === 'string' ? v : '';
+}
+
+export function saveSmartHubTarget(id: string, store?: Storage): void {
+  var s = loadStored(store);
+  s.prefs.smartHubApp = id;
+  saveStored(s, store);
+}
