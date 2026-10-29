@@ -130,3 +130,20 @@
 .plex-episodes .vtile.done::before,.plex-seasons .vtile.done::before{content:"";position:absolute;z-index:3;border:solid #111;border-width:0 5px 5px 0;transform:rotate(45deg)}
 .plex-episodes .vtile.done::before{right:29px;top:20px;width:9px;height:18px}
 .plex-seasons .vtile.done::before{right:18px;top:13px;width:6px;height:11px;border-width:0 4px 4px 0}
+/* Recherche : clavier à gauche (1188 px), résultats en rangées étroites à droite ; bouton d'entrée en haut de l'accueil */
+.plex-search-btn{position:absolute;right:120px;top:64px;height:72px;padding:0 40px;border-radius:36px;background:rgba(255,255,255,.1);font-size:30px;font-weight:500;line-height:72px}
+.plex-search-btn.focus{background:#fff;color:#111}
+.plex-search-kb{position:absolute;left:120px;top:200px}
+.plex-search-res{position:absolute;left:1340px;top:150px;width:580px;height:900px;overflow:hidden}
+.plex-search .plex-hub{width:580px;height:300px}
+.plex-search .plex-hub-title{left:0;top:0;font-size:32px}
+.plex-search .plex-row{left:0;top:48px;width:580px;height:236px}
+.plex-search .plex-row .vlayer{margin:12px 0 0 12px}
+.plex-search .vtile .vimg{width:104px;height:156px;border-radius:8px}
+.plex-search .vtile .vlabel{top:164px;width:104px;font-size:20px;line-height:24px;white-space:normal;max-height:48px}
+.plex-search .plex-row .vtile.focus .vimg{transform:scale(1.08);box-shadow:0 0 0 4px rgba(255,255,255,.92)}
+.plex-search-note{position:absolute;left:1340px;top:170px;font-size:30px;color:rgba(255,255,255,.6)}
+.plex-recents{position:absolute;left:1340px;top:150px;width:520px}
+.plex-recents .plex-hub-title{position:static;font-size:32px;margin-bottom:16px}
+.plex-recent-item{height:72px;line-height:72px;padding:0 24px;margin-bottom:8px;border-radius:12px;font-size:32px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:rgba(255,255,255,.06)}
+.plex-recent-item.focus{background:#fff;color:#111}

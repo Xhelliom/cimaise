@@ -54,17 +54,28 @@ export var MEASURE_LABELS: { [kind: string]: string } = {
   'biblio-cache': 'bibliothèque (cache)',
   'biblio-reseau': 'bibliothèque (réseau)',
   'fiche': 'fiche',
-  'lecture': 'lecture (Entrée → 1re image)'
+  'lecture': 'lecture (Entrée → 1re image)',
+  'frappe': 'recherche : frappe → caractère',
+  'recherche': 'recherche : frappe → 1ers résultats',
+  'recherche-serveur': 'recherche : frappe → complément serveur'
 };
-var measures: { [kind: string]: number[] } = {};
-export function resetMeasures(): void { measures = {}; }
+// Chaque bundle (app.js, plex.js) embarque sa propre copie de ce module : les mesures vivent sur window, sinon celles de
+// plex.js n'atteindraient jamais le diagnostic d'app.js. Hors navigateur (tests) : variable locale.
+var localMeasures: { [kind: string]: number[] } = {};
+function store(): { [kind: string]: number[] } {
+  if (typeof window === 'undefined') return localMeasures;
+  var w: any = window;
+  return w.__cimaiseMeasures || (w.__cimaiseMeasures = {});
+}
+export function resetMeasures(): void { localMeasures = {}; if (typeof window !== 'undefined') (window as any).__cimaiseMeasures = {}; }
 export function recordMeasure(kind: string, ms: number): void {
-  var l = measures[kind] || (measures[kind] = []);
+  var m = store();
+  var l = m[kind] || (m[kind] = []);
   l.push(ms < 0 ? 0 : ms);
   if (l.length > MEASURE_KEEP) l.shift();
 }
 export function measureStats(kind: string): { n: number; min: number; median: number; max: number } | null {
-  var l = measures[kind];
+  var l = store()[kind];
   if (!l || !l.length) return null;
   var s = l.slice().sort(function (a, b) { return a - b; });
   var m = Math.floor(s.length / 2);

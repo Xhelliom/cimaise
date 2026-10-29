@@ -1,5 +1,6 @@
 /* Accueil Dock v2 (home.css) : un seul fichier, la police Outfit est copiée dans dist/fonts/ par le build. */
 @import "../../../packages/launcher/src/home/home.css";
+@import "../../../packages/tv-core/src/keyboard/keyboard.css";
 @import "../../../packages/plex/src/plex.css";
 html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:#0b0b0d;color:#fff;font:300 36px/1 sans-serif}
 /* Premier affichage en police système : Outfit n'est demandée qu'après (body.late), @font-face ne télécharge qu'au premier usage. */
