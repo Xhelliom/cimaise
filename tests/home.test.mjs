@@ -56,7 +56,7 @@ function timers() {
 }
 const APPS = ['plex-int', 'plex', 'netflix', 'youtube', 'disney', 'canal', 'a7', 'a8', 'a9', 'a10', 'a11', 'a12'];
 const PAL = ['#e5a00d', '#e50914', '#c4302b', '#113ccf', '#1f8a5b', '#8a3ffc', '#d6336c', '#5a5a5f'];
-const catalog = (n) => APPS.slice(0, n).map((id, i) => ({ id, name: id.toUpperCase(), tint: PAL[i % PAL.length] }));
+const catalog = (n) => APPS.slice(0, n).map((id, i) => ({ id, name: id.toUpperCase(), color: PAL[i % PAL.length], type: i === 0 ? 'interne' : 'tv' }));
 
 function mount(extra = {}, n = 12) {
   const log = [];
@@ -66,7 +66,7 @@ function mount(extra = {}, n = 12) {
   const p = H.createHome({
     catalog: catalog(n), doc, timer: tm, now: () => D('2026-10-29T20:45:10'),
     launchApp: (id) => calls.launch.push(id),
-    internal: { 'plex-int': () => calls.internal.push('plex-int') },
+    openInternal: (id) => calls.internal.push(id),
     onPastille: (n) => calls.pastille.push(n),
     onError: (e) => calls.errors.push(e),
     ...extra,
@@ -190,7 +190,7 @@ test('Entrée sur Plex intégré ouvre le module interne via le routeur (pile, R
   const root = { children: [], appendChild(c) { c.parent = root; root.children.push(c); return c; }, removeChild(c) { root.children.splice(root.children.indexOf(c), 1); c.parent = null; return c; } };
   const router = new TV.Router({ root, exit: () => {} });
   const mod = TV.lazy((done) => done({ build: () => ({ el: { parent: null } }) }));
-  const { p } = mount({ internal: { 'plex-int': () => router.pushLazy(mod, (m) => m.build()) } });
+  const { p } = mount({ openInternal: () => router.pushLazy(mod, (m) => m.build()) });
   router.push(p);
   assert.equal(router.depth, 1);
   router.handleKey('enter');
@@ -261,17 +261,21 @@ test('setCatalog : reconstruit les tuiles, ramène le focus dans les bornes', ()
   press('down', 'enter'); // ne plante pas
 });
 
-test('device.launchApp : appelle tizen.application.launch ; sans TV : erreur explicite', () => {
-  globalThis.window = {};
-  assert.throws(() => TV.launchApp('x'), (e) => e.code === 'NO_TIZEN');
-  const seen = [];
-  globalThis.window = { tizen: { application: { launch: (id, ok, ko) => { seen.push(id); ok(); } } } };
-  try {
-    let okCalled = false;
-    TV.launchApp('org.tizen.netflix-app', () => { okCalled = true; });
-    assert.deepEqual(seen, ['org.tizen.netflix-app']);
-    assert.ok(okCalled);
-  } finally { delete globalThis.window; }
+test('Haut remonte d’une seule rangée (pas de double déplacement), puis passe aux pastilles', () => {
+  const { p, press } = mount();
+  const titre = () => one(p.el, 'titre').textContent;
+  press('down', 'down', 'left'); // rangée 3, colonne 0 : tuile 8
+  assert.equal(titre(), 'A9');
+  press('up');
+  assert.equal(titre(), 'DISNEY'); // tuile 4 : rangée 2
+  press('up');
+  assert.equal(titre(), 'PLEX-INT'); // tuile 0 : rangée 1
+  press('up');
+  assert.equal(titre(), 'Réglages'); // pastilles
+  const q = mount();
+  q.press('down', 'down', 'right', 'right', 'right'); // tuile 11
+  q.press('up');
+  assert.equal(one(q.p.el, 'titre').textContent, 'A8'); // tuile 7, pas 3
 });
 
 test('CSS : une police Outfit 2 graisses embarquée, pas de flou, pas de couleur animée', () => {

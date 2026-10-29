@@ -2,17 +2,17 @@ import { Key } from '../../../tv-core/src/keys';
 import { Focus } from '../../../tv-core/src/focus';
 import { Panel } from '../../../tv-core/src/router/router';
 import { launchApp as deviceLaunch } from '../../../tv-core/src/device';
-import { AppEntry } from '../settings/model';
+import { CatalogEntry } from '../catalog/model';
 import { greeting, formatClock, formatDate, tintGradient, tileInk, COLS, railOffset } from './model';
 
 export type PastilleName = 'reglages' | 'smarthub' | 'reseau';
 
 export interface HomeOptions {
-  catalog: AppEntry[];
+  catalog: CatalogEntry[];
   // Lancement d'une app ; défaut : tv-core/device (échoue hors TV avec une DeviceError explicite).
   launchApp?: (id: string, ok?: () => void, fail?: (err: Error) => void) => void;
-  // Entrées ouvertes par le routeur plutôt que lancées (ex. Plex intégré) : id -> ouverture.
-  internal?: { [id: string]: () => void };
+  // Ouverture des entrées de type 'interne' (ex. Plex intégré) par le routeur ; elles ne passent jamais par device.
+  openInternal?: (id: string) => void;
   onPastille: (name: PastilleName) => void;
   onError?: (err: Error) => void;
   now?: () => Date;
@@ -20,7 +20,7 @@ export interface HomeOptions {
   doc?: Document;
 }
 
-export interface HomePanel extends Panel { setCatalog(catalog: AppEntry[]): void; }
+export interface HomePanel extends Panel { setCatalog(catalog: CatalogEntry[]): void; }
 
 var PASTILLES: Array<{ name: PastilleName; label: string }> = [
   { name: 'reglages', label: 'Réglages' },
@@ -137,7 +137,7 @@ export function createHome(opts: HomeOptions): HomePanel {
     }
     if (zone === 'tiles' && catalog[grid.index]) {
       titre.textContent = catalog[grid.index].name;
-      tint(catalog[grid.index].tint);
+      tint(catalog[grid.index].color);
     } else if (zone === 'pastilles') titre.textContent = PASTILLES[chips.index].label;
     else titre.textContent = '';
   }
@@ -147,8 +147,8 @@ export function createHome(opts: HomeOptions): HomePanel {
     tiles = [];
     for (var i = 0; i < catalog.length; i++) {
       var t = div('tuile');
-      t.style.background = catalog[i].tint;
-      t.style.color = tileInk(catalog[i].tint);
+      t.style.background = catalog[i].color;
+      t.style.color = tileInk(catalog[i].color);
       if (catalog[i].icon) {
         var img = doc.createElement('img');
         img.setAttribute('src', catalog[i].icon as string);
@@ -165,10 +165,11 @@ export function createHome(opts: HomeOptions): HomePanel {
 
   function activate(): void {
     try {
-      var id = catalog[grid.index].id;
-      var open = opts.internal && opts.internal[id];
-      if (open) open();
-      else launch(id, undefined, function (err) { if (opts.onError) opts.onError(err); });
+      var entry = catalog[grid.index];
+      if (entry.type === 'interne') {
+        if (opts.openInternal) opts.openInternal(entry.id);
+        else if (opts.onError) opts.onError(new Error('Module interne sans ouverture : ' + entry.id));
+      } else launch(entry.id, undefined, function (err) { if (opts.onError) opts.onError(err); });
     } catch (e) {
       if (opts.onError) opts.onError(e as Error);
     }
@@ -198,7 +199,7 @@ export function createHome(opts: HomeOptions): HomePanel {
   return {
     el: el,
     onKey: press,
-    setCatalog: function (c: AppEntry[]) {
+    setCatalog: function (c: CatalogEntry[]) {
       catalog = c.slice(0);
       buildTiles();
       paint();

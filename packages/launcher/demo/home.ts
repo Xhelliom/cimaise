@@ -3,17 +3,18 @@
 import { Router, normalizeKey, lazy } from '../../tv-core/src/index';
 import { createHome } from '../src/home/index';
 import { AppEntry, DiscoveredApp } from '../src/settings/model';
+import { CatalogEntry } from '../src/catalog/model';
 
 var hud = document.getElementById('hud')!;
-var catalog: AppEntry[] = [
-  { id: 'cimaise.plex', name: 'Plex intégré', tint: '#e5a00d' },
-  { id: 'fake.plex-officiel', name: 'Plex', tint: '#5a5a5f' },
-  { id: 'fake.netflix', name: 'Netflix', tint: '#e50914' },
-  { id: 'fake.youtube', name: 'YouTube', tint: '#c4302b' },
-  { id: 'disney', name: 'Disney+', tint: '#113ccf' },
-  { id: 'canal', name: 'Canal+', tint: '#5a5a5f' },
-  { id: 'prime', name: 'Prime Video', tint: '#1f8a5b' },
-  { id: 'arte', name: 'Arte', tint: '#d6336c' }
+var catalog: CatalogEntry[] = [
+  { id: 'cimaise.plex', name: 'Plex intégré', color: '#e5a00d', type: 'interne' },
+  { id: 'fake.plex-officiel', name: 'Plex', color: '#5a5a5f', type: 'tv' },
+  { id: 'fake.netflix', name: 'Netflix', color: '#e50914', type: 'tv' },
+  { id: 'fake.youtube', name: 'YouTube', color: '#c4302b', type: 'tv' },
+  { id: 'disney', name: 'Disney+', color: '#113ccf', type: 'tv' },
+  { id: 'canal', name: 'Canal+', color: '#5a5a5f', type: 'tv' },
+  { id: 'prime', name: 'Prime Video', color: '#1f8a5b', type: 'tv' },
+  { id: 'arte', name: 'Arte', color: '#d6336c', type: 'tv' }
 ];
 
 var router = new Router({ root: document.getElementById('root')!, exit: function () { hud.textContent = 'sortie confirmée'; } });
@@ -24,15 +25,18 @@ var plex = lazy<{ panel: () => { el: HTMLElement } }>(function (done) {
 
 var home = createHome({
   catalog: catalog,
-  internal: { 'cimaise.plex': function () { router.pushLazy(plex, function (m) { return m.panel(); }); } },
+  openInternal: function () { router.pushLazy(plex, function (m) { return m.panel(); }); },
   onError: function (e) { hud.textContent = e.message; },
   onPastille: function (name) {
     if (name !== 'reglages') { hud.textContent = 'pastille ' + name + ' : non branchée dans la démo'; return; }
     router.pushLazy(settings, function (m) {
       return m.createSettings({
-        catalog: catalog,
+        catalog: catalog.map(function (c) { return { id: c.id, name: c.name, icon: c.icon, tint: c.color }; }),
         listInstalledApps: function (_ok: (a: DiscoveredApp[]) => void, fail: (e: Error) => void) { fail(new Error('Découverte : pas de TV dans l’aperçu')); },
-        onChange: function (c: AppEntry[]) { catalog = c; home.setCatalog(c); },
+        onChange: function (c: AppEntry[]) {
+          catalog = c.map(function (a) { return { id: a.id, name: a.name, icon: a.icon, color: a.tint, type: a.id === 'cimaise.plex' ? 'interne' : 'tv' } as CatalogEntry; });
+          home.setCatalog(catalog);
+        },
         onClose: function () { router.pop(); }
       });
     });
