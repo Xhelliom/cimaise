@@ -2,6 +2,7 @@ import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { inflateSync } from 'node:zlib';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -173,4 +174,53 @@ test('le logo n’est jamais embarqué dans le JS initial ; le .wgt le contient'
     assert.ok(existsSync(p), 'logo absent de dist : ' + k.logo);
     assert.equal(statSync(p).size, statSync(join(DIR, 'logos', k.logo)).size);
   }
+});
+
+test('Frame : « Plex - Free Movies ＆ TV » (＆ pleine chasse U+FF06) est Plex officiel, pas Plex intégré', () => {
+  for (const n of ['Plex - Free Movies ＆ TV', 'Plex - Free Movies & TV', 'PLEX – FREE MOVIES ＆ TV', 'Plex: Stream Movies & TV', 'Plex Media Player']) {
+    const k = C.knownApp(n);
+    assert.equal(k && k.logo, 'plex.png', n);
+    assert.equal(k.tag, 'officiel', n);
+  }
+  assert.equal(C.knownApp('Plex intégré').logo, 'plex-integre.png', 'égalité stricte avant début de nom');
+  assert.ok(C.sameApp('Plex officiel', 'Plex - Free Movies ＆ TV'));
+  assert.ok(!C.sameApp('Plex intégré', 'Plex - Free Movies ＆ TV'));
+});
+
+test('NFKC : formes de compatibilité (pleine chasse, ligatures) ; alias YouTube ; début de nom limité aux apps sûres', () => {
+  assert.equal(C.nameKey('ＹｏｕＴｕｂｅ'), 'youtube');
+  assert.equal(C.nameKey('Plex ＆ TV'), C.nameKey('Plex & TV'));
+  assert.equal(C.knownApp('YouTube TV').logo, 'youtube.png');
+  assert.equal(C.knownApp('YouTube Kids').logo, 'youtube.png');
+  assert.equal(C.knownApp('Netflix Party').logo, 'netflix.png');
+  for (const n of ['Max Payne', 'Arte Radio Mix', 'Disney Junior', 'Canal Street', 'Plexus Pro']) assert.equal(C.knownApp(n), null, n);
+});
+
+test('logo YouTube : triangle évidé (transparent) dans le rectangle de l’icône', () => {
+  const b = readFileSync(join(DIR, 'logos', 'youtube.png'));
+  const idat = []; let pos = 8, trns = Buffer.alloc(0);
+  while (pos < b.length) {
+    const l = b.readUInt32BE(pos), t = b.toString('latin1', pos + 4, pos + 8);
+    if (t === 'IDAT') idat.push(b.subarray(pos + 8, pos + 8 + l));
+    if (t === 'tRNS') trns = b.subarray(pos + 8, pos + 8 + l);
+    pos += 12 + l;
+  }
+  const w = b.readUInt32BE(16), h = b.readUInt32BE(20);
+  const raw = inflateSync(Buffer.concat(idat));
+  // Filtre de la ligne ; palette 8 bits : on ne lit que la ligne centrale (reconstruction PNG complète sur les lignes précédentes)
+  let prev = Buffer.alloc(w), mid;
+  for (let y = 0; y < h; y++) {
+    const f = raw[y * (w + 1)], line = Buffer.from(raw.subarray(y * (w + 1) + 1, (y + 1) * (w + 1)));
+    for (let x = 0; x < w; x++) {
+      const a = x ? line[x - 1] : 0, u = prev[x], c = x ? prev[x - 1] : 0;
+      if (f === 1) line[x] += a; else if (f === 2) line[x] += u; else if (f === 3) line[x] += (a + u) >> 1;
+      else if (f === 4) { const p = a + u - c, pa = Math.abs(p - a), pb = Math.abs(p - u), pc = Math.abs(p - c); line[x] += pa <= pb && pa <= pc ? a : pb <= pc ? u : c; }
+    }
+    if (y === h >> 1) mid = line;
+    prev = line;
+  }
+  const alpha = (x) => (mid[x] < trns.length ? trns[mid[x]] : 255);
+  assert.ok(alpha(5) > 200, 'rectangle plein à gauche');
+  assert.ok(alpha(51) < 20, 'centre du rectangle : triangle évidé');
+  assert.ok(alpha(95) > 200, 'rectangle plein à droite');
 });
