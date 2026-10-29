@@ -16,7 +16,7 @@ for f in "$REPO_ROOT"/dist/*.wgt; do
   [ -e "$f" ] || continue
   b="$(basename "$f")"; safe="${b// /-}"; safe="$(printf '%s' "$safe" | LC_ALL=C tr -cd 'A-Za-z0-9._-')"
   [ "$safe" = "$b" ] && continue
-  [ ! -e "$REPO_ROOT/dist/$safe" ] || die "dist/$safe existe déjà : supprimer ou renommer avant de relancer"
-  mv "$f" "$REPO_ROOT/dist/$safe"
+  # $f porte un nom non sûr : seul le packager vient de l'écrire ; il remplace la version précédente de $safe.
+  mv -f "$f" "$REPO_ROOT/dist/$safe"
 done
 ls "$REPO_ROOT"/dist/*.wgt >/dev/null 2>&1 || die "aucun .wgt produit"

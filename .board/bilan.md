@@ -1,16 +1,10 @@
 # Bilan
 
-**Fait**
-- Package `cimaise001` (id `cimaise001.Cimaise`) ; tests de longueur 10 car. : `wgt.test.mjs` (apps/tv, apps/blank), `bench-cleanframe.test.mjs` (bench).
-- Privilèges `application.launch` et `application.info` ajoutés et documentés (docs/decisions.md).
-- `package.sh` : sortie réduite à `[A-Za-z0-9._-]` (`CleanFrame (bench).wgt` → `CleanFrame-bench.wgt`).
-- `install.sh` : refuse avec un message clair tout .wgt au nom hors `[A-Za-z0-9._-]`, avant tout appel à la TV.
-- `scripts/tizen/test.sh` : cas du repli vd_appinstall forcé (commande journalisée sans caractère spécial), refus du nom non sûr, test 7 bis mis à jour.
-- docs/decisions.md : phrase sur les tests corrigée.
-- `scripts/tizen/test.sh` isolé : les `dist/*.wgt` existants sont mis à l'abri dans le TMP puis restaurés à la sortie (une seule trap `cleanup`) ; vérifié avec un `dist/keep.wgt` factice qui survit.
-- `package.sh` échoue au lieu d'écraser si le nom sûr existe déjà (plus de `mv -f`).
-- `scripts/tizen/test.sh` vert ; `npm run check` vert (180 pass).
+## Fait
+- Cartes précédentes (package `cimaise001`, privilèges `application.launch`/`application.info`, test de longueur des 3 config.xml, sortie sans espace) : déjà dans la branche.
+- Correctif critère 3 : `scripts/tizen/package.sh` remplace désormais le `.wgt` sûr précédent (`mv -f`) au lieu de s'arrêter ; plus de `.wgt` avec espaces laissé dans `dist/`.
+- Test ajouté dans `scripts/tizen/test.sh` : `package.sh` deux fois de suite, aucun `.wgt` avec espace, puis `install.sh` sans argument réussit.
+- `npm run check` vert (180 tests).
 
-**Non fait / à confirmer**
-- Privilèges et installation réelle non testés sur la TV.
-- `.local/tizen.env` (APP_ID) à mettre à jour à la main.
+## Non fait
+- Rien de la carte. Le garde-fou « refuse d'écraser » est supprimé : seul le fichier au nom non sûr, qu'écrit le packager, déclenche le renommage, donc il ne peut pas venir d'une autre source.

@@ -156,6 +156,12 @@ grep -q "^SDB .* vd_appinstall" "$TMP/docker.log" && fail "install : pas de repl
 vd="$(grep '^SDB .* vd_appinstall' "$TMP/docker.log" | head -n1 | grep -o 'vd_appinstall.*')"
 [[ "$vd" =~ ^vd_appinstall\ [A-Za-z0-9._-]+\ [A-Za-z0-9._/-]+/CleanFrame-bench\.wgt$ ]] && ok "repli vd_appinstall : aucun caractère spécial du shell" || fail "repli vd_appinstall : aucun caractère spécial du shell ($vd)"
 rm -f "$REPO/dist/CleanFrame-bench.wgt"
+# rebuild → repackage → reinstall : deux package.sh d'affilée, puis install.sh sans argument
+FAKE_WGT_DIR="$REPO/dist" "$HERE/package.sh" apps/_t >/dev/null 2>&1
+FAKE_WGT_DIR="$REPO/dist" "$HERE/package.sh" apps/_t >/dev/null 2>&1 && ok "package : deuxième passage réussit" || fail "package : deuxième passage réussit"
+! ls "$REPO"/dist/*\ *.wgt >/dev/null 2>&1 && [ -f "$REPO/dist/CleanFrame-bench.wgt" ] && ok "package ×2 : aucun .wgt avec espace" || fail "package ×2 : aucun .wgt avec espace"
+"$HERE/install.sh" >/dev/null 2>&1 && ok "install sans argument après package ×2" || fail "install sans argument après package ×2"
+rm -f "$REPO/dist/CleanFrame-bench.wgt"
 # un .wgt au nom non sûr est refusé avec un message clair, sans rien envoyer à la TV
 : > "$TMP/docker.log"; touch "$REPO/dist/Clean Frame (bench).wgt"
 out="$("$HERE/install.sh" "$REPO/dist/Clean Frame (bench).wgt" 2>&1)"; rc=$?
