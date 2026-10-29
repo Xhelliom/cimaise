@@ -491,14 +491,15 @@ test('Dock : app inconnue avec icône TV → son nom, aucune <img> (l’icône c
   assert.equal(x.style.background, '#8a3ffc');
 });
 
-test('Dock : la tuile prend le fond naturel du logo ; sans logo, la couleur de l’app', () => {
+test('Dock : la tuile prend la couleur de marque de la bibliothèque ; app inconnue, la couleur de l’app', () => {
   const { p } = mount({ catalog: [...kcat, { id: 'h', name: 'Smart Hub', color: '#5a5a5f', type: 'tv' }] });
   const [n, d, c, h] = byClass(p.el, 'tuile');
-  assert.equal(n.style.background, '#ffffff', 'Netflix : blanc');
+  assert.equal(n.style.background, '#e50914', 'Netflix : rouge de la marque');
   assert.match(d.style.background, /^#[0-9a-f]{6}$/i);
-  assert.notEqual(d.style.background, '#113ccf', 'Disney+ : fond du logo, pas la couleur de l’app');
+  assert.equal(d.style.background, '#0e1a3d', 'Disney+ : bleu nuit de la bibliothèque, pas la couleur de l’app');
   assert.equal(c.style.background, '#5a5a5f', 'app inconnue : sa couleur');
-  assert.equal(h.style.background, '#5a5a5f', 'Smart Hub sans logo : sa couleur');
+  assert.equal(h.style.background, '#1428a0', 'Smart Hub sans logo : bleu Samsung de la bibliothèque');
+  assert.equal(h.style.color, '#fff');
   assert.equal(h.textContent, 'Smart Hub');
   assert.equal(h.children.length, 0);
 });
@@ -700,4 +701,22 @@ test('Préférence Smart Hub : ID configurable, vide par défaut', () => {
   assert.equal(H.loadSmartHubTarget(store), '');
   H.saveSmartHubTarget('x.y', store);
   assert.equal(H.loadSmartHubTarget(store), 'x.y');
+});
+
+test('Dock : Plex officiel porte la mention « officiel » sous le logo, Plex intégré non', () => {
+  const { p } = mount({ catalog: [
+    { id: 'plex', name: 'Plex intégré', color: '#e5a00d', type: 'interne' },
+    { id: 'o', name: 'Plex officiel', color: '#3a3d42', type: 'tv' },
+  ] });
+  const [i, o] = byClass(p.el, 'tuile');
+  assert.equal(i.style.background, '#e5a00d');
+  assert.equal(o.style.background, '#000000');
+  assert.equal(i.children[0].attrs.src, 'logos/plex-integre.png');
+  assert.equal(o.children[0].attrs.src, 'logos/plex.png');
+  assert.equal(i.children.length, 1);
+  assert.equal(o.children.length, 2);
+  assert.equal(o.children[1].textContent, 'officiel');
+  assert.match(o.children[0].className, /avec-mention/, 'le logo remonte pour laisser la place');
+  assert.equal(o.children[1].className, 'mention');
+  assert.doesNotMatch(i.children[0].className || '', /avec-mention/);
 });
