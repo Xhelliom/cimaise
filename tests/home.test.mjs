@@ -40,6 +40,7 @@ function fakeDoc(log) {
       },
     });
     Object.defineProperty(el, 'firstChild', { get: () => el.children[0] || null });
+    Object.defineProperty(el, 'parentNode', { get: () => el.parent });
     return el;
   };
   return { createElement: mk, head: mk('head') };
@@ -739,4 +740,19 @@ test('enrich : un logo qui échoue laisse le nom ; deux appels ne doublent rien'
 test('sans deferRich : comportement d’origine (teinte et logos tout de suite)', () => {
   const { p } = mount({}, 3);
   assert.ok(byClass(p.el, 'fond').some((f) => f.style.background));
+});
+
+test('logo prêt : peint une fois dans une couche cachée (pré-décodage), copie retirée après deux peintures', () => {
+  const queue = []; globalThis.requestAnimationFrame = (f) => queue.push(f);
+  try {
+    const { doc, made } = imgDoc();
+    const { p } = mount({ catalog: [NETFLIX], deferRich: true, doc });
+    p.enrich();
+    made[0].src = 'logos/netflix.png'; made[0].onload();
+    const copies = () => byClass(p.el, 'predecode');
+    assert.equal(copies().length, 1, 'copie cachée posée dès le logo prêt');
+    assert.equal(copies()[0].attrs.src, 'logos/netflix.png');
+    queue.shift()(); assert.equal(copies().length, 1, 'encore là après une peinture');
+    queue.shift()(); assert.equal(copies().length, 0, 'retirée après la seconde');
+  } finally { delete globalThis.requestAnimationFrame; }
 });

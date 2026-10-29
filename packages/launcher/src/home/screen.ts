@@ -213,6 +213,19 @@ export function createHome(opts: HomeOptions): HomePanel {
     shownKey = '';
   }
 
+  // Chromium 63 (Tizen 5) n'a pas img.decode() et décode une image à sa première peinture : un logo hors écran serait donc décodé
+  // sur l'appui qui l'amène à l'écran. Chaque logo prêt est peint une fois dans une couche cachée (1 px, quasi transparente) juste
+  // après sa pose, puis la copie est retirée après deux peintures : le premier appui ne décode plus rien.
+  function predecode(src: string): void {
+    var c: any = doc.createElement('img');
+    c.className = 'predecode';
+    c.setAttribute('src', src);
+    el.appendChild(c);
+    var drop = function () { if (c.parentNode) c.parentNode.removeChild(c); };
+    if (typeof requestAnimationFrame === 'undefined') drop();
+    else requestAnimationFrame(function () { requestAnimationFrame(drop); });
+  }
+
   // Logo d'une tuile : l'image est chargée hors DOM, puis posée à la place du nom une fois prête ; en cas d'échec le nom reste.
   function addLogo(t: HTMLElement, e: CatalogEntry): void {
     var k = knownApp(e.name);
@@ -221,6 +234,7 @@ export function createHome(opts: HomeOptions): HomePanel {
     applyIcon(doc, holder, e.icon || '', e.name, e.name, k.logoUrl, function (img) {
       if (t.textContent) t.textContent = '';
       t.appendChild(img);
+      predecode((img as any).src || '');
     });
   }
 
