@@ -1,5 +1,9 @@
 # Bilan
 
-Fait : `paint()` de l'accueil consigne `1re peinture logo <fichier>` quand une tuile à logo entre à l'écran pour la première fois (ou à la pose si déjà visible) ; la copie de pré-décodage, une fois peinte, retire l'attente. Test : un appui qui fait défiler une tuile à logo a cette cause, pas les autres appuis. decisions.md corrigé (deux phrases). `npm run check` vert (416 tests).
+## Fait
+- Premier rendu minimal, marques intermédiaires (storageRead, catalogLoaded, homeBuilt, firstPaint, interactive, painted) au diagnostic.
+- Cause du max de latence enregistrée ; pré-décodage des logos.
+- Dernier correctif : le pré-décodage ne retire plus l'entrée `unpainted`, il la marque. L'appui qui amène le logo à l'écran consigne `1re peinture logo <fichier> (pré-décodé)` (ou sans mention si non pré-décodé). Tests : rAF factice flushé avant l'appui, + cas sans rAF. docs/decisions.md aligné. `npm run check` vert (417 tests).
 
-Pas fait : mesure sur la TV (à faire par Stéphane).
+## Pas fait
+- Mesures sur la Frame : à faire par Stéphane (firstPaint < 300 ms, max < 100 ms). Un max élevé avec « (pré-décodé) » dira que le pré-décodage n'aide pas.

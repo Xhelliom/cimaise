@@ -760,13 +760,16 @@ test('logo prêt : peint une fois dans une couche cachée (pré-décodage), copi
   } finally { delete globalThis.requestAnimationFrame; }
 });
 
-test('logo hors écran : l’appui qui l’amène à l’écran a pour cause « 1re peinture logo <fichier> »', () => {
+test('logo hors écran : l’appui qui l’amène à l’écran a pour cause « 1re peinture logo <fichier> (pré-décodé) »', () => {
+  const rafs = []; globalThis.requestAnimationFrame = (f) => rafs.push(f);
+  try {
   const { doc, made } = imgDoc();
   const filler = Array.from({ length: 8 }, (_, i) => ({ id: 'f' + i, name: 'Inconnue' + i, color: '#113ccf', type: 'tv' }));
   H.resetEvents();
   const { p, press } = mount({ catalog: [...filler, NETFLIX], deferRich: true, doc });
   p.enrich();
   made[0].src = 'logos/netflix.png'; made[0].onload();
+  while (rafs.length) rafs.shift()(); // pré-décodage flushé avant l'appui
   // Un appui mesuré : keyLatency (horloge et rAF factices) rattache à l'appui les événements survenus pendant sa fenêtre.
   const cause = (...ks) => {
     H.resetLatency(); H.resetEvents();
@@ -777,6 +780,22 @@ test('logo hors écran : l’appui qui l’amène à l’écran a pour cause « 
     return H.latencyStats().maxCause;
   };
   assert.equal(cause('right'), 'inconnue', 'tuile hors écran : rien consigné');
-  assert.equal(cause('left', 'down', 'down'), '1re peinture logo netflix.png');
+  assert.equal(cause('left', 'down', 'down'), '1re peinture logo netflix.png (pré-décodé)');
   assert.equal(cause('up', 'down'), 'inconnue', 'une seule fois');
+  } finally { delete globalThis.requestAnimationFrame; }
+});
+
+test('logo hors écran sans pré-décodage (pas de rAF) : cause « 1re peinture logo <fichier> » sans mention', () => {
+  const { doc, made } = imgDoc();
+  const filler = Array.from({ length: 8 }, (_, i) => ({ id: 'f' + i, name: 'Inconnue' + i, color: '#113ccf', type: 'tv' }));
+  H.resetEvents();
+  const { p, press } = mount({ catalog: [...filler, NETFLIX], deferRich: true, doc });
+  p.enrich();
+  made[0].src = 'logos/netflix.png'; made[0].onload();
+  H.resetLatency(); H.resetEvents();
+  let t = 1000; const q = [];
+  H.keyLatency(() => t++, (f) => q.push(f));
+  press('left', 'down', 'down');
+  while (q.length) q.shift()();
+  assert.equal(H.latencyStats().maxCause, '1re peinture logo netflix.png');
 });

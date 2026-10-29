@@ -102,7 +102,7 @@ export function createHome(opts: HomeOptions): HomePanel {
 
   var tiles: HTMLElement[] = [];
   // Logos posés dont la 1re peinture n'a pas encore eu lieu (ni par le pré-décodage, ni à l'écran).
-  var unpainted: Array<{ tile: HTMLElement; file: string }> = [];
+  var unpainted: Array<{ tile: HTMLElement; file: string; pre: boolean }> = [];
   var grid = new Focus(0, per);
   var chips = new Focus(PASTILLES.length, PASTILLES.length);
   var zone: 'tiles' | 'pastilles' = 'tiles';
@@ -169,7 +169,7 @@ export function createHome(opts: HomeOptions): HomePanel {
     for (var u = unpainted.length - 1; u >= 0; u--) {
       var i = tiles.indexOf(unpainted[u].tile);
       if (i < 0) { unpainted.splice(u, 1); continue; }
-      if (onScreen(i)) { noteEvent('1re peinture logo ' + unpainted[u].file); unpainted.splice(u, 1); }
+      if (onScreen(i)) { noteEvent('1re peinture logo ' + unpainted[u].file + (unpainted[u].pre ? ' (pré-décodé)' : '')); unpainted.splice(u, 1); }
     }
   }
 
@@ -248,8 +248,9 @@ export function createHome(opts: HomeOptions): HomePanel {
     var drop = function () { if (c.parentNode) c.parentNode.removeChild(c); };
     if (typeof requestAnimationFrame === 'undefined') drop();
     else requestAnimationFrame(function () {
-      // Copie peinte : le décodage est fait, il n'aura pas lieu sur un appui.
-      for (var u = 0; u < unpainted.length; u++) if (unpainted[u].tile === t) { unpainted.splice(u, 1); break; }
+      // Copie peinte, mais rien ne prouve le décodage sur Chromium 63 : l'entrée reste, marquée, et c'est l'appui qui amène
+      // la tuile à l'écran qui consigne « (pré-décodé) ».
+      for (var u = 0; u < unpainted.length; u++) if (unpainted[u].tile === t) { unpainted[u].pre = true; break; }
       requestAnimationFrame(drop);
     });
   }
@@ -263,7 +264,7 @@ export function createHome(opts: HomeOptions): HomePanel {
       if (t.textContent) t.textContent = '';
       t.appendChild(img);
       var src: string = (img as any).src || '';
-      unpainted.push({ tile: t, file: src.replace(/^.*\//, '') });
+      unpainted.push({ tile: t, file: src.replace(/^.*\//, ''), pre: false });
       notePaintedLogos(); // déjà à l'écran : la 1re peinture est celle de la pose
       predecode(src, t);
     });
