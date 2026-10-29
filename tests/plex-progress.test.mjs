@@ -198,3 +198,18 @@ test('cache.remove retire l\'entrée', () => {
   cache.set('a', 1); cache.remove('a');
   assert.equal(cache.get('a'), null);
 });
+
+test('timeline : en transcodage, la session est signalée au serveur (en-tête X-Plex-Session-Identifier) ; jamais en direct', () => {
+  const http = fakeServer(), timers = fakeTimers();
+  let pos = 0, session = 'cimaise-abc';
+  const p = plex.createProgress({
+    http, id: ID, session: SERVER, timers, ratingKey: '101', durationMs: DUR,
+    getPosition: () => pos, getTranscodeSession: () => session,
+  });
+  p.playing();
+  session = null;
+  p.paused();
+  const t = http.timelines();
+  assert.equal(t[0].headers['X-Plex-Session-Identifier'], 'cimaise-abc');
+  assert.equal(t[1].headers['X-Plex-Session-Identifier'], undefined);
+});

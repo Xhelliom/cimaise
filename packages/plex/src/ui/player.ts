@@ -1,5 +1,5 @@
 import { Item } from '../api/types';
-import { decidePlayback, directPlaybackUrl, normalizeLang, PlaybackPlan, requestTranscode, subtitleUrl, trackEntries, TrackEntry } from '../playback';
+import { decidePlayback, directPlaybackUrl, newTranscodeSession, normalizeLang, PlaybackPlan, requestTranscode, stopTranscode, subtitleUrl, trackEntries, TrackEntry } from '../playback';
 import { getMetadata } from '../api/library';
 import { xhrHttp } from '../api/xhr';
 import { createProgress, Progress } from '../progress';
@@ -68,6 +68,8 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
   var durationMs = item.duration || 0;
   var paused = false, menuOpen = false;
   var suspendPos = -1;
+  // Session de transcodage de cette lecture : une seule, réutilisée à chaque relance ; tActive = le serveur peut en avoir une ouverte.
+  var tSession = newTranscodeSession(identityOf(arg)), tActive = false;
   // Sous-titres rendus par la page (AVPlay n'est réveillé que pour une piste choisie) : subsOn = la piste choisie est lue par AVPlay (interne ou externe), pas incrustée.
   var extFailed = false, subsOn = false, subTimer: any = null, seriesKey = item.grandparentRatingKey;
   // Mesure (diagnostic) : Entrée sur Lire → première image (1er temps de lecture signalé par AVPlay). Avec la question de reprise, part du choix.
@@ -124,8 +126,18 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
     root.className = on ? 'plex-player live' : 'plex-player';
   }
 
+  // Arrête la session côté serveur (une seule fois par session ouverte) ; `then` part après la réponse, succès ou non.
+  function stopSession(then?: () => void): void {
+    if (!tActive) { if (then) then(); return; }
+    tActive = false;
+    try {
+      stopTranscode(http, identityOf(arg), c.session, tSession, function () { if (then) then(); });
+    } catch (e) { if (then) then(); }
+  }
+
   function cleanup(): void {
     closed = true;
+    stopSession();
     clearHide();
     clearSub();
     if (metaReq) { metaReq.abort(); metaReq = null; }
@@ -148,6 +160,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
     setClass(menu, 'plex-pl-menu', false);
     if (progress) progress.stop(false);
     if (player) player.destroy();
+    stopSession();
     clearHide();
     clearSub();
     live(false);
@@ -196,6 +209,11 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
         show();
       },
       onSubtitle: showSub,
+      // Transcodage : saut hors du déjà transcodé → nouvelle session à cette position, pas de seekTo hors segment.
+      onFarSeek: function (ms) {
+        if (closed || mode !== 'play') return;
+        relaunch(ms);
+      },
       onSubtitleError: function () {
         if (closed) return;
         extFailed = true; // refus synchrone pendant open() : signalé une fois la lecture lancée (applyTracks)
@@ -213,6 +231,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
     progress = createProgress({
       http: http, id: identityOf(arg), session: c.session, timers: timers, ratingKey: full.ratingKey, durationMs: durationMs,
       getPosition: function () { return suspendPos >= 0 ? suspendPos : p.getPosition(); },
+      getTranscodeSession: function () { return plan && plan.mode === 'transcode' ? tSession : null; },
       onFinish: function (ms, watched) { c.data.progressed(full, ms, watched); }
     });
     launch(startMs);
@@ -224,7 +243,9 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
     function opened(url: string): void {
       var oo: OpenOptions = {};
       extFailed = false;
-      if (startMs > 0) oo.startMs = startMs;
+      // Direct : seekTo avant play. Transcodé : le flux démarre déjà à startMs (offset), AVPlay compte depuis 0 et le wrapper ajoute le décalage.
+      if (plan!.mode === 'transcode') p.setTranscode(startMs, durationMs);
+      else { p.setTranscode(null); if (startMs > 0) oo.startMs = startMs; }
       try {
         var su = subtitleUrl(c.session, plan!);
         if (su) oo.subtitleUrl = su;
@@ -248,11 +269,16 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
       try { url = directPlaybackUrl(c.session, plan!); } catch (e) { fail(e as Error); return; }
       opened(url);
     } else {
-      metaReq = requestTranscode(http, identityOf(arg), c.session, plan!, identityOf(arg).clientId, function (err, r) {
-        metaReq = null;
+      // Une session encore ouverte (relance à un autre offset, changement de piste) est arrêtée d'abord : sinon son arrêt tardif tuerait la nouvelle.
+      stopSession(function () {
         if (closed || mode === 'error') return;
-        if (err || !r) { fail(err || new Error('transcodage impossible')); return; }
-        opened(r.url);
+        tActive = true; // la décision elle-même ouvre la session côté serveur
+        metaReq = requestTranscode(http, identityOf(arg), c.session, plan!, tSession, function (err, r) {
+          metaReq = null;
+          if (closed || mode === 'error') return;
+          if (err || !r) { fail(err || new Error('transcodage impossible')); return; }
+          opened(r.url);
+        }, startMs);
       });
     }
   }
@@ -346,9 +372,15 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
       modeLine.textContent = next.reason;
       return;
     }
-    var pos = p.getPosition();
+    relaunch(p.getPosition());
+  }
+
+  // Relance le flux du plan courant à une position (changement de piste, saut lointain en transcodage).
+  function relaunch(pos: number): void {
     clearSub();
     subsOn = false;
+    paused = false;
+    state.textContent = '';
     progress!.paused();
     mode = 'loading';
     awaitFrame = false;

@@ -14,14 +14,16 @@ export function directPlayUrl(s: ServerRef, partKey: string): string {
   return s.uri + partKey + '?' + query([['X-Plex-Token', s.token]]);
 }
 
-export interface TimelineUpdate { ratingKey: string; state: 'playing' | 'paused' | 'stopped'; timeMs: number; durationMs: number; }
+export interface TimelineUpdate { ratingKey: string; state: 'playing' | 'paused' | 'stopped'; timeMs: number; durationMs: number;
+  // Session du transcodeur quand le flux est transcodé : le serveur relie la lecture à son transcodage. Absent en lecture directe.
+  transcodeSession?: string; }
 
 export function sendTimeline(http: Http, id: Identity, s: ServerRef, u: TimelineUpdate, cb: Callback<null>) {
   var q = query([
     ['ratingKey', u.ratingKey], ['key', '/library/metadata/' + u.ratingKey], ['state', u.state],
     ['time', Math.round(u.timeMs)], ['duration', Math.round(u.durationMs)]
   ]);
-  return serverGet(http, id, s, '/:/timeline?' + q, null, function (err) { err ? cb(err) : cb(null, null); });
+  return serverGet(http, id, s, '/:/timeline?' + q, u.transcodeSession ? { 'X-Plex-Session-Identifier': u.transcodeSession } : null, function (err) { err ? cb(err) : cb(null, null); });
 }
 
 function mark(path: string) {

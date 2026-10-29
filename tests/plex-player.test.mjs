@@ -107,6 +107,7 @@ function fakePlayer() {
     play() { p.calls.push('play'); }, pause() { p.calls.push('pause'); },
     forward() { p.calls.push('forward'); }, rewind() { p.calls.push('rewind'); },
     seekTo(ms) { p.calls.push('seekTo:' + ms); },
+    setTranscode(o, t) { p.transcode = o === null ? null : [o, t]; },
     stop() { p.calls.push('stop'); }, close() { p.calls.push('close'); }, destroy() { p.calls.push('destroy'); },
     getState() { return 'PLAYING'; }, getPosition() { return p.pos; }, getDuration() { return DUR; },
     getTracks() { return p.tracks; },
@@ -614,7 +615,9 @@ test('menu : choisir un sous-titre PGS relance en transcodage incrusté à la po
   assert.ok(req, 'décision demandée');
   assert.equal(param(req, 'subtitles'), 'burn');
   assert.match(s.player.url, /start\.m3u8/);
-  assert.equal(s.player.openOpts.startMs, 100000);
+  assert.equal(param(req, 'offset'), '100');
+  assert.ok(!s.player.openOpts.startMs, 'transcodé : le flux démarre à l’offset');
+  assert.equal(s.player.transcode[0], 100000); assert.ok(s.player.transcode[1] > 0);
 });
 
 test('séries : le choix de piste est retenu pour les autres épisodes (langue, pas identifiant de piste)', async () => {
@@ -648,4 +651,118 @@ test('séries : désactiver les sous-titres est retenu aussi ; un film ne laisse
   m.player.ready();
   m.panel.onKey('up'); pick(m.panel, /Audio · Anglais/);
   assert.equal(storedPrefs(m.arg.store).plexSeries, undefined);
+});
+
+// --- Transcodage fiable : session, sauts lointains, erreurs (carte « transcodage HLS fiable ») -----------------
+
+const urls = (s, re) => s.arg.http.calls.filter((c) => re.test(c.url));
+const STOP = /transcode\/universal\/stop/, DECISION_URL = /transcode\/universal\/decision/;
+
+test('transcodage : session stable par lecture, arrêtée en quittant le lecteur (Retour)', async () => {
+  const s = await playing('mkv-h264-dts', {}, { transcode: true });
+  s.player.ready();
+  const session = param(urls(s, DECISION_URL)[0], 'session');
+  assert.ok(session && session !== ID.clientId, 'session propre à la lecture');
+  assert.equal(urls(s, STOP).length, 0, 'pas d’arrêt pendant la lecture');
+  s.panel.onKey('back');
+  assert.equal(urls(s, STOP).length, 1);
+  assert.equal(param(urls(s, STOP)[0], 'session'), session);
+  s.panel.destroy();
+  assert.equal(urls(s, STOP).length, 1, 'un seul arrêt');
+});
+
+test('transcodage : arrêt de la session aussi sur erreur du lecteur, Plex officiel proposé', async () => {
+  const s = await playing('mkv-h264-dts', {}, { transcode: true, arg: { officialApp: () => ({ open: (d) => d(null) }) } });
+  s.player.ready();
+  s.player.events.onError(new Error('AVPlay : erreur de lecture PLAYER_ERROR_CONNECTION_FAILED'));
+  assert.equal(urls(s, STOP).length, 1);
+  assert.ok(has(s.panel.el, /Lecture impossible/));
+  assert.ok(has(s.panel.el, /^Ouvrir Plex officiel$/));
+});
+
+test('transcodage : lecture directe → aucune session, aucun arrêt, pas d’en-tête de session sur la timeline', async () => {
+  const s = await started({ meta: () => sample('mp4-h264-aac') });
+  s.player.ready();
+  assert.equal(s.player.transcode, null);
+  s.panel.onKey('back');
+  assert.equal(urls(s, STOP).length, 0);
+  assert.ok(s.http.timelines().length > 0);
+  for (const t of s.http.timelines()) assert.equal(t.headers['X-Plex-Session-Identifier'], undefined);
+});
+
+test('transcodage : la timeline indique la session de transcodage au serveur', async () => {
+  const s = await playing('mkv-h264-dts', {}, { transcode: true });
+  s.player.ready();
+  const session = param(urls(s, DECISION_URL)[0], 'session');
+  const t = s.arg.http.timelines();
+  assert.ok(t.length > 0);
+  for (const x of t) assert.equal(x.headers['X-Plex-Session-Identifier'], session);
+});
+
+test('transcodage : saut lointain → la session est arrêtée puis relancée à la nouvelle position (même session), sans seekTo', async () => {
+  const s = await playing('mkv-h264-dts', {}, { transcode: true });
+  s.player.ready();
+  assert.equal(s.player.transcode[0], 0); assert.ok(s.player.transcode[1] > 0);
+  const session = param(urls(s, DECISION_URL)[0], 'session');
+  s.player.calls.length = 0;
+  s.player.events.onFarSeek(3600000);
+  await flush();
+  const calls = s.arg.http.calls;
+  const iStop = calls.findIndex((c) => STOP.test(c.url)), iDec = calls.findIndex((c, i) => i > 0 && DECISION_URL.test(c.url) && param(c, 'offset') === '3600');
+  assert.ok(iStop >= 0 && iDec > iStop, 'arrêt avant la nouvelle décision : ' + calls.map((c) => c.url.split('?')[0].split('/').pop()).join());
+  assert.equal(param(calls[iDec], 'session'), session);
+  assert.equal(param(calls[iStop], 'session'), session);
+  assert.ok(s.player.calls.includes('open'));
+  assert.ok(!s.player.calls.some((c) => /^seekTo/.test(c)));
+  assert.equal(param({ url: s.player.url }, 'offset'), '3600');
+  assert.ok(!s.player.openOpts.startMs, 'le flux démarre déjà à la position demandée');
+  assert.equal(s.player.transcode[0], 3600000); assert.ok(s.player.transcode[1] > 0);
+  s.player.ready();
+  assert.match(mode(s.panel), /^Transcodage/);
+  s.panel.onKey('back');
+  assert.equal(urls(s, STOP).length, 2, 'le dernier flux est arrêté à la sortie');
+});
+
+test('transcodage : reprise à une position → le flux est demandé avec cet offset', async () => {
+  const s = setup({ meta: () => { const j = JSON.parse(sample('mkv-h264-dts')); j.MediaContainer.Metadata[0].viewOffset = 1800000; return JSON.stringify(j); } });
+  withDecision(s);
+  const panel = ui.createPlayerPanel(s.arg, MOVIE);
+  await flush();
+  panel.onKey('enter');
+  await flush();
+  assert.equal(param(urls(s, DECISION_URL)[0], 'offset'), '1800');
+  assert.equal(s.player.transcode[0], 1800000); assert.ok(s.player.transcode[1] > 0);
+});
+
+test('transcodage : serveur occupé (503) → message clair et repli vers Plex officiel, session arrêtée', async () => {
+  const s = setup({ meta: () => sample('mkv-h264-dts'), arg: { officialApp: () => ({ open: (d) => d(null) }) } });
+  const base = s.http;
+  const http = (req, cb) => {
+    if (DECISION_URL.test(req.url)) { http.calls.push(req); setImmediate(() => cb(null, { status: 503, body: '' })); return { abort() {} }; }
+    return base(req, cb);
+  };
+  http.calls = base.calls; http.timelines = base.timelines; http.scrobbles = base.scrobbles;
+  s.arg.http = http;
+  const panel = ui.createPlayerPanel(s.arg, MOVIE);
+  await flush();
+  assert.ok(has(panel.el, /Lecture impossible.*occupé/));
+  assert.ok(has(panel.el, /^Ouvrir Plex officiel$/));
+  assert.equal(urls(s, STOP).length, 1);
+  assert.ok(!s.player.calls.includes('open'));
+});
+
+test('transcodage : codec refusé par le transcodeur → message et repli, session arrêtée', async () => {
+  const s = setup({ meta: () => sample('mkv-av1-opus'), arg: { officialApp: () => ({ open: (d) => d(null) }) } });
+  const base = s.http;
+  const http = (req, cb) => {
+    if (DECISION_URL.test(req.url)) { http.calls.push(req); setImmediate(() => cb(null, { status: 200, body: JSON.stringify({ MediaContainer: { generalDecisionCode: 2000, generalDecisionText: 'Codec non supporté' } }) })); return { abort() {} }; }
+    return base(req, cb);
+  };
+  http.calls = base.calls; http.timelines = base.timelines; http.scrobbles = base.scrobbles;
+  s.arg.http = http;
+  const panel = ui.createPlayerPanel(s.arg, MOVIE);
+  await flush();
+  assert.ok(has(panel.el, /Lecture impossible.*refusé.*Codec non supporté/));
+  assert.ok(has(panel.el, /^Ouvrir Plex officiel$/));
+  assert.equal(urls(s, STOP).length, 1);
 });

@@ -533,3 +533,67 @@ test('pistes : étiquettes du menu (langue, codec, forcés, incrustés)', () => 
   assert.ok(subs.includes('Sous-titres · Anglais · SRT · externe'), subs.join('|'));
   assert.equal(e.filter((x) => x.current).length, 2, 'audio courant + sous-titres courant');
 });
+
+// --- Transcodage fiable : session, reprise, qualité, erreurs (carte « transcodage HLS fiable ») -----------------
+
+test('transcodage : audio seul (DTS) → vidéo copiée (directStream), pas d’incrustation, débit LAN et définition d’origine', async () => {
+  const plan = pb.decidePlayback(item('mkv-h264-dts'), {});
+  assert.deepEqual(codes(plan), ['audio-codec']);
+  const [, r] = await sync((cb) => pb.requestTranscode(fakeHttp(OK_DECISION), ID, SERVER, plan, 's', cb));
+  const q = new URL(r.url).searchParams;
+  assert.equal(q.get('directStream'), '1');
+  assert.equal(q.get('subtitles'), 'none');
+  assert.equal(q.get('maxVideoBitrate'), '20000');
+  assert.equal(q.get('videoResolution'), '1920x808');
+  assert.equal(q.get('offset'), '0');
+  assert.equal(r.audioOnly, true);
+});
+
+test('transcodage : reprise à une position (offset en secondes) dans la décision et le flux', async () => {
+  const plan = pb.decidePlayback(item('mkv-h264-dts'), {});
+  const http = fakeHttp(OK_DECISION);
+  const [, r] = await sync((cb) => pb.requestTranscode(http, ID, SERVER, plan, 's', cb, 3723500));
+  assert.equal(new URL(r.url).searchParams.get('offset'), '3723');
+  assert.equal(new URL(http.calls[0].url).searchParams.get('offset'), '3723');
+});
+
+test('transcodage : vidéo non copiable (AV1, sous-titres incrustés) → audioOnly faux', async () => {
+  const plan = pb.decidePlayback(item('mkv-av1-opus'), {});
+  const [, r] = await sync((cb) => pb.requestTranscode(fakeHttp(OK_DECISION), ID, SERVER, plan, 's', cb));
+  assert.equal(r.audioOnly, false);
+});
+
+test('transcodage : session différente à chaque lecture, stable pour une même lecture', () => {
+  const a = pb.newTranscodeSession(ID), b = pb.newTranscodeSession(ID);
+  assert.notEqual(a, b);
+  assert.match(a, /^[A-Za-z0-9-]+$/);
+  assert.ok(a.indexOf('test-client-uuid') >= 0);
+});
+
+test('transcodage : arrêt de session = GET /video/:/transcode/universal/stop?session=…, jeton en en-tête', async () => {
+  const http = fakeHttp({ status: 200, body: '' });
+  const [err] = await sync((cb) => pb.stopTranscode(http, ID, SERVER, 'sess-9', cb));
+  assert.equal(err, null);
+  const c = http.calls[0];
+  assert.equal(c.method, 'GET');
+  assert.ok(c.url.startsWith(SERVER.uri + '/video/:/transcode/universal/stop?'));
+  assert.equal(new URL(c.url).searchParams.get('session'), 'sess-9');
+  assert.equal(c.headers['X-Plex-Token'], 'FAKE-SERVER-TOKEN');
+  const [err2] = await sync((cb) => pb.stopTranscode(fakeHttp({ status: 500, body: '' }), ID, SERVER, 's', cb));
+  assert.ok(err2, 'l’échec est rendu, jamais levé');
+});
+
+test('transcodage : erreurs du serveur → message clair (occupé, refusé, injoignable), sans adresse', async () => {
+  const plan = pb.decidePlayback(item('mkv-h264-dts'), {});
+  let [err] = await sync((cb) => pb.requestTranscode(fakeHttp({ status: 503, body: '' }), ID, SERVER, plan, 's', cb));
+  assert.match(err.message, /occupé/);
+  [err] = await sync((cb) => pb.requestTranscode(fakeHttp({ status: 429, body: '' }), ID, SERVER, plan, 's', cb));
+  assert.match(err.message, /occupé/);
+  const refused = { status: 200, body: JSON.stringify({ MediaContainer: { generalDecisionCode: 2000, generalDecisionText: 'Codec non supporté' } }) };
+  [err] = await sync((cb) => pb.requestTranscode(fakeHttp(refused), ID, SERVER, plan, 's', cb));
+  assert.match(err.message, /refus.*Codec non supporté/);
+  [err] = await sync((cb) => pb.requestTranscode(fakeHttp({ status: 500, body: '' }), ID, SERVER, plan, 's', cb));
+  assert.match(err.message, /transcodage/i);
+  assert.equal(err.status, 500);
+  assert.ok(!err.message.includes('192'));
+});
