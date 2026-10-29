@@ -260,3 +260,13 @@ D'après la doc Tizen Application API ; **non testé sur la TV** (à confirmer a
 - **Complétion des ID.** À chaque découverte, `fillIds` renseigne l'ID des entrées sans ID dont le nom (casse/accents ignorés) ou l'alias (`NAME_ALIASES`, ex. « Plex officiel » → « Plex ») correspond ; une app n'est attribuée qu'une fois, jamais si son ID est déjà au catalogue. Les apps déjà au catalogue restent listées, marquées « Au catalogue ». Aucun ID de TV n'est versionné.
 - **Échec de lancement.** L'accueil affiche un message de 4 s (« Netflix : ID inconnu, va dans Réglages → Découvrir », ou « … : lancement impossible »), jamais le diagnostic.
 - **Diagnostic.** Reste accessible par la touche **0** (clavier ou télécommande, enregistrée via `tvinputdevice`), depuis n'importe quel écran. L'ancien déclencheur (Entrée non traitée) est retiré.
+
+## Écran lecteur Plex sur AVPlay (2026-10-29)
+
+**Où.** `packages/plex/src/ui/player.ts`, ouvert par Lire (fiche et épisodes). Seul appel à AVPlay : le wrapper `createPlayer` de `tv-core`. Coût : aucune dépendance, aucune minuterie hors lecture (masquage 3 s + timeline 10 s), animations `opacity`/`transform` seulement. Le module reste dans le chunk `plex.js`.
+- **Reprise.** La fiche est relue directement auprès du serveur (pas le cache) pour le `viewOffset`, puis « Reprendre à hh:mm:ss » / « Depuis le début ».
+- **Contrôles.** Gauche/droite ±10 s, Entrée et touches média pause/lecture, Haut = pistes (`getTotalTrackInfo`/`setSelectTrack`, « Désactivés » via `setSilentSubtitle`), Retour/Stop = arrêt propre (timeline `stopped`, `stop`/`close`). `visibilitychange` : position envoyée puis retour à la fiche.
+- **Erreur.** Message clair + « Ouvrir Plex officiel » ; l'app est cherchée **par nom** dans le catalogue (`apps/tv/src/index.ts`), jamais par ID. Hors TV, le wrapper lève « webapis est absent » : aucune lecture simulée.
+- **Vidéo sous la page.** En lecture, `html`, `body`, `.plex-shell` et le lecteur passent en fond transparent (`html.plex-live`) pour laisser voir la couche AVPlay. **Non testé sur la TV.**
+
+**Script et privilèges.** `apps/tv/index.html` inclut `$WEBAPIS/webapis/webapis.js` avant `app.js` (doc Samsung, AVPlay API). Privilège ajouté : `http://tizen.org/privilege/internet` (flux réseau et XHR vers le serveur Plex). D'après la doc Samsung AVPlay, **aucun privilège `avplay` n'existe** : seul `http://developer.samsung.com/privilege/drmplay` (`setDrm`, `getUID`) est cité ; non déclaré, la lecture DRM est hors périmètre. `internet` n'est pas cité sur cette page : choix issu de la doc Tizen générale. **Non testé sur la TV** ; si la lecture échoue pour un refus d'accès, relire le journal avant d'ajouter un privilège.

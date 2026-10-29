@@ -59,3 +59,22 @@
 .plex-servers{position:absolute;left:560px;top:340px;width:800px}
 .plex-server{height:96px;margin-bottom:24px;border-radius:48px;padding:0 48px;line-height:96px;font-size:40px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:rgba(255,255,255,.08);box-shadow:inset 0 0 0 2px rgba(255,255,255,.14)}
 .plex-server.focus{background:rgba(255,255,255,.9);box-shadow:none;color:#111}
+/* Lecteur : transform et opacity seulement ; le fond devient transparent en lecture pour laisser voir la couche vidéo AVPlay */
+.plex-player{position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;background:#000;color:#fff;font:300 30px/1.2 Outfit,sans-serif}
+.plex-player.live,html.plex-live,html.plex-live body,html.plex-live .plex-shell{background:transparent}
+.plex-pl-ui{position:absolute;left:0;top:0;width:1920px;height:1080px;opacity:0;transition:opacity .2s;background:linear-gradient(to top,rgba(0,0,0,.75) 0,rgba(0,0,0,0) 320px)}
+.plex-pl-ui.on{opacity:1}
+.plex-pl-title{position:absolute;left:120px;top:880px;width:1500px;font-size:44px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.plex-pl-track{position:absolute;left:120px;top:960px;width:1680px;height:8px;border-radius:4px;background:rgba(255,255,255,.25);overflow:hidden}
+.plex-pl-bar{width:1680px;height:8px;background:#e5a00d;transform-origin:0 0;transform:scaleX(0)}
+.plex-pl-time{position:absolute;left:120px;top:990px;font-size:30px;color:rgba(255,255,255,.85)}
+.plex-pl-state{position:absolute;left:1500px;top:990px;width:300px;text-align:right;font-size:30px;color:#e5a00d}
+.plex-pl-menu{position:absolute;left:1260px;top:300px;width:540px;opacity:0;pointer-events:none;transition:opacity .2s}
+.plex-pl-menu.on{opacity:1}
+.plex-pl-opt{height:80px;margin-bottom:12px;border-radius:40px;padding:0 40px;line-height:80px;font-size:32px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:rgba(0,0,0,.7)}
+.plex-pl-opt.focus{background:rgba(255,255,255,.9);color:#111}
+.plex-pl-dialog{position:absolute;left:360px;top:380px;width:1200px;text-align:center;opacity:0}
+.plex-pl-dialog.on{opacity:1}
+.plex-pl-text{font-size:44px;line-height:1.3;margin-bottom:56px}
+.plex-pl-btn{display:inline-block;margin:0 16px;height:96px;padding:0 56px;border-radius:48px;line-height:96px;font-size:36px;font-weight:500;background:rgba(255,255,255,.1)}
+.plex-pl-btn.focus{background:rgba(255,255,255,.9);color:#111}

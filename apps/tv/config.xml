@@ -12,6 +12,8 @@
     essayer 4.0 puis 3.0 et le consigner dans docs/tv-status.md ; non testé sur la TV.
   - privilèges : tv.inputdevice (touches média), application.launch (device.launchApp) et
     application.info (inventaire getAppsInfo, Réglages).
+    internet (flux Plex lus par AVPlay et appels XHR du module Plex). AVPlay lui-même n'exige aucun privilège dans la doc
+    Samsung (seul drmplay, pour setDrm/getUID, non utilisé : non déclaré). webapis.js est inclus par index.html.
     Ajouter un privilège seulement avec la fonctionnalité qui l'exige (AVPlay, etc.).
 -->
 <widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets"
@@ -25,5 +27,6 @@
   <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
   <tizen:privilege name="http://tizen.org/privilege/application.launch"/>
   <tizen:privilege name="http://tizen.org/privilege/application.info"/>
+  <tizen:privilege name="http://tizen.org/privilege/internet"/>
   <tizen:setting screen-orientation="landscape" context-menu="disable" background-support="disable" encryption="disable" install-location="auto"/>
 </widget>

@@ -7,6 +7,7 @@ import { TileInfo } from '../../../tv-core/src/virtual/list';
 import { createCache } from './cache';
 import { createData, Data } from './data';
 import { posterUrl } from './images';
+import { Player, PlayerOptions } from '../../../tv-core/src/player';
 
 // Pile d'écrans : celle du routeur de l'app (Retour dépile).
 export interface Nav { push(p: Panel): void; pop(): void; }
@@ -21,8 +22,13 @@ export interface PlexArg {
   id?: Identity;
   now?: () => number;
   onPlay?: (item: Item) => void;
-  timers?: Timers;   // connexion par PIN : interrogation périodique
+  timers?: Timers;   // connexion par PIN : interrogation périodique ; minuteries du lecteur
+  createPlayer?: (o: PlayerOptions) => Player;   // défaut : wrapper AVPlay de tv-core
+  // App Plex officielle de la TV, cherchée par nom dans le catalogue (jamais un ID en dur) ; null = introuvable.
+  officialApp?: () => OfficialApp | null;
 }
+
+export interface OfficialApp { open(done: (err: Error | null) => void): void; }
 
 export interface Ctx { doc: Document; data: Data; session: ServerRef; nav: Nav; play(item: Item): void; }
 
@@ -84,9 +90,4 @@ export function openable(it: Item): Item | null {
     return { ratingKey: it.parentRatingKey, type: 'show', title: it.parentTitle || it.title, thumb: it.parentThumb };
   }
   return null;
-}
-
-// Dans l'aperçu, les mocks définissent `tizen` : impossible d'y distinguer la TV, le message vaut donc pour les deux.
-export function playMessage(): string {
-  return 'Lecture : AVPlay n’est pas encore branché (jalon M1, sur la TV uniquement).';
 }

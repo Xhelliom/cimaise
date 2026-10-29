@@ -2,7 +2,8 @@ import { Item } from '../api/types';
 import { Panel } from '../../../tv-core/src/router/router';
 import { Key } from '../../../tv-core/src/keys';
 import { createRow, VirtualList } from '../../../tv-core/src/virtual/list';
-import { Ctx, el, PlexArg, playMessage, resolve } from './context';
+import { Ctx, el, PlexArg, resolve } from './context';
+import { createPlayerPanel } from './player';
 import { detailPosterUrl, EPISODE, episodeThumbUrl } from './images';
 
 type Zone = 'play' | 'seasons' | 'episodes';
@@ -76,11 +77,16 @@ export function createDetailPanel(arg: PlexArg, stub: Item): Panel {
         var e = episodes[i];
         return e ? { title: (e.index ? e.index + '. ' : '') + e.title, image: episodeThumbUrl(c.session, e) } : null;
       },
-      onSelect: function (i) { c.play(episodes[i]); say(playMessage()); }
+      onSelect: function (i) { startPlay(episodes[i]); }
     });
   }
 
   function say(text: string): void { msg.textContent = text; }
+
+  // Lire : l'écran lecteur, sauf si l'appelant fournit son propre `onPlay`.
+  function startPlay(it: Item): void {
+    if (arg.onPlay) c.play(it); else c.nav.push(createPlayerPanel(arg, it));
+  }
 
   var curSeason: Item | null = null;
   function loadEpisodes(season: Item): void {
@@ -133,8 +139,7 @@ export function createDetailPanel(arg: PlexArg, stub: Item): Panel {
       if (k === 'up') { if (at <= 0) return false; setZone(z[at - 1]); return true; }
       if (zone === 'play') {
         if (k !== 'enter') return false;
-        c.play(item);
-        say(playMessage());
+        startPlay(item);
         return true;
       }
       return (zone === 'seasons' ? seasonList! : episodeList!).handleKey(k);

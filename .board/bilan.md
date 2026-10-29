@@ -1,9 +1,7 @@
-# Bilan — remontée de la progression de lecture
+# Bilan — écran lecteur Plex sur AVPlay
 
-**Fait** (commit 5e8f090 + celui-ci)
-- `packages/plex/src/progress.ts` : timeline `/:/timeline` toutes les 10 s et à chaque changement d'état, scrobble à 90 %, échecs réseau sans effet (nouvel essai au tick suivant).
-- Caches « En cours » et fiche corrigés par `Data.progressed`, rechargés par les panneaux au `resume()`.
-- Tests : `tests/plex-progress.test.mjs` (horloge simulée, faux serveur) et, ajoutés ici dans `tests/plex-ui.test.mjs`, trois tests de rechargement par les panneaux (accueil → `/library/onDeck` redemandé et réaffiché ; fiche film → « Reprendre » + barre ; fiche série → fiche et épisodes de la saison courante redemandés). Vérifié : retirer `loadDeck()`, `loadMeta()` ou `loadEpisodes(curSeason)` du `resume()` fait échouer ces tests.
-- `npm run check` : 226 tests verts. Aucun appel vers un vrai serveur.
+**Fait** : `packages/plex/src/ui/player.ts` (reprise, ±10 s, pause/médias, pistes, masquage 3 s, Retour/Stop, visibilitychange, erreur + Plex officiel trouvé par nom),
+branché sur Lire (fiche, épisodes) ; `webapis.js` dans `index.html` ; privilège `internet` ; documenté dans `docs/decisions.md`. `npm run check` vert (244 tests).
 
-**Reste** : le branchement à AVPlay (lecture réelle) et la validation des vrais appels timeline/scrobble se feront sur la TV avec Stéphane.
+**Pas fait / non vérifié** : rien testé sur la TV (transparence de la page sur la couche vidéo, privilège `internet`, comportement réel d'AVPlay).
+La doc Samsung ne cite aucun privilège `avplay` (seul `drmplay`, non utilisé). Le choix de pistes ne marque pas la piste courante (AVPlay ne l'expose pas simplement).

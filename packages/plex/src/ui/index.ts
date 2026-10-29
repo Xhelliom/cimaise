@@ -6,3 +6,4 @@ export * from './home';
 export * from './library';
 export * from './detail';
 export * from './login';
+export * from './player';
