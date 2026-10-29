@@ -10,7 +10,7 @@
 - Captures : `.board/captures/` (accueil, réglages, accueil après changement de couleur : tuile 1 passée de jaune à rouge).
 
 ## Pas fait / à noter
-- **Captures non publiées** : l'outil `publish_file` de collie-board et son skill ne sont pas disponibles dans cette session. Fichiers prêts dans `.board/captures/`.
-- Démarrage en deux temps : le Dock v2 construit fond, titre et pastilles dès le premier affichage (pas de `enhance()` dans `home/`) ; seuls police et touches média restent différées. À trancher si on veut re-différer le décor.
+- **Captures non publiées** : aucun outil `publish_file` de collie-board n'existe dans cette session (ToolSearch « publish_file » : aucun résultat ; pas de serveur MCP ni de skill collie-board, aucune URL ni jeton pour le curl). Aucun appel n'a donc été tenté : pas de message d'erreur à citer. Fichiers prêts (locaux, `.board/` est ignoré par git) : `.board/captures/accueil.jpg`, `reglages.jpg`, `accueil-apres-reglage-couleur.jpg`. À publier depuis une session qui dispose de l'outil.
+- Démarrage en deux temps : **volontairement conservé tel quel**. Le Dock v2 fait partie du premier affichage : fond = aplat CSS (`#0b0b0d`, aucune image), titre et pastilles = une dizaine de `div`. Coût négligeable (app.js 15,68 Ko, ni image ni flou) ; différer le décor ferait apparaître un accueil nu puis le décor, sans gain mesurable, et demanderait de modifier `home/`, hors carte. Restent différés (`setTimeout 0`) : police décorative et touches média ; réglages et Plex en chunks.
 - Pastilles Smart Hub et Réseau : inertes (non spécifiées). Erreur de lancement (ID absent, hors TV) : ouvre le diagnostic caché.
 - Le halo de teinte ne change pas quand le focus est sur une pastille (comportement de `home/`, non touché).
