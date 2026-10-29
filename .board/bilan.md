@@ -1,16 +1,12 @@
-# Bilan — La tuile EST la marque
+# Bilan
 
-Fait :
-- 19 logotypes LARGES (Wikimedia Commons, provenance dans THIRD_PARTY_NOTICES.md) remplacent les icônes carrées : PNG transparents ≤ 320×160, 1,5 à 4,5 Ko chacun, 52 Ko au total (< 15 Ko/logo ; .wgt 107 Ko).
-- Fond de tuile = fond naturel du logo (`bg` dans known-apps) : Netflix/YouTube/Disney+/Deezer… blancs, Canal+/Plex/Spotify noirs, Prime/Paramount/Max bleus (versions monochromes blanches inversées pour Prime, Paramount, Plex, Max — documenté).
-- Logo centré à 64 % de la largeur / 60 % de la hauteur de la tuile, sans cadre ni arrondi, identique à 4/5/6 tuiles (CSS en %).
-- Sans logo (Smart Hub, apps inconnues) : nom en grand (Outfit) sur la couleur de l'app. Icône de la TV : dernier recours, sans cadre.
-- La teinte du fond d'écran suit toujours la couleur de l'app.
-- Réglages : tuiles d'apps élargies (112×64), même logo/fond.
-- Tests adaptés/ajoutés ; `npm run check` vert (348 tests).
-- Captures avant/après (4, 5, 6 tuiles) + planche des 19 logos publiées sur la carte.
+Cause racine : `VirtualList.setCount` (tv-core) ne reliait pas les tuiles déjà posées (seules les nouvelles étaient liées dans `update`). À nombre égal, rien n'était redessiné avant un déplacement de focus. Le suspect « réponse périmée » n'était pas la cause (l'annulation existait déjà).
 
-À signaler :
-- La puce « Couleur » des Réglages ne change plus le fond d'une tuile à logo (elle teinte le fond d'écran) ; les apps sans logo gardent leur couleur.
-- `smarthub.png` supprimé : Smart Hub affiche son nom.
-- Rendu vérifié dans Chromium seulement, pas sur la TV.
+Fait
+- tv-core `setCount` relie les tuiles actives : corrige aussi accueil Plex (rangées), bibliothèque, Dock du lanceur.
+- Fiche série : réponses d'une saison quittée ignorées, focus des épisodes au premier épisode, saison affichée après 300 ms de focus, style « sel » permanent (TileInfo.selected) distinct du focus.
+- Tests : virtual.test.mjs, plex-ui.test.mjs. `npm run check` passe (353 tests).
+
+Non fait
+- Pas de capture visuelle (rendu TV non testé) ; le style `.sel` (fond + soulignement) est à valider sur la Frame.
+- Focus remis à l'épisode « en cours » : inchangé (le target existant reste prioritaire).

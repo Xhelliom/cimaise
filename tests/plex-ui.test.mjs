@@ -664,3 +664,66 @@ test('le lecteur refuse une série ou une saison avec un message explicite, sans
     p.destroy && p.destroy();
   }
 });
+
+// ---- saisons : la liste d'épisodes suit la saison affichée -----------------------------------------------------
+function seasonsDeps() {
+  const eps = (s) => JSON.stringify({ MediaContainer: { size: 2, Metadata: [1, 2].map((n) => ({ ratingKey: s + n, type: 'episode', index: n, title: 'S' + s + ' ép ' + n, parentRatingKey: s, thumb: '/library/metadata/' + s + n + '/thumb/1' })) } });
+  const seasons = JSON.stringify({ MediaContainer: { size: 2, Metadata: [{ ratingKey: '500', type: 'season', index: 1, title: 'Saison 1' }, { ratingKey: '501', type: 'season', index: 2, title: 'Saison 2' }] } });
+  const held = {};   // réponses retenues : clé de saison -> libération
+  const http = fakeHttp([]);
+  const base = (req, cb) => {
+    const m = /metadata\/(\d+)\/children/.exec(req.url);
+    if (!m) return fakeHttp(serverRoutes())(req, cb);
+    http.calls.push(req);
+    let live = true;
+    const body = m[1] === '200' ? seasons : eps(m[1]);
+    const go = () => { if (live) cb(null, { status: 200, body }); };
+    if (held[m[1]] === true) held[m[1]] = go; else setImmediate(go);
+    return { abort() { live = false; } };
+  };
+  base.calls = http.calls;
+  const pending = [];
+  const timers = { now: () => 0, setTimeout: (fn, ms) => { const t = { fn, ms }; pending.push(t); return t; }, clearTimeout: (t) => { const i = pending.indexOf(t); if (i >= 0) pending.splice(i, 1); } };
+  const d = deps({ http: base, timers });
+  return { d, held, pending, show: { ratingKey: '200', type: 'show', title: 'Série', thumb: '/t' } };
+}
+const epTitles = (p) => byClass(byClass(p.el, 'plex-episodes')[0], 'vlabel').map((n) => n.textContent).sort();
+
+test('fiche série : changer de saison redessine tout de suite les épisodes, même à nombre égal', async () => {
+  const { d, show } = seasonsDeps();
+  const p = ui.createDetailPanel(d.arg, show);
+  await flush();
+  assert.deepEqual(epTitles(p), ['1. S500 ép 1', '2. S500 ép 2']);
+  p.onKey('down'); p.onKey('right'); p.onKey('enter');
+  await flush();
+  assert.deepEqual(epTitles(p), ['1. S501 ép 1', '2. S501 ép 2'], 'sans déplacement dans les épisodes');
+  const sel = byClass(byClass(p.el, 'plex-seasons')[0], 'sel');
+  assert.equal(sel.length, 1);
+  assert.equal(sel[0].children[1].textContent, 'Saison 2');
+});
+
+test('fiche série : la réponse lente d’une saison quittée est ignorée', async () => {
+  const { d, held, show } = seasonsDeps();
+  const p = ui.createDetailPanel(d.arg, show);
+  await flush();
+  held['501'] = true;
+  p.onKey('down'); p.onKey('right'); p.onKey('enter');   // saison 2 : réponse retenue
+  p.onKey('left'); p.onKey('enter');                      // retour saison 1 (en cache)
+  await flush();
+  held['501']();                                          // la saison 2 arrive en retard
+  await flush();
+  assert.deepEqual(epTitles(p), ['1. S500 ép 1', '2. S500 ép 2']);
+});
+
+test('fiche série : la saison suit le focus après 300 ms, sans Entrée', async () => {
+  const { d, pending, show } = seasonsDeps();
+  const p = ui.createDetailPanel(d.arg, show);
+  await flush();
+  p.onKey('down'); p.onKey('right');
+  assert.deepEqual(epTitles(p), ['1. S500 ép 1', '2. S500 ép 2'], 'pas avant le délai');
+  assert.equal(pending.length, 1);
+  assert.equal(pending[0].ms, 300);
+  pending[0].fn();
+  await flush();
+  assert.deepEqual(epTitles(p), ['1. S501 ép 1', '2. S501 ép 2']);
+});
