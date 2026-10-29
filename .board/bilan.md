@@ -26,3 +26,5 @@ Réinstallé et relancé ; attente de la confirmation visuelle de Stéphane (acc
 - **Non observé** : les observations de Stéphane (reprise, ±10 s, progression) datent d'avant 88f58c0 et ne couvrent plus le code actuel. Letterbox, rechargement sans gel, position affichée, et **disparition de la session serveur à la sortie** : jamais vus. Le cycle `watch-transcode.mjs` n'a capté aucune session Cimaise (il a expiré).
 - **Blocage** : la Frame ne répond ni au ping ni sur le port 26101 (éteinte, veille profonde ou IP changée). Paquet prêt : `dist/cimaise.wgt` (147 836 o, construit depuis `apps/tv/dist` au commit 88f58c0), non installé.
 - **À faire dès que la TV répond** : annoncer, `install.sh` + `launch.sh`, lancer `node scripts/plex/watch-transcode.mjs 2400` pour tout l'essai, puis Stéphane : Bohemian Rhapsody depuis un point de reprise, ±, choix d'une piste (rechargement), gel/position, bandes du letterbox, sortie. Consigner ses constats et les lignes du script montrant la session disparaître.
+
+- TV toujours injoignable (ping et port 26101 KO) : attente de Stéphane (allumer complètement la Frame, donner son IP) ; essai DTS sur 88f58c0 non fait.
