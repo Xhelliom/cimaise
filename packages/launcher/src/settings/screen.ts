@@ -1,6 +1,7 @@
 import { Key } from '../../../tv-core/src/keys';
 import { Panel } from '../../../tv-core/src/router/router';
-import { AppEntry, DiscoveredApp, removeAt, moveItem, setTint, nextTint, notInCatalog, addDiscovered } from './model';
+import { AppEntry, DiscoveredApp, removeAt, moveItem, setTint, nextTint, addDiscovered, ROW_H, scrollOffset } from './model';
+import { fillIds } from '../catalog/model';
 
 export interface SettingsOptions {
   catalog: AppEntry[];
@@ -16,8 +17,9 @@ export interface SettingsOptions {
 var CSS =
   '.reglages{position:absolute;left:0;top:0;width:1920px;height:1080px;background:#0b0b0d;color:#fff;font-family:Outfit,sans-serif;overflow:hidden}' +
   '.reglages h1{margin:72px 0 0 120px;font-size:56px;font-weight:300}' +
-  '.reglages .liste{position:absolute;left:120px;top:190px;width:1200px}' +
-  '.reglages .ligne{display:flex;align-items:center;height:96px;margin-bottom:12px;padding:0 24px;border-radius:28px;font-size:34px;font-weight:300;color:rgba(255,255,255,.7)}' +
+  '.reglages .vue{position:absolute;left:120px;top:190px;width:1200px;height:756px;overflow:hidden}' +
+  '.reglages .liste{position:absolute;left:0;top:0;width:1200px}' +
+  '.reglages .ligne{position:absolute;left:0;width:1200px;box-sizing:border-box;display:flex;align-items:center;height:96px;padding:0 24px;border-radius:28px;font-size:34px;font-weight:300;color:rgba(255,255,255,.7)}' +
   '.reglages .ligne.focus{background:rgba(255,255,255,.1);color:#fff}' +
   '.reglages .ligne.saisie{background:rgba(255,255,255,.2)}' +
   '.reglages .tuile{width:64px;height:64px;margin-right:28px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:500;overflow:hidden}' +
@@ -27,7 +29,8 @@ var CSS =
   '.reglages .puce.focus{background:rgba(255,255,255,.9);color:#111;transform:scale(1.1)}' +
   '.reglages .bouton{font-weight:500;color:#fff}' +
   '.reglages .etat{position:absolute;left:120px;bottom:72px;font-size:28px;font-weight:300;color:rgba(255,255,255,.6)}' +
-  '.reglages .titre-section{margin:28px 0 12px 24px;font-size:26px;font-weight:500;color:rgba(255,255,255,.5)}';
+  '.reglages .titre-section{position:absolute;left:24px;height:96px;display:flex;align-items:center;font-size:26px;font-weight:500;color:rgba(255,255,255,.5)}' +
+  '.reglages .deja{font-size:26px;color:rgba(255,255,255,.5)}';
 
 var CHIPS = ['Couleur', 'Déplacer', 'Retirer'];
 
@@ -41,6 +44,7 @@ export function createSettings(opts: SettingsOptions): Panel {
   var chip = 0;
   var grabbed = false;
   var status = '';
+  var offset = 0;   // défilement de la liste, en px
 
   var style = doc.createElement('style');
   style.textContent = CSS;
@@ -69,34 +73,55 @@ export function createSettings(opts: SettingsOptions): Panel {
 
   function rowCount(): number { return 1 + catalog.length + found.length; }
 
+  // Ligne sélectionnable -> position dans la liste (le titre de section occupe une ligne non sélectionnable).
+  function posOf(r: number): number { return r + (found.length && r > catalog.length ? 1 : 0); }
+  function totalPos(): number { return 1 + catalog.length + (found.length ? 1 + found.length : 0); }
+
+  function absRow(node: HTMLElement, pos: number): HTMLElement {
+    node.style.top = pos * ROW_H + 'px';
+    return node;
+  }
+
+  // Fenêtrage : seules les lignes visibles (± 1) existent dans le DOM, même avec ~300 apps découvertes.
   function render(): void {
     while (el.firstChild) el.removeChild(el.firstChild);
     var h = doc.createElement('h1');
     h.textContent = 'Réglages';
     el.appendChild(h);
-    var list = div('liste');
-    var btn = div('ligne bouton' + (row === 0 ? ' focus' : ''), 'Découvrir les apps installées');
-    list.appendChild(btn);
-    for (var i = 0; i < catalog.length; i++) {
-      var r = i + 1, on = row === r;
-      var line = div('ligne' + (on ? ' focus' : '') + (on && grabbed ? ' saisie' : ''));
-      line.appendChild(tile(catalog[i].name, catalog[i].tint, catalog[i].icon));
-      line.appendChild(div('nom', catalog[i].name));
-      for (var c = 0; c < CHIPS.length; c++) {
-        if (on) line.appendChild(div('puce' + (chip === c ? ' focus' : ''), CHIPS[c]));
+    offset = scrollOffset(offset, posOf(row), totalPos());
+    var vue = div('vue'), list = div('liste');
+    list.style.transform = 'translateY(' + (offset ? -offset : 0) + 'px)';
+    var total = totalPos();
+    var from = Math.max(0, Math.floor(offset / ROW_H) - 1), to = Math.min(total - 1, Math.ceil(offset / ROW_H) + 8);
+    var inCat: { [id: string]: boolean } = {};
+    for (var q = 0; q < catalog.length; q++) if (catalog[q].id) inCat[catalog[q].id] = true;
+    for (var pos = from; pos <= to; pos++) {
+      if (pos === 0) {
+        list.appendChild(absRow(div('ligne bouton' + (row === 0 ? ' focus' : ''), 'Découvrir les apps installées'), 0));
+      } else if (pos <= catalog.length) {
+        var i = pos - 1, on = row === pos;
+        var line = div('ligne' + (on ? ' focus' : '') + (on && grabbed ? ' saisie' : ''));
+        line.appendChild(tile(catalog[i].name, catalog[i].tint, catalog[i].icon));
+        line.appendChild(div('nom', catalog[i].name));
+        for (var c = 0; c < CHIPS.length; c++) {
+          if (on) line.appendChild(div('puce' + (chip === c ? ' focus' : ''), CHIPS[c]));
+        }
+        list.appendChild(absRow(line, pos));
+      } else if (pos === catalog.length + 1) {
+        list.appendChild(absRow(div('titre-section', 'Apps installées'), pos));
+      } else {
+        var f = pos - catalog.length - 2, fon = row === pos - 1;
+        var fl = div('ligne' + (fon ? ' focus' : ''));
+        fl.appendChild(tile(found[f].name, null, found[f].icon));
+        fl.appendChild(div('nom', found[f].name));
+        if (inCat[found[f].id]) fl.appendChild(div('deja', 'Au catalogue'));
+        else if (fon) fl.appendChild(div('puce focus', 'Ajouter'));
+        list.appendChild(absRow(fl, pos));
       }
-      list.appendChild(line);
     }
-    if (found.length) list.appendChild(div('titre-section', 'Apps installées'));
-    for (var f = 0; f < found.length; f++) {
-      var fr = 1 + catalog.length + f, fon = row === fr;
-      var fl = div('ligne' + (fon ? ' focus' : ''));
-      fl.appendChild(tile(found[f].name, null, found[f].icon));
-      fl.appendChild(div('nom', found[f].name));
-      if (fon) fl.appendChild(div('puce focus', 'Ajouter'));
-      list.appendChild(fl);
-    }
-    el.appendChild(list);
+    list.style.height = total * ROW_H + 'px';
+    vue.appendChild(list);
+    el.appendChild(vue);
     if (status) el.appendChild(div('etat', status));
   }
 
@@ -106,8 +131,13 @@ export function createSettings(opts: SettingsOptions): Panel {
     status = 'Recherche des apps installées…';
     opts.listInstalledApps(
       function (apps) {
-        found = notInCatalog(catalog, apps);
-        status = found.length ? '' : 'Aucune app à ajouter.';
+        var filled = fillIds(catalog, apps);
+        var n = 0;
+        for (var i = 0; i < filled.length; i++) if (filled[i] !== catalog[i]) n++;
+        if (n) { catalog = filled; changed(); }
+        found = apps;
+        status = n ? n + (n > 1 ? ' ID complétés.' : ' ID complété.') : apps.length ? '' : 'Aucune app trouvée.';
+        row = 0;
         render();
       },
       function (err) { status = err.message; found = []; render(); }
@@ -150,9 +180,9 @@ export function createSettings(opts: SettingsOptions): Panel {
         else { catalog = removeAt(catalog, idx); chip = 0; clampRow(); changed(); }
       } else {
         var app = found[row - 1 - catalog.length];
+        var before = catalog.length;
         catalog = addDiscovered(catalog, app);
-        found = notInCatalog(catalog, found);
-        changed();
+        if (catalog.length !== before) { row++; changed(); } // le catalogue grandit d'une ligne : le focus reste sur l'app
         clampRow();
       }
     } else return false;

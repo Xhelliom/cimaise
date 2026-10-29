@@ -36,3 +36,37 @@ export function addApp(c: CatalogEntry[], app: DiscoveredApp): CatalogEntry[] {
   r.push({ id: app.id, name: app.name, icon: app.icon, color: COLORS[r.length % COLORS.length], type: 'tv' });
   return r;
 }
+
+// Noms que la TV donne à certaines apps par défaut quand ils diffèrent du nôtre (noms seulement, jamais d'ID).
+export var NAME_ALIASES: { [name: string]: string[] } = { 'Plex officiel': ['Plex'] };
+
+function norm(s: string): string {
+  var t = s.toLowerCase();
+  if ((t as any).normalize) t = (t as any).normalize('NFD').replace(/[̀-ͯ]/g, '');
+  return t.replace(/\s+/g, ' ').replace(/^\s|\s$/g, '');
+}
+
+// Complète l'ID des entrées sans ID dont le nom (ou un alias) correspond à une app découverte.
+// Une app n'est attribuée qu'une fois et jamais si son ID est déjà au catalogue (pas de doublon). `todo` est effacé.
+export function fillIds<T extends { id: string; name: string; todo?: string }>(c: T[], apps: DiscoveredApp[]): T[] {
+  var used: { [id: string]: boolean } = {};
+  for (var i = 0; i < c.length; i++) if (c[i].id) used[c[i].id] = true;
+  var out: T[] = [];
+  for (var j = 0; j < c.length; j++) {
+    var e = c[j];
+    if (e.id) { out.push(e); continue; }
+    var names = [norm(e.name)], al = NAME_ALIASES[e.name] || [];
+    for (var a = 0; a < al.length; a++) names.push(norm(al[a]));
+    var hit: DiscoveredApp | null = null;
+    for (var k = 0; k < apps.length && !hit; k++) {
+      if (!used[apps[k].id] && apps[k].id && names.indexOf(norm(apps[k].name)) >= 0) hit = apps[k];
+    }
+    if (!hit) { out.push(e); continue; }
+    used[hit.id] = true;
+    var n: any = {};
+    for (var key in e) if (e.hasOwnProperty(key) && key !== 'todo') n[key] = (e as any)[key];
+    n.id = hit.id;
+    out.push(n as T);
+  }
+  return out;
+}

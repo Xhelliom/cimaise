@@ -204,10 +204,13 @@ test('Retour à la racine demande confirmation avant de quitter', () => {
   assert.equal(a.exits.length, 1);
 });
 
-test('diagnostic caché : Entrée sur une tuile sans ID affiche les horodatages (script, premier affichage, interactif)', () => {
+test('tuile sans ID : message, pas de diagnostic ; le diagnostic reste accessible par la touche 0', () => {
   const a = boot();
   a.flush();
   a.key(RIGHT); a.key(OK);
+  assert.equal(a.body.children.find((c) => c.tag === 'pre'), undefined);
+  assert.match(JSON.stringify(find(a.root, 'message').map((m) => m.textContent)), /ID inconnu, va dans Réglages/);
+  a.key(48);
   const pre = a.body.children.find((c) => c.tag === 'pre');
   assert.ok(pre);
   assert.match(pre.textContent, /scriptLoaded[\s\S]*firstPaint[\s\S]*interactive/);

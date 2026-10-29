@@ -251,3 +251,12 @@ utilisés par `device.launchApp`) et `http://tizen.org/privilege/application.inf
 D'après la doc Tizen Application API ; **non testé sur la TV** (à confirmer au prochain lancement d'une app depuis l'accueil).
 
 **Empaquetage.** `package.sh` réduit le nom de sortie à `[A-Za-z0-9._-]` (espaces → `-`, reste supprimé : `CleanFrame (bench).wgt` → `CleanFrame-bench.wgt`). Raison : le repli `vd_appinstall` est relu par le shell de la TV, où espaces et parenthèses cassent la commande ; c'est le chemin de la TV de référence. `install.sh` refuse avec un message clair tout `.wgt` au nom différent. Testé (faux packager, repli forcé) dans `scripts/tizen/test.sh`, que `npm run check` n'exécute pas.
+
+## Réglages défilants, découverte filtrée, message de lancement (2026-10-29)
+
+**Retour de la Frame.** Liste des Réglages figée (focus hors écran), découverte ≈300 entrées, tuiles par défaut sans ID → diagnostic.
+- **Défilement.** Réglages et découverte : une couche `.liste` déplacée par un seul `transform: translateY` (déplacement minimal, `scrollOffset`), lignes de 108 px, 7 visibles ; le DOM est fenêtré (≈ 11 lignes max, aucun nœud pour les 300 apps). Pas de `VirtualList` de tv-core : elle est taillée pour des tuiles image/titre, ces lignes portent des puces et un état de saisie. Coût : aucun poids ajouté notable, pas de minuterie.
+- **Filtre.** `device.listInstalledApps` ne garde que `show` vrai (`ApplicationInformation.show`) et trie par nom. **Non testé sur la TV** : si `show` était absent de la réponse, la liste serait vide (message « Aucune app trouvée »).
+- **Complétion des ID.** À chaque découverte, `fillIds` renseigne l'ID des entrées sans ID dont le nom (casse/accents ignorés) ou l'alias (`NAME_ALIASES`, ex. « Plex officiel » → « Plex ») correspond ; une app n'est attribuée qu'une fois, jamais si son ID est déjà au catalogue. Les apps déjà au catalogue restent listées, marquées « Au catalogue ». Aucun ID de TV n'est versionné.
+- **Échec de lancement.** L'accueil affiche un message de 4 s (« Netflix : ID inconnu, va dans Réglages → Découvrir », ou « … : lancement impossible »), jamais le diagnostic.
+- **Diagnostic.** Reste accessible par la touche **0** (clavier ou télécommande, enregistrée via `tvinputdevice`), depuis n'importe quel écran. L'ancien déclencheur (Entrée non traitée) est retiré.

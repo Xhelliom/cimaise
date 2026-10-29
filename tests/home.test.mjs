@@ -314,3 +314,26 @@ test('aperçu : la démo Dock est servie (page, js, css, police)', async () => {
   assert.equal(f.status, 200);
   assert.match(f.headers.get('content-type'), /font\/woff2/);
 });
+
+test('tuile sans ID : message clair, aucun lancement, pas d’erreur de diagnostic', () => {
+  const { p, press, calls, tm } = mount({ catalog: [{ id: '', name: 'Netflix', color: '#e50914', type: 'tv' }] }, 1);
+  press('enter');
+  assert.deepEqual(calls.launch, []);
+  assert.equal(calls.errors.length, 0);
+  const m = one(p.el, 'message');
+  assert.equal(m.textContent, 'Netflix : ID inconnu, va dans Réglages → Découvrir');
+  assert.ok(m.className.split(' ').includes('on'));
+  tm.pending().at(-1).fn();
+  assert.equal(m.textContent, '');
+});
+
+test('échec de lancement (rappel ou exception) : message « lancement impossible »', () => {
+  let fail;
+  const a = mount({ launchApp: (id, ok, f) => { fail = f; } }, 3);
+  a.press('right', 'enter');
+  fail(new Error('refus'));
+  assert.equal(one(a.p.el, 'message').textContent, 'PLEX : lancement impossible');
+  const b = mount({ launchApp: () => { throw new Error('NO_TIZEN'); } }, 3);
+  b.press('right', 'enter');
+  assert.equal(one(b.p.el, 'message').textContent, 'PLEX : lancement impossible');
+});

@@ -268,7 +268,7 @@ test('device.launchApp : launch, repli launchAppControl, erreurs explicites', ()
 
 test('device.listInstalledApps : id, nom, icône via getAppsInfo', () => {
   globalThis.window = { tizen: { application: {
-    getAppsInfo: (ok) => ok([{ id: 'a.b', name: 'A', iconPath: 'file:///a.png', extra: 1 }, { id: 'c.d', name: 'C' }]),
+    getAppsInfo: (ok) => ok([{ id: 'a.b', name: 'A', iconPath: 'file:///a.png', extra: 1, show: true }, { id: 'c.d', name: 'C', show: true }, { id: 'svc', name: 'B', show: false }]),
   } } };
   try {
     let got = null;
@@ -278,5 +278,20 @@ test('device.listInstalledApps : id, nom, icône via getAppsInfo', () => {
     let failed = null;
     core.listInstalledApps(() => {}, (e) => { failed = e; });
     assert.equal(failed.code, 'LIST_FAILED');
+  } finally { delete globalThis.window; }
+});
+
+test('device.listInstalledApps : 300 entrées, seules les apps visibles, triées par nom', () => {
+  const raw = Array.from({ length: 300 }, (_, i) => ({ id: 'x.' + i, name: i % 10 === 0 ? 'app ' + i : 'Svc ' + i, show: i % 10 === 0 }));
+  raw.push({ id: 'z.z', name: 'Zèbre', show: true }, { id: 'a.a', name: 'Alpha', show: true }, { id: 'n.n', name: 'Noshow' });
+  globalThis.window = { tizen: { application: { getAppsInfo: (ok) => ok(raw) } } };
+  try {
+    let got = null;
+    core.listInstalledApps((l) => { got = l; });
+    assert.equal(got.length, 32);
+    assert.ok(got.every((a) => a.id.startsWith('x.') ? Number(a.id.slice(2)) % 10 === 0 : ['z.z', 'a.a'].includes(a.id)));
+    const names = got.map((a) => a.name.toLowerCase());
+    assert.deepEqual(names, names.slice().sort());
+    assert.equal(got[0].name, 'Alpha');
   } finally { delete globalThis.window; }
 });
