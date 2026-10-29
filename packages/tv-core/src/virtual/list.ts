@@ -41,6 +41,7 @@ export class VirtualList {
   private active: { [i: number]: Tile } = {};
   private free: Tile[] = [];
   private requested: { [page: number]: boolean } = {};
+  private on = true;       // liste active : seule sa tuile sélectionnée porte « focus » (sinon « mark », repère discret)
   private held = false;      // écran quitté : aucune image tant que restore() n'a pas été appelé
 
   constructor(o: VirtualOptions) {
@@ -111,6 +112,13 @@ export class VirtualList {
   // L'écran redevient visible : les images des lignes visibles reviennent.
   restore(): void {
     this.held = false;
+    this.update();
+  }
+
+  // Rend ou retire l'anneau de focus ; la sélection est conservée pour quand la liste redevient active.
+  setActive(on: boolean): void {
+    if (this.on === on) return;
+    this.on = on;
     this.update();
   }
 
@@ -187,7 +195,9 @@ export class VirtualList {
         var url = t.img.getAttribute('data-src');
         if (url) { t.img.setAttribute('src', url); t.src = true; }
       }
-      if (i === this.focus.index) t.el.classList.add('focus'); else t.el.classList.remove('focus');
+      var sel = i === this.focus.index;
+      if (sel && this.on) t.el.classList.add('focus'); else t.el.classList.remove('focus');
+      if (sel && !this.on) t.el.classList.add('mark'); else t.el.classList.remove('mark');
     }
     var off = this.top * this.lineSize;
     this.layer.style.transform = o.horizontal ? 'translate3d(' + -off + 'px,0,0)' : 'translate3d(0,' + -off + 'px,0)';
