@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <title>cimaise — piste 1 : rail et cadre suspendu</title>
+  <rect id="fond" width="512" height="512" fill="#0e0e12"/>
+  <g id="marque">
+    <rect x="64" y="96" width="384" height="32" rx="16" fill="#e3a94b"/>
+    <path d="M190 128V232M322 128V232" stroke="#f3efe7" stroke-width="14" stroke-linecap="round" fill="none"/>
+    <rect x="130" y="238" width="252" height="190" rx="12" fill="none" stroke="#f3efe7" stroke-width="30"/>
+    <rect x="196" y="300" width="120" height="66" rx="4" fill="#e3a94b"/>
+  </g>
+</svg>
