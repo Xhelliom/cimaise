@@ -33,6 +33,11 @@ const routes = {
   '/app/app.js': async () => [await bundle('apps/tv/src/index.ts'), 'text/javascript'],
   '/demo/virtual': async () => [readFileSync(`${root}packages/tv-core/demo/virtual.html`, 'utf8'), 'text/html'],
   '/demo/virtual.js': async () => [await bundle('packages/tv-core/demo/virtual.ts'), 'text/javascript'],
+  // Démo de l'accueil Dock v2 (packages/launcher/demo) : aperçu seulement.
+  '/demo/home': async () => [readFileSync(`${root}packages/launcher/demo/home.html`, 'utf8'), 'text/html'],
+  '/demo/home.js': async () => [await bundle('packages/launcher/demo/home.ts'), 'text/javascript'],
+  '/demo/home.css': async () => [await bundle('packages/launcher/src/home/home.css', { external: ['*.woff2'] }), 'text/css'],
+  '/demo/fonts/outfit-latin.woff2': async () => [readFileSync(`${root}packages/launcher/src/home/fonts/outfit-latin.woff2`), 'font/woff2'],
   '/app/plex.js': async () => [await bundle('apps/tv/src/chunks/plex.ts'), 'text/javascript'],
   '/app/settings.js': async () => [await bundle('apps/tv/src/chunks/settings.ts'), 'text/javascript'],
   '/app/outfit-latin.woff2': async () => [readFileSync(`${root}packages/launcher/mockups/outfit-latin.woff2`), 'font/woff2'],
