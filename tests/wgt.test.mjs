@@ -33,7 +33,7 @@ function zip(buf) {
 test('build produit le .wgt cimaise (accueil Dock) non signé avec les fichiers de l’app', () => {
   assert.ok(existsSync(WGT));
   const f = zip(readFileSync(WGT));
-  for (const n of ['config.xml', 'index.html', 'app.js', 'app.css', 'plex.js', 'settings.js', 'outfit-latin.woff2', 'OFL.txt']) assert.ok(n in f, n);
+  for (const n of ['config.xml', 'index.html', 'app.js', 'app.css', 'plex.js', 'settings.js', 'fonts/outfit-latin.woff2', 'OFL.txt']) assert.ok(n in f, n);
   assert.ok(!Object.keys(f).some((n) => /signature/i.test(n)), 'signature présente');
   assert.ok(!Object.keys(f).some((n) => n.endsWith('.wgt')));
   assert.ok(!f['app.js'].includes('CIMAISE_MOCK'), 'mock dans le .wgt');

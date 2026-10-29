@@ -29,6 +29,8 @@ const loadMocks = async () => {
   const logs = [];
   const window = { document, console: { error: (...a) => logs.push(a.join(' ')), log() {}, warn() {} } };
   window.window = window;
+  window.setTimeout = (f, ms) => timers.push({ f, ms }); // l'accueil passe par window.setTimeout
+  window.clearTimeout = () => {};
   vm.runInNewContext(code, { ...window, window, console: window.console });
   return { window, logs, els };
 };
@@ -69,7 +71,7 @@ test('tout appel webapis.avplay lève et ne simule jamais un succès', async () 
 test('les mocks n’entrent pas dans le build .wgt', () => {
   const r = spawnSync('npm', ['run', 'build'], { encoding: 'utf8' });
   assert.equal(r.status, 0, r.stdout + r.stderr);
-  for (const f of readdirSync('apps/tv/dist')) {
+  for (const f of readdirSync('apps/tv/dist', { recursive: true }).filter((f) => /\.(js|css|html|xml)$/.test(f))) {
     assert.doesNotMatch(readFileSync(`apps/tv/dist/${f}`, 'utf8'), /CIMAISE_MOCK|appel sans effet dans l’aperçu/i, f);
   }
   assert.doesNotMatch(readFileSync('apps/tv/index.html', 'utf8'), /mock/i);
@@ -152,11 +154,14 @@ test('aperçu : le bundle servi avec les mocks affiche l’accueil et pose l’�
   const logs = [];
   const window = { document, console: { error: (...a) => logs.push(a.join(' ')), log() {}, warn() {} } };
   window.window = window;
+  window.setTimeout = (f, ms) => timers.push({ f, ms }); // l'accueil passe par window.setTimeout
+  window.clearTimeout = () => {};
   const ctx = vm.createContext({ ...window, window, setTimeout: (f, ms) => timers.push({ f, ms }), clearTimeout() {}, Date, console: window.console });
   vm.runInContext(mocks, ctx);
   vm.runInContext(app, ctx);
   assert.equal(root.children.length, 1, 'accueil affiché');
-  assert.match(root.children[0].children[0].textContent, /^\d\d:\d\d$/);
+  const horloge = (n) => (n.className === 'horloge' ? n : n.children.map(horloge).find(Boolean));
+  assert.match(horloge(root.children[0]).textContent, /^\d\d:\d\d$/);
   assert.equal(typeof listeners.keydown, 'function');
   timers.filter((t) => t.ms === 0).forEach((t) => t.f()); // chargement différé
   assert.ok(logs.some((l) => /registerKey/.test(l)), 'le mock doit rester bruyant : ' + logs.join('|'));
