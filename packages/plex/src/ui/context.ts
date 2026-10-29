@@ -21,7 +21,7 @@ export interface PlexArg {
   session?: ServerRef | null;   // null = pas de session ; absent = lue dans le stockage (prefs.plexSession)
   id?: Identity;
   now?: () => number;
-  onPlay?: (item: Item) => void;
+  onPlay?: (item: Item, startMs?: number) => void;
   timers?: Timers;   // connexion par PIN : interrogation périodique ; minuteries du lecteur
   createPlayer?: (o: PlayerOptions) => Player;   // défaut : wrapper AVPlay de tv-core
   // App Plex officielle de la TV, cherchée par nom dans le catalogue (jamais un ID en dur) ; null = introuvable.
@@ -30,7 +30,7 @@ export interface PlexArg {
 
 export interface OfficialApp { open(done: (err: Error | null) => void): void; }
 
-export interface Ctx { doc: Document; data: Data; session: ServerRef; nav: Nav; play(item: Item): void; }
+export interface Ctx { doc: Document; data: Data; session: ServerRef; nav: Nav; play(item: Item, startMs?: number): void; }
 
 export function storedSession(store?: Storage): ServerRef | null {
   var s = loadStored(store).prefs.plexSession;
