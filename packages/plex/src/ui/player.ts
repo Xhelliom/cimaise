@@ -6,6 +6,7 @@ import { createProgress, Progress } from '../progress';
 import { Panel } from '../../../tv-core/src/router/router';
 import { Key } from '../../../tv-core/src/keys';
 import { createPlayer, Player, Track } from '../../../tv-core/src/player';
+import { recordMeasure } from '../../../tv-core/src/diag';
 import { Ctx, el, identityOf, PlexArg, realTimers, resolve } from './context';
 
 var HIDE_MS = 3000;
@@ -59,10 +60,12 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
   var durationMs = item.duration || 0;
   var paused = false, menuOpen = false;
   var suspendPos = -1;
+  // Mesure (diagnostic) : Entrée sur Lire → première image (1er temps de lecture signalé par AVPlay). Avec la question de reprise, part du choix.
+  var t0 = Date.now(), awaitFrame = false;
   var hideTimer: any = null;
   var metaReq: { abort(): void } | null = null;
   var buttons: Array<{ label: string; run(): void }> = [];
-  var at = 0;
+  var at = 0, resumeAsked = false;
   var choices: Choice[] = [], mi = 0;
 
   function setClass(node: HTMLElement, base: string, on: boolean): void { node.className = on ? base + ' on' : base; }
@@ -138,9 +141,12 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
     if (closed) return;
     mode = 'loading';
     ask('Chargement…', []);
+    if (resumeAsked) t0 = Date.now();
+    awaitFrame = true;
     var p = (arg.createPlayer || createPlayer)({
       doc: arg.doc as any,
       onTime: function (ms) {
+        if (awaitFrame && mode === 'play') { awaitFrame = false; recordMeasure('lecture', Date.now() - t0); }
         if (mode !== 'play') return;
         bar.style.transform = 'scaleX(' + (durationMs > 0 ? Math.min(1, ms / durationMs) : 0) + ')';
         time.textContent = formatTime(ms) + ' / ' + formatTime(durationMs);
@@ -221,6 +227,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
     var off = full.viewOffset || 0;
     if (off > 0) {
       mode = 'resume';
+      resumeAsked = true;
       ask(full.title, [
         { label: 'Reprendre à ' + formatTime(off), run: function () { start(off); } },
         { label: 'Depuis le début', run: function () { start(0); } }

@@ -16,7 +16,7 @@ before(async () => {
   const t = spawnSync('node_modules/.bin/tsc', ['-p', 'packages/plex/tsconfig.json', '--outDir', es5], { encoding: 'utf8' });
   assert.equal(t.status, 0, t.stdout + t.stderr);
   const out = join(dir, 'ui.cjs');
-  await build({ entryPoints: [join(es5, 'plex/src/index.js')], bundle: true, format: 'cjs', target: 'es5', outfile: out, logLevel: 'warning' });
+  await build({ stdin: { resolveDir: es5, contents: "export * from './plex/src/index.js'; export * as diag from './tv-core/src/diag.js';" }, bundle: true, format: 'cjs', target: 'es5', outfile: out, logLevel: 'warning' });
   ui = createRequire(import.meta.url)(out);
 });
 
@@ -408,4 +408,34 @@ test('décision : URI du serveur sans plex.direct refusée sans fuite de l’adr
   assert.ok(has(panel.el, /plex\.direct/));
   assert.ok(!texts(panel.el).join('|').includes('192.0.2.10'));
   assert.ok(!s.player.calls.includes('open'));
+});
+
+test('mesures : Entrée sur Lire → première image (1er onTime après l’ouverture), une seule mesure', async () => {
+  const real = Date.now; let t = 1000; Date.now = () => t;
+  try {
+    ui.diag.resetMeasures();
+    const s = setup();
+    const panel = ui.createPlayerPanel(s.arg, MOVIE);
+    t = 1300; await flush(); s.player.ready();
+    assert.equal(ui.diag.measureStats('lecture'), null, 'pas avant la première image');
+    t = 1900; s.player.events.onTime(10);
+    t = 2500; s.player.events.onTime(1010);
+    assert.deepEqual(ui.diag.measureStats('lecture'), { n: 1, min: 900, median: 900, max: 900 });
+    panel.destroy();
+  } finally { Date.now = real; }
+});
+
+test('mesures : avec la question de reprise, la durée part du choix de l’utilisateur', async () => {
+  const real = Date.now; let t = 1000; Date.now = () => t;
+  try {
+    ui.diag.resetMeasures();
+    const s = setup({ meta: withOffset(3000000) });
+    const panel = ui.createPlayerPanel(s.arg, MOVIE);
+    t = 1200; await flush();
+    t = 9000; panel.onKey('enter');            // « Reprendre » choisi 8 s plus tard
+    s.player.ready();
+    t = 9400; s.player.events.onTime(3000000);
+    assert.equal(ui.diag.measureStats('lecture').max, 400);
+    panel.destroy();
+  } finally { Date.now = real; }
 });

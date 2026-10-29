@@ -5,6 +5,7 @@ import { createGrid, VirtualList } from '../../../tv-core/src/virtual/list';
 import { Ctx, el, openable, PlexArg, resolve, tileInfo } from './context';
 import { createDetailPanel } from './detail';
 import { POSTER } from './images';
+import { recordMeasure } from '../../../tv-core/src/diag';
 
 export var PAGE_SIZE = 36;   // X-Plex-Container-Size : 6 colonnes × 6 lignes
 
@@ -23,6 +24,8 @@ export function createLibraryPanel(arg: PlexArg, section: { key: string; title: 
   var items: Item[] = [];
   var cancels: Array<() => void> = [];
   var loaded: { [start: number]: boolean } = {};
+  // Mesure (diagnostic) : ouverture → premières affiches posées ; réponse rendue pendant l'appel même = cache.
+  var t0 = Date.now(), measured = false, opening = false;
 
   var list: VirtualList = createGrid({
     container: box, doc: doc, count: 0, cols: 6, itemW: POSTER.w, itemH: POSTER.h + 72, gap: 48, viewportW: 1800, viewportH: 880,
@@ -42,12 +45,15 @@ export function createLibraryPanel(arg: PlexArg, section: { key: string; title: 
       status.textContent = '';
       count.textContent = p.total + ' éléments';
       if (p.total !== list.count) list.setCount(p.total); else list.refresh();
+      if (!measured && p.offset === 0) { measured = true; recordMeasure(opening ? 'biblio-cache' : 'biblio-reseau', Date.now() - t0); }
     }, function (e) {
       list.pageFailed(start);
       if (!items.length) status.textContent = 'Serveur Plex injoignable : ' + e.message;
     }));
   }
+  opening = true;
   fetchPage(0, PAGE_SIZE);
+  opening = false;
 
   return {
     el: root,
