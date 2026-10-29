@@ -162,6 +162,19 @@ test('erreur de seek : non fatale, lecteur ouvert, seek suivant possible', () =>
   assert.equal(seeks(api).length, 2);
 });
 
+test('rappel d\'erreur puis onerror SEEK_FAILED sans seek en vol : lecteur ouvert, pas d\'onError', () => {
+  const errs = [], seekErrs = [];
+  const { api, timers, p } = opened(
+    { seekTo: function (ms, ok, ko) { this.calls.push('seekTo:' + ms); ko('PLAYER_ERROR_SEEK_FAILED'); } },
+    { onError: (e) => errs.push(e.message), onSeekError: (e) => seekErrs.push(e.message) });
+  p.forward(); timers.advance(400);
+  assert.equal(seekErrs.length, 1);
+  api.listener.onerror('PLAYER_ERROR_SEEK_FAILED');
+  assert.equal(errs.length, 0);
+  assert.equal(seekErrs.length, 1);
+  assert.ok(!api.calls.includes('stop') && !api.calls.includes('close'));
+});
+
 test('onerror SEEK_FAILED du listener : non fatal, libère le seek en vol', () => {
   const errs = [], seekErrs = [];
   const { api, timers, p } = opened({ seekTo: function (ms) { this.calls.push('seekTo:' + ms); } },

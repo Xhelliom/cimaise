@@ -78,6 +78,7 @@ export function createPlayer(opts?: PlayerOptions): Player {
   var burst: { dir: number; count: number; target: number } | null = null;
   var burstTimer: any = null;
   var inflight: { target: number; fail(e: Error): void } | null = null;
+  var seekErrReported = false; // erreur déjà remontée par le rappel d'un seek : l'onerror qui suit est avalé
   var queued: { target: number; dones: Array<(err: Error | null) => void> } | null = null;
 
   function api(): any { return o.api || getWebapis().avplay; }
@@ -93,7 +94,15 @@ export function createPlayer(opts?: PlayerOptions): Player {
       onstreamcompleted: function () { if (o.onEnd) o.onEnd(); },
       onerror: function (type: any) {
         // PLAYER_ERROR_SEEK_FAILED : le flux continue, seul le seek a échoué.
-        if (String(type).indexOf('SEEK') >= 0 && inflight) { inflight.fail(new Error('AVPlay : erreur de lecture ' + type)); return; }
+        // Jamais fatal, quel que soit l'état : déjà signalé par le rappel d'erreur du seek → avalé (il peut arriver
+        // après que le seek suivant est parti) ; sinon il appartient au seek en vol, ou à défaut est signalé tel quel.
+        if (String(type).indexOf('SEEK') >= 0) {
+          var err = new Error('AVPlay : erreur de lecture ' + type);
+          if (seekErrReported) seekErrReported = false;
+          else if (inflight) inflight.fail(err);
+          else if (o.onSeekError) o.onSeekError(err);
+          return;
+        }
         fail(new Error('AVPlay : erreur de lecture ' + type));
       },
       onsubtitlechange: function (duration: number, text: string) { if (o.onSubtitle) o.onSubtitle(text, duration); }
@@ -120,7 +129,7 @@ export function createPlayer(opts?: PlayerOptions): Player {
       if (settled || inflight !== mine) return;
       settled = true;
       inflight = null;
-      if (!err) lastTime = target;
+      if (!err) lastTime = target; else seekErrReported = true;
       if (done && hasDone) done(err); else if (err && o.onSeekError) o.onSeekError(err);
       drain();
     }
@@ -161,7 +170,7 @@ export function createPlayer(opts?: PlayerOptions): Player {
   }
   function resetSeek(): void {
     if (burstTimer !== null) { timers.clearTimeout(burstTimer); burstTimer = null; }
-    burst = null; inflight = null; queued = null;
+    burst = null; inflight = null; queued = null; seekErrReported = false;
   }
 
   function release(): void {
