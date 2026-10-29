@@ -45,3 +45,14 @@
 .plex-episodes .vimg{width:360px;height:203px}
 .plex-episodes .vlabel{top:215px;width:360px}
 .plex-episodes:not(.on) .vtile.focus .vimg{transform:none;box-shadow:none}
+/* Connexion : code PIN et choix du serveur (mêmes jetons que le Dock v2) */
+.plex-shell{position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;background:#0b0b0d}
+.plex-login-view{position:absolute;left:0;top:0;width:1920px;height:1080px}
+.plex-login .plex-status{left:0;width:1920px;text-align:center}
+.plex-login-lead{position:absolute;left:0;top:200px;width:1920px;text-align:center;font-size:72px;font-weight:500;letter-spacing:-.02em}
+.plex-login-sub{position:absolute;left:0;top:304px;width:1920px;text-align:center;font-size:40px;color:rgba(255,255,255,.6)}
+.plex-pin{position:absolute;left:0;top:420px;width:1920px;text-align:center;font-size:260px;line-height:1;font-weight:500;letter-spacing:.12em;text-indent:.12em;color:#e5a00d}
+.plex-hint{position:absolute;left:0;top:900px;width:1920px;text-align:center;font-size:28px;color:rgba(255,255,255,.6)}
+.plex-servers{position:absolute;left:560px;top:340px;width:800px}
+.plex-server{height:96px;margin-bottom:24px;border-radius:48px;padding:0 48px;line-height:96px;font-size:40px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:rgba(255,255,255,.08);box-shadow:inset 0 0 0 2px rgba(255,255,255,.14)}
+.plex-server.focus{background:rgba(255,255,255,.9);box-shadow:none;color:#111}

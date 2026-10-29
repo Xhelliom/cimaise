@@ -1,14 +1,17 @@
-# Bilan — Écrire l'accueil Plex, la grille de bibliothèque, la fiche
+# Bilan — connexion Plex par code PIN et choix du serveur
 
-**Fait**
-- `packages/plex/src/ui/` : accueil en rangées virtualisées, grille paginée (36 par page, en-têtes `X-Plex-Container-*`), fiche film/série (résumé, durée, progression, saisons puis épisodes), cache à durée de vie avec affichage immédiat, images toujours via `/photo/:/transcode` à la taille d'affichage, libération en quittant l'écran (`VirtualList.release/restore`), Retour par le routeur. Bouton Lire : message clair (AVPlay pas branché).
-- Aperçu : `npm run dev` injecte la session Plex depuis `.local/plex.env` ; vérifié contre le vrai serveur (accueil → bibliothèque → fiche film et série, à la télécommande clavier).
-- Mesure : ouverture de la bibliothèque 55-70 ms (données), 737 ms images à froid, 88 ms ensuite, 2-3 ms depuis le cache (détail dans `docs/decisions.md`).
-- Tests : `tests/plex-ui.test.mjs` (13, écrits avant le code et vus en échec) ; `tests/build.test.mjs` adapté. `npm run check` : voir ci-dessous.
+## Fait
+- `packages/plex/src/ui/login.ts` : écran de connexion. Sans token : code PIN en grand (260 px, ambre) avec « Va sur plex.tv/link » et l'attente ;
+  interrogation toutes les 2 s (`pollPin`), annulée par `destroy()` donc par Retour (routeur). Code expiré / erreur : OK pour réessayer.
+- Token de compte (`prefs.plexToken`), serveur (`plexServer`) et session (`plexSession`) dans le stockage tv-core (`cimaise.v1`), jamais loggés.
+  Un 401 de plex.tv efface le token et relance le PIN.
+- Serveurs : un seul → choisi sans demander ; plusieurs → liste (haut/bas/OK) ; le serveur mémorisé est repris automatiquement.
+  Connexion locale joignable d'abord (`chooseConnection`), repli sur la suivante.
+- `panel.ts` : enveloppe `plex-shell` qui montre la connexion puis la remplace par l'accueil ; session stockée → accueil direct, aucun appel plex.tv.
+- CSS dans `plex.css` (Outfit, aplats sombres, pastille inversée au focus). `plex.js` reste un chunk différé (test `app.test.mjs` : aucun chunk au démarrage).
+- Tests : 6 nouveaux dans `tests/plex-ui.test.mjs` (PIN affiché, Retour annule, token+serveur+local mémorisés, pas de token dans les logs, réouverture directe, liste de serveurs, repli de connexion) ; 2 tests existants adaptés (`sans session`, stub XHR dans `app.test.mjs`).
+- `npm run check` : vert (178 tests).
 
-**Pas fait / à savoir**
-- Captures non publiées sur la carte : l'outil `publish_file` n'existe pas dans cette session. Copies hors git : `~/git/cimaise/.local/plex-ui-captures/` (bibliothèque personnelle de Stéphane : ne pas committer).
-- Connexion par PIN et choix du serveur absents : la session vient de `prefs.plexSession`.
-- Hors de ce rendu : puces de tri, pastilles du haut, repères « non vu », fond flou de la fiche.
-- Mesures dans Chromium sur PC, pas sur la Frame ; l'acceptation du certificat plex.direct par Tizen 5 reste à observer.
-- Le Chrome de l'outil navigateur est sur une autre machine (127.0.0.1 inaccessible) : captures et mesures via le conteneur Playwright.
+## Non fait
+- Aucune capture : le navigateur de l'agent n'a pas pu ouvrir l'aperçu local (page d'erreur). Le flux contre plex.tv réel n'a pas été joué ; à voir avec `npm run dev` (vider `cimaise.v1` du localStorage si une session d'aperçu existe).
+- Pas d'écran « changer de serveur » une fois la session stockée (hors carte). Une session devenue invalide n'est pas détectée à la réouverture : l'accueil affiche « Serveur Plex injoignable ».

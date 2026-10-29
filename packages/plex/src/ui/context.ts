@@ -1,4 +1,4 @@
-import { Http, Identity, Item, ServerRef } from '../api/types';
+import { Http, Identity, Item, ServerRef, Timers } from '../api/types';
 import { xhrHttp } from '../api/xhr';
 import { getClientId } from '../api/identity';
 import { loadStored } from '../../../tv-core/src/storage';
@@ -21,6 +21,7 @@ export interface PlexArg {
   id?: Identity;
   now?: () => number;
   onPlay?: (item: Item) => void;
+  timers?: Timers;   // connexion par PIN : interrogation périodique
 }
 
 export interface Ctx { doc: Document; data: Data; session: ServerRef; nav: Nav; play(item: Item): void; }
@@ -30,11 +31,23 @@ export function storedSession(store?: Storage): ServerRef | null {
   return s && typeof s.uri === 'string' && typeof s.token === 'string' ? { uri: s.uri, token: s.token } : null;
 }
 
+export function identityOf(arg: PlexArg): Identity {
+  return arg.id || { clientId: getClientId(arg.store), product: 'Cimaise', version: '0.0.0', platform: 'Tizen', device: 'Frame' };
+}
+
+export function realTimers(): Timers {
+  return {
+    now: function () { return new Date().getTime(); },
+    setTimeout: function (fn, ms) { return window.setTimeout(fn, ms); },
+    clearTimeout: function (id) { window.clearTimeout(id); }
+  };
+}
+
 export function resolve(arg: PlexArg): Ctx | null {
   var session = arg.session === undefined ? storedSession(arg.store) : arg.session;
   if (!session) return null;
   var doc = arg.doc || document;
-  var id: Identity = arg.id || { clientId: getClientId(arg.store), product: 'Cimaise', version: '0.0.0', platform: 'Tizen', device: 'Frame' };
+  var id = identityOf(arg);
   var cache = createCache({ store: arg.store, ns: session.uri, now: arg.now });
   var data = createData(arg.http || xhrHttp, id, session, cache);
   return { doc: doc, data: data, session: session, nav: arg.nav, play: arg.onPlay || function () { /* message de la fiche */ } };
