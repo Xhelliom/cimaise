@@ -130,6 +130,30 @@ test('découverte sur action : liste, ajout (id, nom, icône), erreur explicite 
   assert.equal(e.changes.length, 0);
 });
 
+test('Apps intégrées : un module interne retiré réapparaît (sans découverte) et se remet en tête', () => {
+  const plex = { id: 'plex', name: 'Plex intégré', tint: S.PALETTE[0] };
+  const { panel, changes, calls, press } = open({ catalog: [app('netflix'), app('youtube')], internalApps: [plex] });
+  assert.ok(texts(panel.el).includes('Apps intégrées'));
+  assert.ok(texts(panel.el).includes('Plex intégré'));
+  assert.equal(calls.list, 0, 'ne dépend pas de la découverte');
+  press('down', 'down', 'down');   // netflix, youtube, Plex intégré
+  assert.ok(focused(panel.el).some((f) => f.includes('Plex intégré') && f.includes('Ajouter')));
+  press('enter');
+  assert.deepEqual(changes.at(-1).map((x) => x.id), ['plex', 'netflix', 'youtube']);
+  assert.ok(!texts(panel.el).includes('Apps intégrées'), 'plus rien à proposer');
+});
+
+test('Apps intégrées : proposée aussi quand la découverte échoue ; absente si déjà au catalogue', () => {
+  const plex = { id: 'plex', name: 'Plex intégré', tint: S.PALETTE[0] };
+  const r = open({ catalog: [app('netflix')], internalApps: [plex] });
+  r.calls.impl = (ok, fail) => fail(new Error('tizen est absent'));
+  r.press('enter');
+  assert.ok(texts(r.panel.el).some((t) => /tizen est absent/.test(t)));
+  assert.ok(texts(r.panel.el).includes('Apps intégrées'));
+  assert.ok(texts(r.panel.el).includes('Plex intégré'));
+  assert.ok(!texts(open({ catalog: [app('plex')], internalApps: [plex] }).panel.el).includes('Apps intégrées'));
+});
+
 test('Affichage de l’accueil : Grille par défaut, Haut atteint la ligne, Entrée / gauche / droite basculent et préviennent', () => {
   const modes = [];
   const { panel, press } = open({ onMode: (m) => modes.push(m) });

@@ -4,6 +4,7 @@ import { AppEntry, DiscoveredApp } from '../../../../packages/launcher/src/setti
 import { loadLangPrefs, saveLangPrefs } from '../../../../packages/tv-core/src/langprefs';
 import { HomeMode } from '../../../../packages/launcher/src/home/model';
 import { CatalogEntry } from '../../../../packages/launcher/src/catalog/model';
+import { defaultCatalog } from '../../../../packages/launcher/src/catalog/defaults';
 import { HaSettings } from '../../../../packages/launcher/src/settings/scenes';
 
 // Les Réglages travaillent sur AppEntry (teinte) ; le catalogue persisté est un CatalogEntry (couleur, type, rappel).
@@ -20,6 +21,9 @@ export interface SettingsArg {
   onClose: () => void;
 }
 
+// Modules internes que la découverte de la TV ne peut pas lister (ex. Plex intégré) : proposés dans « Apps intégrées ».
+function internals(): CatalogEntry[] { return defaultCatalog().filter(function (c) { return c.type === 'interne'; }); }
+
 function toApp(c: CatalogEntry): AppEntry { return { id: c.id, name: c.name, icon: c.icon, tint: c.color }; }
 
 function toEntry(a: AppEntry, from: CatalogEntry[]): CatalogEntry {
@@ -32,6 +36,8 @@ function toEntry(a: AppEntry, from: CatalogEntry[]): CatalogEntry {
       return e;
     }
   }
+  var ins = internals();
+  for (var k = 0; k < ins.length; k++) if (ins[k].id === a.id && ins[k].name === a.name) return { id: a.id, name: a.name, color: a.tint, type: 'interne' };
   var n: CatalogEntry = { id: a.id, name: a.name, color: a.tint, type: 'tv' };
   if (a.icon) n.icon = a.icon;
   return n;
@@ -41,6 +47,7 @@ function createPanel(arg: SettingsArg): Panel {
   var current = arg.catalog, langs = loadLangPrefs();
   return createSettings({
     catalog: current.map(toApp),
+    internalApps: internals().map(toApp),
     // Hors TV l'adaptateur lève (DeviceError) au lieu d'appeler fail : on ramène ça au rappel d'erreur de l'écran.
     listInstalledApps: function (ok, fail) {
       try { arg.listInstalledApps(ok, fail); } catch (e) { fail(e as Error); }
