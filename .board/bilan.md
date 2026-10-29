@@ -1,15 +1,4 @@
-# Bilan — décision lecture directe / transcodage (HANDOFF §5.3)
-
-**Fait** (`packages/plex/src/playback/`, branche `board/decider-lecture-directe-ou-transcodage-pour-chaq`)
-- `profile.ts` : profil Frame 2019, chaque entrée `confirmed: false` (« supposé, à confirmer sur la TV »).
-- `tracks.ts` : audio de la langue préférée (codec lisible d'abord), sous-titres off sauf forcés.
-- `decide.ts` : `decidePlayback` → mode, raisons codées + phrase, version/partie, pistes ; PGS/ASS/VobSub → transcodage incrusté.
-- `urls.ts` : URL directe et sous-titre externe sur l'URI `*.plex.direct` (IP refusée), `requestTranscode` (décision puis URL HLS).
-- 12 fiches réelles anonymisées (`tests/fixtures/plex/media-samples.json`, script `scripts/plex/capture-media-fixtures.mjs`, lecture seule).
-- 41 tests (`tests/plex-playback.test.mjs`) ; `npm run check` vert (285 tests). Doc : `docs/decisions.md`.
-
-**Pas fait / à confirmer**
-- Réponse réelle de `/video/:/transcode/universal/decision` non vérifiée (ouvre une session serveur, interdit en lecture seule).
-- Aucun Dolby Vision dans la bibliothèque : branche testée sur fiche modifiée.
-- Profil entièrement supposé, rien testé sur la TV.
-- Module non branché à `ui/player.ts` (hors carte).
+# Bilan
+Fait : depuis « En cours », la fiche garde l'épisode visé (saison + épisode focalisés, Lire/Reprendre le lit) ; fiche de série ouverte autrement : Lire = OnDeck (?includeOnDeck=1) sinon 1er épisode, libellé « Reprendre S1 E8 » / « Lire S1 E1 » ; le lecteur refuse show/season avec un message explicite. `npm run check` vert (290 pass).
+Vérifié sur le vrai serveur (lecture seule, via .local/plex.env, jamais affiché) : `?includeOnDeck=1` renvoie `OnDeck.Metadata` = un objet épisode (jamais vue → épisode 1, entamée → suivant, terminée → pas d'OnDeck). Le code gérait déjà cette forme, aucune correction. Fixtures `show-ondeck.json` / `show-finished.json` générées par `scripts/plex/capture-show-fixtures.mjs` ; les tests « à suivre » et « sans à suivre » les lisent. Forme notée dans docs/decisions.md.
+Non fait : rien d'essayé sur la Frame.

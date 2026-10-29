@@ -592,18 +592,16 @@ test('accueil : les images restent chargées sur la rangée précédente (partie
 });
 
 // ---- Lire depuis la fiche d’une série : toujours un épisode ----------------------------------------------------
-// Fiche d’une série avec « à suivre » du serveur (?includeOnDeck=1) : forme réelle, épisode tiré de ondeck.json.
-const showWithDeck = (deck) => {
-  const ep = deck === null ? null : JSON.parse(fx('ondeck')).MediaContainer.Metadata[0];
-  const show = { ratingKey: '200', type: 'show', title: 'Titre de série 1', thumb: '/library/metadata/200/thumb/1700000000', leafCount: 20, viewedLeafCount: 7 };
-  if (ep) show.OnDeck = { Metadata: ep };
-  return JSON.stringify({ MediaContainer: { size: 1, Metadata: [show] } });
-};
+// Réponses réelles (anonymisées) de /library/metadata/{série}?includeOnDeck=1 : série entamée (OnDeck.Metadata = un objet)
+// et série terminée (pas d'OnDeck). Voir scripts/plex/capture-show-fixtures.mjs.
 const SHOW = { ratingKey: '200', type: 'show', title: 'Titre de série 1', thumb: '/library/metadata/200/thumb/1700000000' };
+const SHOW_DECK = { ratingKey: '700', type: 'show', title: 'Titre de série 700' };
+const SHOW_DONE = { ratingKey: '800', type: 'show', title: 'Titre de série 800' };
 const playBtn = (p) => byClass(p.el, 'plex-play')[0].textContent;
-const showDeps = (deck) => {
+const showDeps = (fixture) => {
   const played = [];
-  const d = deps({ onPlay: (it) => played.push(it), http: fakeHttp([[/\/library\/metadata\/200(\?|$)/, showWithDeck(deck)], ...serverRoutes()]) });
+  const routes = fixture ? [[/\/library\/metadata\/(700|800)(\?|$)/, fx(fixture)]] : [];
+  const d = deps({ onPlay: (it) => played.push(it), http: fakeHttp([...routes, ...serverRoutes()]) });
   return { d, played };
 };
 
@@ -635,19 +633,20 @@ test('depuis « En cours » : la fiche s’ouvre sur la saison et l’épisode v
   assert.ok(texts(focused[0]).some((t) => /Titre d'épisode 4/.test(t)), 'tuile de l’épisode visé focalisée : ' + texts(focused[0]));
 });
 
-test('fiche de série : Lire = l’épisode « à suivre » du serveur, libellé saison/épisode', async () => {
-  const { d, played } = showDeps(fx('ondeck'));
-  const p = ui.createDetailPanel(d.arg, SHOW);
+test('fiche de série : Lire = l’épisode « à suivre » du serveur (réponse réelle), libellé saison/épisode', async () => {
+  const { d, played } = showDeps('show-ondeck');
+  const p = ui.createDetailPanel(d.arg, SHOW_DECK);
   await flush();
-  assert.ok(d.arg.http.calls.some((c) => /\/library\/metadata\/200\?includeOnDeck=1/.test(c.url)), 'demande includeOnDeck');
-  assert.equal(playBtn(p), 'Reprendre S1 E8');
+  assert.ok(d.arg.http.calls.some((c) => /\/library\/metadata\/700\?includeOnDeck=1/.test(c.url)), 'demande includeOnDeck');
+  assert.equal(playBtn(p), 'Lire S1 E2', 'pas « S1 E1 » : l’épisode à suivre du serveur est le 2');
   p.onKey('enter');
-  assert.deepEqual(played.map((i) => i.ratingKey), ['300']);
+  assert.deepEqual(played.map((i) => i.ratingKey), ['701']);
+  assert.equal(played[0].type, 'episode');
 });
 
-test('fiche de série sans « à suivre » : Lire = le premier épisode', async () => {
-  const { d, played } = showDeps(null);
-  const p = ui.createDetailPanel(d.arg, SHOW);
+test('fiche de série sans « à suivre » (série terminée, réponse réelle) : Lire = le premier épisode', async () => {
+  const { d, played } = showDeps('show-finished');
+  const p = ui.createDetailPanel(d.arg, SHOW_DONE);
   await flush();
   assert.equal(playBtn(p), 'Lire S1 E1');
   p.onKey('enter');

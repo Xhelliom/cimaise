@@ -1,0 +1,19 @@
+{
+  "MediaContainer": {
+    "size": 1,
+    "Metadata": [
+      {
+        "ratingKey": "800",
+        "key": "/library/metadata/800",
+        "type": "show",
+        "title": "Titre de série 800",
+        "summary": "Résumé.",
+        "year": 2025,
+        "leafCount": 8,
+        "viewedLeafCount": 8,
+        "thumb": "/library/metadata/800/thumb/1700000000",
+        "art": "/library/metadata/800/art/1700000000"
+      }
+    ]
+  }
+}
