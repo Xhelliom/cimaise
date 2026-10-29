@@ -31,24 +31,48 @@ export function tileInk(hex: string): string {
   return (c[0] * 299 + c[1] * 587 + c[2] * 114) / 1000 > 150 ? '#1f1f1f' : '#fff';
 }
 
-// Géométrie du bac (px de la scène 1920×1080), identique à home.css.
+// Mode d'affichage de l'accueil : grille (défaut, la page défile dès la 2e rangée) ou une rangée qui défile à droite.
+export type HomeMode = 'grille' | 'rangee';
+export var DEFAULT_MODE: HomeMode = 'grille';
+export function normalizeMode(v: any): HomeMode { return v === 'rangee' ? 'rangee' : DEFAULT_MODE; }
+
+// Géométrie (px de la scène 1920×1080), identique à home.css.
 export var COLS = 4;
 export var SCREEN_H = 1080;
 export var BAC_TOP = 690;
-export var PAD = 28;
+export var BAC_W = 1720;
+export var BAC_H = 880;     // bac plus haut que l'écran : le bas est coupé par la scène, la page le remonte
+export var SCROLL = 520;    // remontée de la page (transform) dès la 2e rangée : en-tête dehors, titre compact, bac à 170 px
+export var PAD = 44;        // marge intérieure : anneau 6 px + agrandissement 1,1 (≈ 19 px) + respiration ; rayons concentriques
 export var TILE_H = 216;
 export var GAP = 40;
-export var SAFE = 40; // marge basse : anneau 6 px + agrandissement 1,1 (≈ 11 px) + respiration
+export var SAFE = 40;       // marge basse
+export var ROW_TILE_W = 370;
+export var PEEK = 90;       // largeur visible de la tuile suivante en mode une rangée
 
-// Bord haut / bas de la tuile i, en px d'écran, bac non défilé.
+// Remontée de la page : 0 sur la première rangée (accueil d'origine), SCROLL ensuite.
+export function pageShift(row: number): number { return row >= 1 ? SCROLL : 0; }
+
+// Décalage vertical (>= 0) du rail pour que la rangée focalisée tienne entièrement dans le bac visible.
+export function railOffset(row: number): number {
+  var bottom = PAD + row * (TILE_H + GAP) + TILE_H;
+  var o = bottom + SAFE - (row >= 1 ? BAC_H : SCREEN_H - BAC_TOP);
+  return o > 0 ? o : 0;
+}
+
+// Bord haut / bas de la tuile i (mode grille), en px d'écran, une fois la page et le rail décalés.
 export function tileBox(i: number): { top: number; bottom: number } {
-  var top = BAC_TOP + PAD + Math.floor(i / COLS) * (TILE_H + GAP);
+  var row = Math.floor(i / COLS);
+  var top = BAC_TOP - pageShift(row) + PAD + row * (TILE_H + GAP) - railOffset(row);
   return { top: top, bottom: top + TILE_H };
 }
 
-// Décalage vertical (>= 0) du rail pour que la rangée focalisée tienne entièrement à l'écran.
-export function railOffset(row: number): number {
-  var bottom = PAD + row * (TILE_H + GAP) + TILE_H;
-  var o = bottom + SAFE - (SCREEN_H - BAC_TOP);
+// Mode une rangée : bord gauche de la tuile i dans le rail, et décalage horizontal (>= 0) du rail.
+export function rowTileLeft(i: number): number { return PAD + i * (ROW_TILE_W + GAP); }
+export function rowOffset(i: number, n: number): number {
+  if (2 * PAD + n * ROW_TILE_W + (n - 1) * GAP <= BAC_W) return 0; // tout tient : rien ne défile
+  var right = rowTileLeft(i) + ROW_TILE_W;
+  var limit = i < n - 1 ? BAC_W - GAP - PEEK : BAC_W - PAD; // la suivante est esquissée à droite
+  var o = right - limit;
   return o > 0 ? o : 0;
 }

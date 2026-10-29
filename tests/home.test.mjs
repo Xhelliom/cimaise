@@ -54,7 +54,7 @@ function timers() {
   t.pending = () => t.list.filter((x) => x.live);
   return t;
 }
-const APPS = ['plex-int', 'plex', 'netflix', 'youtube', 'disney', 'canal', 'a7', 'a8', 'a9', 'a10', 'a11', 'a12'];
+const APPS = ['plex-int', 'plex', 'netflix', 'youtube', 'disney', 'canal', 'a7', 'a8', 'a9', 'a10', 'a11', 'a12', 'a13', 'a14', 'a15', 'a16', 'a17', 'a18', 'a19', 'a20'];
 const PAL = ['#e5a00d', '#e50914', '#c4302b', '#113ccf', '#1f8a5b', '#8a3ffc', '#d6336c', '#5a5a5f'];
 const catalog = (n) => APPS.slice(0, n).map((id, i) => ({ id, name: id.toUpperCase(), color: PAL[i % PAL.length], type: i === 0 ? 'interne' : 'tv' }));
 
@@ -123,47 +123,171 @@ test('focus : D-pad via le moteur tv-core, un seul élément focalisé, titre su
   assert.equal(p.onKey('back'), false, 'Retour est laissé au routeur');
 });
 
-// Le bac coupe son contenu (overflow:hidden dès 690 px) : bord haut visible + marge anneau/agrandissement (17 px, comme en bas).
-const BAC_VISIBLE_TOP = 690 + 17;
+const clsOf = (p) => p.el.className.split(' ');
+const bacTop = (p) => (clsOf(p).includes('defile') ? 690 - 520 : 690);
+const ox = (rail) => { const m = /translateX\((-?[\d.]+)px\)/.exec(rail.style.transform || ''); return m ? Number(m[1]) : 0; };
 
-test('défilement : la tuile focalisée est entièrement visible, rangée 2 (et suivantes) comprise', () => {
-  const { p, press } = mount();
-  const rail = one(p.el, 'rail');
-  const seen = [];
-  const check = () => {
-    const i = byClass(p.el, 'tuile').findIndex((x) => x.className.includes('focus'));
-    const box = H.tileBox(i);
-    const t = box.top + ty(rail), b = box.bottom + ty(rail);
-    assert.ok(t >= BAC_VISIBLE_TOP && b <= 1080 - 17, `tuile ${i} : ${t}–${b}`);
-    seen.push(i);
-  };
-  check();
-  for (const k of ['down', 'down', 'down']) { press(k); check(); }
-  assert.deepEqual(seen.slice(0, 4), [0, 4, 8, 8], 'dernière rangée complète : reste sur place');
-  press('right', 'right', 'right'); check();
-  press('up'); check(); press('up'); // rangée 0 → pastilles : plus de tuile focalisée
-  assert.equal(ty(rail), 0, 'rangée 1 : pas de décalage');
-  // rangée 2 explicite, tuile par tuile
-  for (let r = 0; r < 12; r++) {
-    const m = mount();
-    const row = Math.floor(r / 4);
-    for (let d = 0; d < row; d++) m.press('down');
-    for (let c = 0; c < r % 4; c++) m.press('right');
-    const rl = one(m.p.el, 'rail');
-    const box = H.tileBox(r);
-    assert.ok(box.top + ty(rl) >= BAC_VISIBLE_TOP && box.bottom + ty(rl) <= 1080 - 17, `tuile ${r}`);
-  }
-  assert.ok(H.railOffset(1) > 0, 'la rangée 2 impose un défilement');
+test('Grille (défaut) : classe grille, pas de remontée sur la 1re rangée', () => {
+  const { p } = mount();
+  assert.deepEqual(clsOf(p), ['home', 'grille']);
+  assert.equal(ty(one(p.el, 'rail')), 0);
 });
 
-test('défilement par transform seulement (le bac ne bouge pas)', () => {
+for (const n of [4, 10, 20]) {
+  test(`Grille, ${n} apps : la page défile dès la 2e rangée, rangée focalisée toujours entière, retour à l'accueil d'origine`, () => {
+    const m = mount({}, n);
+    const rail = one(m.p.el, 'rail');
+    const rows = Math.ceil(n / 4);
+    const check = (i) => {
+      assert.ok(byClass(m.p.el, 'tuile')[i].className.includes('focus'), 'focus sur ' + i);
+      const row = Math.floor(i / 4), box = H.tileBox(i);
+      assert.equal(clsOf(m.p).includes('defile'), row >= 1, 'defile rangée ' + row);
+      assert.equal(Math.abs(ty(rail)), H.railOffset(row));
+      assert.ok(box.top >= bacTop(m.p) + 17 && box.bottom <= 1080 - 17, `tuile ${i} : ${box.top}–${box.bottom}`);
+    };
+    check(0);
+    for (let r = 1; r < rows; r++) { m.press('down'); check(Math.min(r * 4, n - 1)); }
+    if (rows > 1) assert.ok(clsOf(m.p).includes('defile'));
+    for (let r = rows - 1; r >= 1; r--) { m.press('up'); check(Math.min((r - 1) * 4, n - 1) === 0 ? 0 : Math.min((r - 1) * 4, n - 1)); }
+    assert.deepEqual(clsOf(m.p), ['home', 'grille']);
+    assert.equal(ty(rail), 0);
+    // toutes les tuiles, une à une
+    for (let i = 0; i < n; i++) {
+      const q = mount({}, n);
+      for (let d = 0; d < Math.floor(i / 4); d++) q.press('down');
+      for (let c = 0; c < i % 4; c++) q.press('right');
+      const box = H.tileBox(i), top = bacTop(q.p);
+      assert.ok(box.top >= top + 17 && box.bottom <= 1080 - 17, `tuile ${i}`);
+    }
+  });
+}
+
+test('Grille, 20 apps : 3 rangées entières visibles à la fois une fois la page remontée', () => {
+  const m = mount({}, 20);
+  m.press('down');
+  const top = bacTop(m.p);
+  const seen = [0, 1, 2].filter((r) => { const b = H.tileBox(r * 4); return b.top >= top && b.bottom <= 1080; });
+  assert.deepEqual(seen, [0, 1, 2]);
+});
+
+test('Grille : titre et description restent lisibles (pas de remontée hors écran), l’en-tête remonte par transform', () => {
+  const css = readFileSync('packages/launcher/src/home/home.css', 'utf8');
+  assert.match(css, /\.home\.defile \.entete[^{]*\{transform:translateY\(-520px\)/);
+  assert.match(css, /\.home\.defile \.bac\{transform:translateY\(-520px\)/);
+  const t = /\.home\.defile \.titre\{transform:translateY\((-?\d+)px\) scale\(([\d.]+)\)/.exec(css);
+  assert.ok(t, 'titre compact');
+  assert.ok(520 + Number(t[1]) >= 0 && 520 + Number(t[1]) + 120 * Number(t[2]) <= 170, 'titre au-dessus du bac remonté');
+  const d = /\.home\.defile \.desc\{transform:translateY\((-?\d+)px\)/.exec(css);
+  assert.ok(646 + Number(d[1]) >= 0 && 646 + Number(d[1]) + 30 <= 170, 'description au-dessus du bac remonté');
+  for (const m of css.matchAll(/^\.home\.defile[^{]*\{([^}]*)\}/gm)) if (!/message/.test(m[0])) assert.doesNotMatch(m[1], /\b(top|left|width|height|margin)\s*:/, m[0]);
+});
+
+test('page : le défilement ne touche que transform et classes (le bac ne change pas de top)', () => {
   const { p, press } = mount();
   press('down');
   const rail = one(p.el, 'rail');
-  assert.match(rail.style.transform, /^translateY\(-\d+px\)$/);
+  assert.match(rail.style.transform, /^translateY\(-?\d+px\)$/);
   const bac = one(p.el, 'bac');
   assert.equal(bac.style.transform, undefined);
   assert.equal(bac.style.top, undefined);
+});
+
+for (const n of [4, 10, 20]) {
+  test(`Une rangée, ${n} apps : défilement horizontal, tuile focalisée entière, suivante esquissée à droite`, () => {
+    const m = mount({ mode: 'rangee' }, n);
+    const rail = one(m.p.el, 'rail');
+    assert.deepEqual(clsOf(m.p), ['home', 'rangee']);
+    for (let i = 0; i < n; i++) {
+      assert.ok(byClass(m.p.el, 'tuile')[i].className.includes('focus'));
+      const left = H.rowTileLeft(i) + ox(rail), right = left + H.ROW_TILE_W;
+      assert.ok(left >= 25 && right <= H.BAC_W - 25, `tuile ${i} : ${left}–${right}`); // anneau + agrandissement ≈ 25 px
+      if (i < n - 1 && H.rowOffset(i, n) > 0) {
+        const nextLeft = H.rowTileLeft(i + 1) + ox(rail);
+        assert.ok(nextLeft < H.BAC_W - 40 && nextLeft + 40 > right, 'la suivante est visible en partie');
+      }
+      assert.ok(!clsOf(m.p).includes('defile'));
+      m.press('right');
+    }
+    for (let i = n - 1; i >= 0; i--) { // retour à gauche : la tuile reste entière
+      const left = H.rowTileLeft(i) + ox(rail);
+      assert.ok(left >= 25 && left + H.ROW_TILE_W <= H.BAC_W - 25, `retour ${i}`);
+      m.press('left');
+    }
+    if (n === 4) assert.equal(ox(rail), 0, 'tout tient : pas de défilement');
+    else assert.ok(H.rowOffset(n - 1, n) > 0);
+  });
+}
+
+test('Une rangée : haut → pastilles, bas sans effet, Entrée lance l’app focalisée', () => {
+  const m = mount({ mode: 'rangee' }, 10);
+  m.press('right', 'right', 'down');
+  assert.equal(one(m.p.el, 'titre').textContent, 'NETFLIX');
+  m.press('enter');
+  assert.deepEqual(m.calls.launch, ['netflix']);
+  m.press('up');
+  assert.equal(one(m.p.el, 'titre').textContent, 'Réglages');
+  m.press('down');
+  assert.equal(one(m.p.el, 'titre').textContent, 'NETFLIX');
+});
+
+test('setMode : bascule grille ↔ une rangée sans reconstruire les tuiles', () => {
+  const m = mount({}, 10);
+  m.press('down');
+  const t0 = byClass(m.p.el, 'tuile')[0];
+  m.p.setMode('rangee');
+  assert.deepEqual(clsOf(m.p), ['home', 'rangee']);
+  assert.equal(byClass(m.p.el, 'tuile')[0], t0);
+  m.press('right');
+  assert.equal(one(m.p.el, 'titre').textContent, 'PLEX');
+  m.p.setCatalog(catalog(6));
+  m.press('right', 'right');
+  assert.equal(one(m.p.el, 'titre').textContent, 'YOUTUBE');
+  m.p.setMode('grille');
+  assert.deepEqual(clsOf(m.p), ['home', 'grille']);
+  assert.equal(ty(one(m.p.el, 'rail')), 0);
+});
+
+test('mode : préférence mémorisée dans cimaise.v1 (prefs.homeMode), défaut grille, valeur inconnue → grille', () => {
+  const mem = () => { const d = {}; return { d, getItem: (k) => (k in d ? d[k] : null), setItem: (k, v) => { d[k] = String(v); } }; };
+  const st = mem();
+  assert.equal(H.loadHomeMode(st), 'grille');
+  H.saveHomeMode('rangee', st);
+  assert.equal(JSON.parse(st.d['cimaise.v1']).prefs.homeMode, 'rangee');
+  assert.equal(JSON.parse(st.d['cimaise.v1']).version, 1);
+  assert.equal(H.loadHomeMode(st), 'rangee');
+  H.saveHomeMode('grille', st);
+  assert.equal(H.loadHomeMode(st), 'grille');
+  const other = mem();
+  other.setItem('cimaise.v1', JSON.stringify({ version: 1, prefs: { catalog: { version: 1, entries: [] }, homeMode: 'rangee' } }));
+  H.saveHomeMode('grille', other);
+  assert.deepEqual(JSON.parse(other.d['cimaise.v1']).prefs.catalog, { version: 1, entries: [] }, 'les autres préférences sont conservées');
+  const junk = mem();
+  junk.setItem('cimaise.v1', JSON.stringify({ version: 1, prefs: { homeMode: 'diagonale' } }));
+  assert.equal(H.loadHomeMode(junk), 'grille');
+  junk.setItem('cimaise.v1', '{pas du json');
+  assert.equal(H.loadHomeMode(junk), 'grille');
+  const v0 = mem();
+  v0.setItem('cimaise.v1', JSON.stringify({ homeMode: 'rangee' })); // ancien schéma à plat : migré
+  assert.equal(H.loadHomeMode(v0), 'rangee');
+});
+
+test('coins : rayons concentriques bac / tuile agrandie, marge intérieure suffisante dans les deux modes', () => {
+  const css = readFileSync('packages/launcher/src/home/home.css', 'utf8');
+  const num = (re) => Number(re.exec(css)[1]);
+  const R = num(/\.bac\{[^}]*border-radius:(\d+)px/), r = num(/\.tuile\{[^}]*border-radius:(\d+)px/);
+  const pad = num(/\.rail\{padding:(\d+)px/), gap = num(/\.rail\{[^}]*grid-gap:(\d+)px/);
+  const ring = num(/\.tuile\.focus\{[^}]*0 0 0 (\d+)px/), scale = num(/\.tuile\.focus\{transform:scale\(([\d.]+)\)/);
+  assert.equal(pad, H.PAD);
+  const gridW = (H.BAC_W - 2 * pad - 3 * gap) / 4;
+  for (const w of [gridW, H.ROW_TILE_W]) {
+    const marge = pad - (w * (scale - 1)) / 2 - ring * scale; // bord du bac → anneau de la tuile agrandie (la plus serrée : horizontale)
+    assert.ok(marge >= 12, 'la tuile de bord déborde ou frôle le bac : ' + marge);
+    const outer = r * scale + ring * scale; // rayon extérieur de l'anneau
+    assert.ok(Math.abs(R - outer - marge) <= 3, `rayons non concentriques : bac ${R}, anneau ${outer}, marge ${marge}`);
+  }
+  assert.ok((pad - (216 * (scale - 1)) / 2 - ring * scale) >= 12, 'marge verticale');
+  assert.match(css, /\.home\.rangee \.tuile\{[^}]*width:370px/);
+  assert.equal(H.ROW_TILE_W, 370);
 });
 
 test('Entrée : launchApp avec l’id ; module interne via callback ; erreur remontée', () => {
