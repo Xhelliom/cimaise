@@ -547,10 +547,28 @@ test('storage : lecture du localStorage mémorisée, mise à jour par saveStored
   globalThis.localStorage = { getItem: (k) => { reads++; return k in mem ? mem[k] : null; }, setItem: (k, v) => { mem[k] = v; } };
   try {
     core.resetStoredCache();
-    core.loadStored(); core.loadStored(); core.loadStored();
+    core.loadStored(undefined, true); core.loadStored(undefined, true); core.loadStored(undefined, true);
     assert.equal(reads, 1);
     const s = core.loadStored(); s.prefs.x = 1; core.saveStored(s);
-    assert.equal(core.loadStored().prefs.x, 1);
-    assert.equal(reads, 1);
+    assert.equal(core.loadStored(undefined, true).prefs.x, 1);
+    assert.equal(reads, 2, 'le load-puis-save relit le stockage ; la lecture de démarrage reste en cache');
+  } finally { delete globalThis.localStorage; core.resetStoredCache(); }
+});
+
+test('storage : la sauvegarde d\'un autre bundle survit à une sauvegarde ultérieure de app.js', async () => {
+  // Deux copies du module (comme app.js et plex.js) : chacune a son propre cache.
+  const mem = {};
+  globalThis.window = globalThis;
+  globalThis.localStorage = { getItem: (k) => (k in mem ? mem[k] : null), setItem: (k, v) => { mem[k] = v; } };
+  const out = join(mkdtempSync(join(tmpdir(), 'tvcore2-')), 'core2.cjs');
+  await build({ entryPoints: [join(es5Dir, 'index.js')], bundle: true, format: 'cjs', target: 'es5', outfile: out, logLevel: 'warning' });
+  const chunk = createRequire(import.meta.url)(out);
+  try {
+    core.resetStoredCache();
+    core.loadStored(undefined, true); // app.js lit au démarrage : son cache est posé
+    const s = chunk.loadStored(); s.prefs.plexToken = 'T'; chunk.saveStored(s); // le chunk enregistre
+    const a = core.loadStored(); a.prefs.homeMode = 'dock'; core.saveStored(a); // app.js enregistre ensuite
+    assert.equal(JSON.parse(mem['cimaise.v1']).prefs.plexToken, 'T');
+    assert.equal(JSON.parse(mem['cimaise.v1']).prefs.homeMode, 'dock');
   } finally { delete globalThis.localStorage; core.resetStoredCache(); }
 });

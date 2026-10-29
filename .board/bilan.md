@@ -1,9 +1,8 @@
-# Bilan — premier affichage de l'accueil et pics de latence
+# Bilan
 
-Fait : marques intermédiaires (storageRead, catalogLoaded, homeBuilt, firstPaint, interactive, painted, enriched) ; premier rendu minimal
-(1 seule lecture localStorage, tuiles avec nom, logos/teinte/description différés via `enrich()`, logos chargés hors DOM) ; cause du max de
-latence enregistrée (événement logo/fondu, GC probable) et affichée au diagnostic ; `font-display: swap`. Avant/après dans docs/decisions.md.
-`npm run check` passe (413 tests).
+Fait :
+- Cache de stockage : seules les lectures de démarrage (`startup`: catalogue, mode, tuiles) sont mises en cache ; tout load-puis-save relit localStorage, donc une sauvegarde d'un chunk (jeton Plex, serveur, langues) n'est plus écrasée par app.js. Test à deux copies du module ajouté (tests/tv-core.test.mjs).
+- Affirmation « décodé » corrigée (icon.ts, docs/decisions.md) : Chromium 63 décode à la peinture ; marqué « non résolu », la ligne « cause du max » le confirmera sur la TV.
+- `npm run check` vert (414 tests).
 
-Pas fait : mesure « après » (aucun navigateur ni TV ici). Les cibles (firstPaint < 300 ms, max < 100 ms) sont à vérifier par Stéphane sur la Frame ;
-la cause exacte des 583 ms n'est qu'une hypothèse (suspects listés) tant que les nouvelles marques n'ont pas été lues sur la TV.
+Non fait : pré-décodage réel des logos (calque caché) ; mesures avant/après sur la TV (Stéphane).

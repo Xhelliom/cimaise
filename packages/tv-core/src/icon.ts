@@ -12,7 +12,8 @@ export function iconCandidates(path: string): string[] {
 
 // Pose l'image dans `tile` : d'abord `logo` (logotype large de la bibliothèque, facultatif), puis l'icône de la TV
 // en dernier recours, puis le repli (texte : le nom de l'app). Chaque échec de chargement passe à la variante suivante.
-// `onShown` est appelé avec l'image dès qu'elle est chargée (et décodable) : permet à l'appelant de ne la poser qu'à ce moment.
+// `onShown` est appelé avec l'image dès qu'elle est chargée (onload) : permet à l'appelant de ne la poser qu'à ce moment.
+// Chromium 63 n'a pas img.decode() : le décodage a lieu à la peinture, onload ne prouve pas qu'il est fait.
 // Résultat consigné dans le diagnostic (touche 0) ; statut « logo » quand c'est le logo de la bibliothèque qui s'affiche.
 export function applyIcon(doc: Document, tile: HTMLElement, path: string, label: string, fallback: string, logo?: string, onShown?: (img: HTMLElement) => void): void {
   var cands = iconCandidates(path);

@@ -21,19 +21,21 @@ export function migrate(raw: any): Stored {
   return data;
 }
 
-// Sur la TV, chaque getItem coûte (stockage disque) : le texte du stockage par défaut n'est lu qu'une fois, puis tenu à jour par
-// saveStored. Un Storage passé en argument (tests) n'est jamais mis en cache.
+// Sur la TV, chaque getItem coûte (stockage disque) : les lectures de démarrage (`startup`) partagent un seul getItem du
+// stockage par défaut. Chaque bundle (app.js, plex.js, settings.js) embarque sa propre copie de ce module, donc son
+// propre cache : toute lecture destinée à être réécrite (load puis save) relit le stockage, sinon elle effacerait
+// ce qu'un autre bundle y a enregistré. Un Storage passé en argument (tests) n'est jamais mis en cache.
 var cached: { txt: string | null } | null = null;
 export function resetStoredCache(): void { cached = null; }
 
-export function loadStored(store?: Storage): Stored {
+export function loadStored(store?: Storage, startup?: boolean): Stored {
   try {
     var txt: string | null;
     if (store) txt = store.getItem(STORAGE_KEY);
-    else {
+    else if (startup) {
       if (cached === null) cached = { txt: window.localStorage.getItem(STORAGE_KEY) };
       txt = cached.txt;
-    }
+    } else txt = window.localStorage.getItem(STORAGE_KEY);
     return migrate(txt === null ? null : JSON.parse(txt));
   } catch (e) {
     return migrate(null);

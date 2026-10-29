@@ -14,11 +14,11 @@ var plex = lazy<Chunk>(chunkLoader('plex'));
 var settings = lazy<Chunk>(chunkLoader('settings'));
 
 // Le stockage n'est lu qu'une fois (tv-core/storage) : la première lecture est la seule à payer l'accès disque.
-loadStored();
+loadStored(undefined, true);
 mark('storageRead');
-var catalog = loadCatalog();
-var mode = loadHomeMode();
-var tiles = loadHomeTiles();
+var catalog = loadCatalog(undefined, true);
+var mode = loadHomeMode(undefined, true);
+var tiles = loadHomeTiles(undefined, true);
 mark('catalogLoaded');
 
 // Pastille Smart Hub : l'app cible vient des préférences (jamais d'ID en dur) ; sans cible, ou si son lancement échoue,
