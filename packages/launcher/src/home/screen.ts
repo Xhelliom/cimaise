@@ -176,8 +176,8 @@ export function createHome(opts: HomeOptions): HomePanel {
 
   function press(k: Key): boolean {
     if (zone === 'tiles') {
-      if (k === 'up' && !grid.move('up')) zone = 'pastilles';
-      else if (k === 'left' || k === 'right' || k === 'up' || k === 'down') grid.move(k);
+      if (k === 'up') { if (!grid.move('up')) zone = 'pastilles'; }
+      else if (k === 'left' || k === 'right' || k === 'down') grid.move(k);
       else if (k === 'enter') { if (catalog.length) activate(); return true; }
       else return false;
     } else {
