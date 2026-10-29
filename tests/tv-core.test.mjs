@@ -400,3 +400,9 @@ test('icônes : ordre icône TV, puis logo de la bibliothèque, puis monogramme'
   assert.equal(ok.children[0].attrs.src, 'file:///tv.png', 'TV chargée : le logo n’est pas utilisé');
   assert.match(core.iconReport(), /YouTube \[ok\]/);
 });
+
+test('diagnostic : le user agent du moteur web figure dans le rapport', () => {
+  Object.defineProperty(globalThis, "navigator", { value: { userAgent: 'Mozilla/5.0 (SMART-TV; Tizen 5.0) Chrome/56.0.2924.0 TV Safari/537.36' }, configurable: true });
+  try { assert.match(core.report(), /userAgent: .*Tizen 5\.0.*Chrome\/56/); }
+  finally { delete globalThis.navigator; }
+});
