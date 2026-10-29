@@ -1,7 +1,7 @@
 // Démo de l'aperçu navigateur : accueil Dock v2 branché au routeur ; Réglages ouvert à la demande.
 // Sans TV, « lancer » une app échoue avec la DeviceError NO_TIZEN (affichée dans le HUD) : aucun succès simulé.
 import { Router, normalizeKey, lazy } from '../../tv-core/src/index';
-import { createHome } from '../src/home/index';
+import { createHome, HomeMode } from '../src/home/index';
 import { AppEntry, DiscoveredApp } from '../src/settings/model';
 import { CatalogEntry } from '../src/catalog/model';
 
@@ -23,8 +23,10 @@ var plex = lazy<{ panel: () => { el: HTMLElement } }>(function (done) {
   done({ panel: function () { var d = document.createElement('div'); d.className = 'home'; d.textContent = 'Module Plex (démo)'; d.style.padding = '120px'; return { el: d }; } });
 });
 
+var mode: HomeMode = /[?&]mode=rangee/.test(location.search) ? 'rangee' : 'grille';
 var home = createHome({
   catalog: catalog,
+  mode: mode,
   openInternal: function () { router.pushLazy(plex, function (m) { return m.panel(); }); },
   onError: function (e) { hud.textContent = e.message; },
   onPastille: function (name) {
@@ -32,6 +34,8 @@ var home = createHome({
     router.pushLazy(settings, function (m) {
       return m.createSettings({
         catalog: catalog.map(function (c) { return { id: c.id, name: c.name, icon: c.icon, tint: c.color }; }),
+        mode: mode,
+        onMode: function (m: HomeMode) { mode = m; home.setMode(m); },
         listInstalledApps: function (_ok: (a: DiscoveredApp[]) => void, fail: (e: Error) => void) { fail(new Error('Découverte : pas de TV dans l’aperçu')); },
         onChange: function (c: AppEntry[]) {
           catalog = c.map(function (a) { return { id: a.id, name: a.name, icon: a.icon, color: a.tint, type: a.id === 'cimaise.plex' ? 'interne' : 'tv' } as CatalogEntry; });

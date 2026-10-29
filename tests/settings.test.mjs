@@ -130,6 +130,29 @@ test('découverte sur action : liste, ajout (id, nom, icône), erreur explicite 
   assert.equal(e.changes.length, 0);
 });
 
+test('Affichage de l’accueil : Grille par défaut, Haut atteint la ligne, Entrée / gauche / droite basculent et préviennent', () => {
+  const modes = [];
+  const { panel, press } = open({ onMode: (m) => modes.push(m) });
+  assert.ok(texts(panel.el).includes('Affichage de l’accueil'));
+  assert.ok(texts(panel.el).includes('Grille'));
+  press('up');
+  assert.ok(focused(panel.el).some((f) => f.includes('Affichage de l’accueil')));
+  press('enter');
+  assert.deepEqual(modes, ['rangee']);
+  assert.ok(texts(panel.el).includes('Une rangée'));
+  press('right');
+  press('left');
+  assert.deepEqual(modes, ['rangee', 'grille', 'rangee']);
+  press('up'); // borne haute
+  press('down', 'enter'); // Découvrir, inchangé
+  assert.equal(modes.length, 3);
+});
+
+test('Affichage : l’option reflète le mode reçu', () => {
+  const { panel } = open({ mode: 'rangee' });
+  assert.ok(texts(panel.el).includes('Une rangée'));
+});
+
 test('Retour ferme l’écran ; pendant une saisie, il ne fait que relâcher', () => {
   const o = open();
   o.press('down', 'right', 'enter', 'back');

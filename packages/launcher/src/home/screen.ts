@@ -5,7 +5,7 @@ import { Panel } from '../../../tv-core/src/router/router';
 import { launchApp as deviceLaunch } from '../../../tv-core/src/device';
 import { CatalogEntry } from '../catalog/model';
 import { knownApp } from '../catalog/known-apps';
-import { greeting, formatClock, formatDate, tintGradient, tileInk, COLS, railOffset } from './model';
+import { greeting, formatClock, formatDate, tintGradient, tileInk, COLS, railOffset, pageShift, rowOffset, HomeMode, DEFAULT_MODE } from './model';
 
 export type PastilleName = 'reglages' | 'smarthub' | 'reseau';
 
@@ -19,11 +19,13 @@ export interface HomeOptions {
   onError?: (err: Error) => void;
   now?: () => Date;
   timer?: { set: (fn: () => void, ms: number) => any; clear: (h: any) => void };
+  mode?: HomeMode;   // défaut : grille
   doc?: Document;
 }
 
 export interface HomePanel extends Panel {
   setCatalog(catalog: CatalogEntry[]): void;
+  setMode(mode: HomeMode): void;
   notify(text: string): void;   // petit message à l'écran (disparaît seul)
 }
 
@@ -56,6 +58,7 @@ export function createHome(opts: HomeOptions): HomePanel {
   }
 
   // Structure de la maquette : 2 calques de teinte, en-tête, pastilles, titre, bac (clip) > rail (défile).
+  var mode: HomeMode = opts.mode || DEFAULT_MODE;
   var el = div('home');
   var layers = [div('fond on'), div('fond')];
   var salut = div('salut'), horloge = div('horloge'), date = div('date');
@@ -90,7 +93,7 @@ export function createHome(opts: HomeOptions): HomePanel {
   var grid = new Focus(0, COLS);
   var chips = new Focus(PASTILLES.length, PASTILLES.length);
   var zone: 'tiles' | 'pastilles' = 'tiles';
-  var shownRow = -1;
+  var shownKey = '';
 
   // --- teinte : écrite sur le calque caché, puis fondu d'opacity (CSS) ; jamais de couleur animée ---
   var cur = 0, fadeTimer: any = null, tintHex = '', tintTimer: any = null;
@@ -147,10 +150,17 @@ export function createHome(opts: HomeOptions): HomePanel {
       var pcls = pon ? 'pastille focus' : 'pastille';
       if (pastilleEls[j].className !== pcls) pastilleEls[j].className = pcls;
     }
-    var row = zone === 'tiles' && tiles.length ? Math.floor(grid.index / COLS) : shownRow < 0 ? 0 : shownRow;
-    if (row !== shownRow) {
-      shownRow = row;
-      rail.style.transform = 'translateY(' + -railOffset(row) + 'px)';
+    // Grille : la page remonte dès la 2e rangée ; une rangée : le rail défile en x. Seuls transform et classe changent.
+    var idx = zone === 'tiles' && tiles.length ? grid.index : 0;
+    var row = mode === 'grille' ? Math.floor(idx / COLS) : 0;
+    var key = mode + row + ':' + idx;
+    if (key !== shownKey) {
+      shownKey = key;
+      var hcls = 'home ' + mode + (pageShift(row) ? ' defile' : '');
+      if (el.className !== hcls) el.className = hcls;
+      rail.style.transform = mode === 'grille'
+        ? 'translateY(' + -railOffset(row) + 'px)'
+        : 'translateX(' + -rowOffset(idx, tiles.length) + 'px)';
     }
     var known = zone === 'tiles' && catalog[grid.index] ? knownApp(catalog[grid.index].name) : null;
     if (desc.textContent !== (known ? known.desc : '')) desc.textContent = known ? known.desc : '';
@@ -163,6 +173,8 @@ export function createHome(opts: HomeOptions): HomePanel {
 
   // Ordre : icône de la TV, logo de la bibliothèque (par nom), monogramme. Le logo ne se charge qu'à l'affichage.
   function logoOf(name: string): string | undefined { var k = knownApp(name); return k ? k.logoUrl : undefined; }
+
+  function cols(): number { return mode === 'grille' ? COLS : Math.max(1, catalog.length); }
 
   function buildTiles(): void {
     while (rail.firstChild) rail.removeChild(rail.firstChild);
@@ -177,8 +189,8 @@ export function createHome(opts: HomeOptions): HomePanel {
     }
     grid.setCount(catalog.length);
     if (!catalog.length) zone = 'pastilles';
-    shownRow = -1;
-    rail.style.transform = 'translateY(0px)';
+    grid.cols = cols();
+    shownKey = '';
   }
 
   // Message transitoire : un seul élément, masqué par la classe, retiré par une minuterie ponctuelle.
@@ -224,6 +236,7 @@ export function createHome(opts: HomeOptions): HomePanel {
     return true;
   }
 
+  el.className = 'home ' + mode;
   buildTiles();
   refresh();
   paint();
@@ -236,6 +249,14 @@ export function createHome(opts: HomeOptions): HomePanel {
     setCatalog: function (c: CatalogEntry[]) {
       catalog = c.slice(0);
       buildTiles();
+      paint();
+    },
+    setMode: function (m: HomeMode) {
+      if (m === mode) return;
+      mode = m;
+      grid.cols = cols();
+      grid.index = 0;
+      shownKey = '';
       paint();
     },
     suspend: stopClock,

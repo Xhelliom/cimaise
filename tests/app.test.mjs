@@ -221,3 +221,19 @@ test('l’app ne dépend d’aucun mock, ni des anciens fichiers provisoires', (
   assert.doesNotMatch(readFileSync('apps/tv/src/index.ts', 'utf8'), /mock/i);
   for (const f of ['home.ts', 'tiles.ts', 'settings.ts', 'tint.ts']) assert.ok(!existsSync('packages/launcher/src/' + f), f);
 });
+
+test('Réglages → accueil : la ligne Affichage bascule en une rangée, persistée dans cimaise.v1 et appliquée à l’accueil', async () => {
+  const a = boot();
+  await openSettings(a);
+  assert.ok(texts(find(a.root, 'reglages')[0]).includes('Grille'));
+  a.key(UP); a.key(OK); // ligne « Affichage de l’accueil »
+  assert.ok(texts(find(a.root, 'reglages')[0]).includes('Une rangée'));
+  assert.equal(JSON.parse(a.store['cimaise.v1']).prefs.homeMode, 'rangee');
+  a.key(BACK);
+  assert.equal(find(a.root, 'home')[0].className.split(' ')[1], 'rangee');
+  a.key(UP); a.key(OK); await a.tick(); // les Réglages reprennent le mode courant
+  assert.ok(texts(find(a.root, 'reglages')[0]).includes('Une rangée'));
+  a.key(UP); a.key(OK); a.key(BACK);
+  assert.equal(JSON.parse(a.store['cimaise.v1']).prefs.homeMode, 'grille');
+  assert.equal(find(a.root, 'home')[0].className.split(' ')[1], 'grille');
+});
