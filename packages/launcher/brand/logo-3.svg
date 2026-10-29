@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <title>cimaise — piste 3 : cadre dont le bord haut est un rail</title>
+  <rect id="fond" width="512" height="512" fill="#0e0e12"/>
+  <g id="marque">
+    <path d="M160 164V396H352V164" fill="none" stroke="#f3efe7" stroke-width="30" stroke-linejoin="miter"/>
+    <rect x="80" y="140" width="352" height="40" rx="20" fill="#e3a94b"/>
+    <circle cx="256" cy="160" r="11" fill="#0e0e12"/>
+  </g>
+</svg>

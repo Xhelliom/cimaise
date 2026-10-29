@@ -1,10 +1,11 @@
-# Bilan — sous-titres et pistes audio
+# Bilan — 3 pistes de logo
 
-## Fait (cette reprise)
-- Critère 1 corrigé : `avplay.ts` n'appelle plus `setSilentSubtitle(true)` à l'ouverture (il coupait `onsubtitlechange`). Le lecteur Plex appelle `setSubtitlesVisible(true)` quand une piste de texte (interne ou externe) est choisie, `false` quand les sous-titres sont coupés, en échec ou transcodés (incrustés).
-- Faux AVPlay des tests : n'émet plus `onsubtitlechange` en mode silencieux ; test qui aurait attrapé le bug (`tests/player.test.mjs`), test Plex adapté (`subs:true` après le choix de piste).
-- `rememberSeries` : ordre de récence explicite (`prefs.plexSeriesOrder`) au lieu de l'ordre des clés d'objet ; test avec clés numériques. `docs/decisions.md` corrigé.
-- `npm run check` : 404 tests verts.
+## Fait
+- 3 SVG sources à la main dans `packages/launcher/brand/logo-{1,2,3}.svg` (viewBox 512, fond plein `#0e0e12`, 2 couleurs : blanc cassé `#f3efe7` + ambre `#e3a94b`, sans texte ni effet) : 1 rail + cadre suspendu par deux fils ; 2 monogramme « c » (rail + cadre ouvert) ; 3 cadre dont le bord haut est un rail avec point d'accroche.
+- Rendus publiés sur la carte : `planche-comparative.png` (512/128/64), `logo-<n>-icone-512.png`, `logo-<n>-tuile-dock.png` (tuile Dock normale + focus, avec mot « cimaise » en Outfit).
+- `tests/brand.test.mjs` (SVG présents, fond plein, ≤ 3 couleurs, pas de texte/filtre, icône de l'app non modifiée). `npm run check` vert (407 tests).
 
 ## Non fait / réserve
-- Non testé sur la TV : arrivée des événements `onsubtitlechange` en mode non silencieux, absence de double affichage natif + page, piste externe = dernière piste TEXT.
+- Icône de l'app NON remplacée (`apps/tv/icon.png` intacte) : Stéphane choisit d'abord.
+- Le script de rendu (Playwright, hors repo) n'est pas versionné ; les PNG ne sont pas dans le repo, seulement publiés.
+- Non testé sur la TV.
