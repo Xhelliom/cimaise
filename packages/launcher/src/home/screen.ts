@@ -20,7 +20,12 @@ export interface HomeOptions {
   doc?: Document;
 }
 
-export interface HomePanel extends Panel { setCatalog(catalog: CatalogEntry[]): void; }
+export interface HomePanel extends Panel {
+  setCatalog(catalog: CatalogEntry[]): void;
+  notify(text: string): void;   // petit message à l'écran (disparaît seul)
+}
+
+var MESSAGE_MS = 4000;
 
 var PASTILLES: Array<{ name: PastilleName; label: string }> = [
   { name: 'reglages', label: 'Réglages' },
@@ -66,6 +71,7 @@ export function createHome(opts: HomeOptions): HomePanel {
     nav.appendChild(pe);
   }
   var titre = div('titre');
+  var message = div('message');
   var bac = div('bac'), rail = div('rail');
   bac.appendChild(rail);
   el.appendChild(layers[0]);
@@ -74,6 +80,7 @@ export function createHome(opts: HomeOptions): HomePanel {
   el.appendChild(nav);
   el.appendChild(titre);
   el.appendChild(bac);
+  el.appendChild(message);
 
   var tiles: HTMLElement[] = [];
   var grid = new Focus(0, COLS);
@@ -163,15 +170,30 @@ export function createHome(opts: HomeOptions): HomePanel {
     rail.style.transform = 'translateY(0px)';
   }
 
+  // Message transitoire : un seul élément, masqué par la classe, retiré par une minuterie ponctuelle.
+  var msgTimer: any = null;
+  function notify(text: string): void {
+    message.textContent = text;
+    message.className = 'message on';
+    if (msgTimer !== null) timer.clear(msgTimer);
+    msgTimer = timer.set(function () { msgTimer = null; message.className = 'message'; message.textContent = ''; }, MESSAGE_MS);
+  }
+
   function activate(): void {
+    var entry = catalog[grid.index];
+    var fail = function (err: Error) {
+      notify(entry.name + ' : lancement impossible');
+      if (opts.onError) opts.onError(err);
+    };
     try {
-      var entry = catalog[grid.index];
       if (entry.type === 'interne') {
         if (opts.openInternal) opts.openInternal(entry.id);
-        else if (opts.onError) opts.onError(new Error('Module interne sans ouverture : ' + entry.id));
-      } else launch(entry.id, undefined, function (err) { if (opts.onError) opts.onError(err); });
+        else fail(new Error('Module interne sans ouverture : ' + entry.id));
+      } else if (!entry.id) {
+        notify(entry.name + ' : ID inconnu, va dans Réglages → Découvrir');
+      } else launch(entry.id, undefined, fail);
     } catch (e) {
-      if (opts.onError) opts.onError(e as Error);
+      fail(e as Error);
     }
   }
 
@@ -199,6 +221,7 @@ export function createHome(opts: HomeOptions): HomePanel {
   return {
     el: el,
     onKey: press,
+    notify: notify,
     setCatalog: function (c: CatalogEntry[]) {
       catalog = c.slice(0);
       buildTiles();
@@ -209,6 +232,7 @@ export function createHome(opts: HomeOptions): HomePanel {
     destroy: function () {
       stopClock();
       if (fadeTimer !== null) { timer.clear(fadeTimer); fadeTimer = null; }
+      if (msgTimer !== null) { timer.clear(msgTimer); msgTimer = null; }
     }
   };
 }

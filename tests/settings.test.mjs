@@ -117,8 +117,8 @@ test('découverte sur action : liste, ajout (id, nom, icône), erreur explicite 
   r.press('enter');
   assert.equal(r.calls.list, 1);
   assert.ok(texts(r.panel.el).includes('Disney+'));
-  assert.ok(!texts(r.panel.el).includes('Plex'), 'déjà au catalogue : non proposé');
-  r.press('down', 'down', 'down', 'down'); // 3 apps puis la découverte
+  assert.ok(texts(r.panel.el).includes('Au catalogue'), 'déjà au catalogue : marqué');
+  r.press('down', 'down', 'down', 'down', 'down'); // 3 apps, puis Plex (déjà là), puis Disney+
   r.press('enter');
   const last = r.changes.at(-1).at(-1);
   assert.deepEqual([last.id, last.name, last.icon], ['disney.id', 'Disney+', 'file:///d.png']);
@@ -143,4 +143,76 @@ test('module absent du bundle initial du launcher, et propre à lui seul', async
   const code = r.outputFiles[0].text;
   assert.ok(!/Découvrir les apps installées/.test(code));
   assert.ok(!/createSettings/.test(code));
+});
+
+// --- défilement : 300 apps, focus toujours visible ---
+const fake300 = () => Array.from({ length: 300 }, (_, i) => ({ id: 'app.' + String(i).padStart(3, '0'), name: 'App ' + String(i).padStart(3, '0') }));
+const ty = (panel) => { const l = all(panel.el, (e) => e.className === 'liste')[0]; return 0 - Number(/translateY\((-?[\d.]+)px\)/.exec(l.style.transform)[1]); };
+const focusTop = (panel) => {
+  const f = all(panel.el, (e) => /(^| )ligne( |$)/.test(e.className) && /(^| )focus( |$)/.test(e.className))[0];
+  return Number(/(\d+)px/.exec(f.style.top)[1]);
+};
+const assertVisible = (panel) => {
+  const off = ty(panel), top = focusTop(panel);
+  assert.ok(top >= off && top + S.ROW_H <= off + S.VIEW_H, 'ligne focalisée hors vue : top=' + top + ' offset=' + off);
+};
+
+test('défilement : le focus reste entièrement visible dans la liste des Réglages (catalogue long)', () => {
+  const catalog = Array.from({ length: 40 }, (_, i) => app('c' + i));
+  const { panel, press } = open({ catalog });
+  for (let i = 0; i < 40; i++) { press('down'); assertVisible(panel); }
+  assert.ok(ty(panel) > 0, 'la liste a défilé');
+  for (let i = 0; i < 40; i++) { press('up'); assertVisible(panel); }
+  assert.equal(ty(panel), 0);
+});
+
+test('découverte de 300 apps : défilement, DOM fenêtré, focus visible jusqu’en bas et au retour', () => {
+  const r = open();
+  r.calls.impl = (ok) => ok(fake300());
+  r.press('enter');
+  assert.ok(all(r.panel.el, (e) => /(^| )ligne( |$)/.test(e.className)).length <= 14, 'DOM fenêtré');
+  for (let i = 0; i < 303; i++) { r.press('down'); assertVisible(r.panel); }
+  assert.ok(texts(r.panel.el).includes('App 299'), 'dernière app atteinte et affichée');
+  assert.ok(all(r.panel.el, (e) => /(^| )ligne( |$)/.test(e.className)).length <= 14);
+  for (let i = 0; i < 303; i++) { r.press('up'); assertVisible(r.panel); }
+});
+
+test('découverte : ajout depuis le bas de la liste, le focus suit l’app ajoutée', () => {
+  const r = open();
+  r.calls.impl = (ok) => ok(fake300());
+  r.press('enter');
+  for (let i = 0; i < 303; i++) r.press('down');
+  r.press('enter');
+  assert.equal(r.changes.at(-1).at(-1).id, 'app.299');
+  assertVisible(r.panel);
+  assert.ok(texts(r.panel.el).includes('Au catalogue'));
+  r.press('enter'); // déjà ajoutée : sans effet
+  assert.equal(r.changes.length, 1);
+});
+
+test('découverte : complète l’ID des entrées sans ID par nom, sans doublon', () => {
+  const catalog = [{ id: '', name: 'Netflix', tint: S.PALETTE[0] }, { id: '', name: 'Plex officiel', tint: S.PALETTE[0] }, { id: 'deja', name: 'YouTube', tint: S.PALETTE[0] }];
+  const r = open({ catalog });
+  r.calls.impl = (ok) => ok([...fake300(), { id: 'n.id', name: 'NETFLIX' }, { id: 'p.id', name: 'Plex' }, { id: 'y.id', name: 'YouTube' }, { id: 'n2.id', name: 'Netflix' }]);
+  r.press('enter');
+  assert.deepEqual(r.changes.at(-1).map((x) => x.id), ['n.id', 'p.id', 'deja']);
+  assert.equal(r.changes.length, 1);
+});
+
+test('fillIds : insensible à la casse/accents, une app attribuée une fois, todo effacé, entrée non mutée', () => {
+  const c = [{ id: '', name: 'Canal+', todo: 'x' }, { id: '', name: 'Canal+', todo: 'x' }, { id: 'k', name: 'Autre' }];
+  const r = S.fillIds(c, [{ id: 'c1', name: 'canal+' }, { id: 'k', name: 'Autre' }]);
+  assert.deepEqual(r.map((x) => x.id), ['c1', '', 'k']);
+  assert.equal(r[0].todo, undefined);
+  assert.equal(r[1].todo, 'x');
+  assert.equal(c[0].id, '');
+  assert.equal(S.fillIds([{ id: '', name: 'Épique' }], [{ id: 'e', name: 'epique' }])[0].id, 'e');
+  assert.equal(S.fillIds([{ id: '', name: 'Disney+' }], [{ id: '', name: 'Disney+' }])[0].id, '', 'app sans ID ignorée');
+});
+
+test('scrollOffset : déplacement minimal, bornes', () => {
+  assert.equal(S.scrollOffset(0, 3, 300), 0);
+  assert.equal(S.scrollOffset(0, 7, 300), 8 * S.ROW_H - S.VIEW_H);
+  assert.equal(S.scrollOffset(500, 1, 300), S.ROW_H);
+  assert.equal(S.scrollOffset(0, 299, 300), 300 * S.ROW_H - S.VIEW_H);
 });

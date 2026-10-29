@@ -54,12 +54,19 @@ export function launchApp(id: string, onOk?: () => void, onErr?: (e: DeviceError
   tizen.application.launch(id, function () { if (onOk) onOk(); }, fallback);
 }
 
-// Inventaire des apps installées (id, nom, icône). À appeler à la demande uniquement, jamais au démarrage.
+// Inventaire des apps installées visibles par l'utilisateur (champ `show` d'ApplicationInformation : exclut services
+// et apps système), triées par nom. À appeler à la demande uniquement, jamais au démarrage.
 export function listInstalledApps(onOk: (apps: InstalledApp[]) => void, onErr?: (e: DeviceError) => void): void {
   var tizen = getTizen();
   tizen.application.getAppsInfo(function (list: any[]) {
     var out: InstalledApp[] = [];
-    for (var i = 0; i < list.length; i++) out.push({ id: list[i].id, name: list[i].name, icon: list[i].iconPath });
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].show) out.push({ id: list[i].id, name: list[i].name, icon: list[i].iconPath });
+    }
+    out.sort(function (a, b) {
+      var x = String(a.name).toLowerCase(), y = String(b.name).toLowerCase();
+      return x < y ? -1 : x > y ? 1 : 0;
+    });
     onOk(out);
   }, function (err: any) {
     if (onErr) onErr(new DeviceError('LIST_FAILED', 'Inventaire des apps impossible : ' + (err && err.message ? err.message : 'erreur inconnue')));

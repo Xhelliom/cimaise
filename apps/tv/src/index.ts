@@ -17,13 +17,12 @@ var catalog = loadCatalog();
 var home = createHome({
   catalog: catalog,
   openInternal: function (id) {
-    if (id !== 'plex') { toggleDiag(); return; }
+    if (id !== 'plex') { home.notify('Module inconnu : ' + id); return; }
     router.pushLazy(plex, function (m) {
       return m.createPanel({ nav: { push: function (p: Panel) { router.push(p); }, pop: function () { router.pop(); } } });
     });
   },
-  // Lancement impossible (pas d'ID relevé, hors TV…) : l'écran de diagnostic caché s'ouvre (horodatages).
-  onError: function () { toggleDiag(); },
+  // Lancement impossible (pas d'ID relevé, hors TV…) : l'accueil affiche lui-même un message ; le diagnostic reste à la touche 0.
   onPastille: function (name) {
     if (name !== 'reglages') return; // Smart Hub, Réseau : pas encore branchés
     router.pushLazy(settings, function (m) {
@@ -45,7 +44,12 @@ router.push(home);
 document.addEventListener('keydown', function (e) {
   var k = normalizeKey(e);
   if (k === null) return;
-  if (!router.handleKey(k) && k === 'enter') toggleDiag();
+  router.handleKey(k);
+});
+
+// Diagnostic caché (horodatages) : touche 0 de la télécommande (pavé numérique) ou du clavier.
+document.addEventListener('keydown', function (e) {
+  if (e.keyCode === 48 || e.keyCode === 96) toggleDiag();
 });
 
 mark('firstPaint');

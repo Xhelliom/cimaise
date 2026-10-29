@@ -49,3 +49,17 @@ export function addDiscovered(c: AppEntry[], app: DiscoveredApp): AppEntry[] {
   r.push({ id: app.id, name: app.name, icon: app.icon, tint: PALETTE[r.length % PALETTE.length] });
   return r;
 }
+
+// Défilement des listes (Réglages, découverte) : lignes de hauteur fixe, une seule couche déplacée par transform.
+export var ROW_H = 108;    // ligne 96 + marge 12
+export var VIEW_H = 756;   // 7 lignes visibles
+export var VISIBLE = VIEW_H / ROW_H;
+
+// Plus petit déplacement qui rend la ligne `pos` entièrement visible ; sans effet si elle l'est déjà.
+export function scrollOffset(cur: number, pos: number, total: number): number {
+  var top = pos * ROW_H, bottom = top + ROW_H, max = Math.max(0, total * ROW_H - VIEW_H);
+  var o = cur;
+  if (top < o) o = top;
+  if (bottom > o + VIEW_H) o = bottom - VIEW_H;
+  return Math.max(0, Math.min(max, o));
+}
