@@ -416,18 +416,18 @@ test('diagnostic : le user agent du moteur web figure dans le rapport', () => {
 test('diagnostic : latence touche → frame, min/médiane/max des 20 derniers', () => {
   core.resetLatency();
   for (let i = 1; i <= 25; i++) core.recordLatency(i * 10); // les 20 derniers : 60..250
-  assert.deepEqual(core.latencyStats(), { n: 20, min: 60, median: 155, max: 250 });
+  assert.deepEqual(core.latencyStats(), { n: 20, min: 60, median: 155, max: 250, maxCause: 'inconnue' });
   assert.match(core.report(), /latence touche→frame: min 60 \/ méd 155 \/ max 250 ms \(20\)/);
 });
 
 test('diagnostic : la sonde mesure keydown → 2 requestAnimationFrame', () => {
   let t = 1000; const q = [];
-  core.resetLatency();
+  core.resetLatency(); core.resetEvents();
   core.keyLatency(() => t, (fn) => q.push(fn));
   t = 1040; q.shift()();
   assert.equal(core.latencyStats(), null, 'pas avant la 2e frame');
   t = 1057; q.shift()();
-  assert.deepEqual(core.latencyStats(), { n: 1, min: 57, median: 57, max: 57 });
+  assert.deepEqual(core.latencyStats(), { n: 1, min: 57, median: 57, max: 57, maxCause: 'inconnue' });
 });
 
 test('device.hideApp : hide() de l’app courante ; hors TV, NO_TIZEN', () => {
@@ -504,4 +504,53 @@ test('langues : la mémoire par série reste bornée (les plus anciennes dispara
   assert.equal(Object.keys(m).length, 200);
   assert.equal(m.k0, undefined);
   assert.equal(m.k249.audioLang, 'eng');
+});
+
+test('latence : la cause du maximum (événements notés dans la fenêtre) est consignée et affichée', () => {
+  core.resetLatency(); core.resetEvents();
+  let t = 1000;
+  const frames = [];
+  const run = (cost, events) => {
+    core.keyLatency(() => t, (fn) => frames.push(fn));
+    for (const [n, dt] of events) core.noteEvent(n, t + dt);
+    t += cost; frames.shift()(); frames.shift()();
+    t += 100;
+  };
+  run(18, []);
+  run(298, [['logo netflix.png', 10], ['fondu', 20]]);
+  run(20, []);
+  const st = core.latencyStats();
+  assert.equal(st.max, 298);
+  assert.equal(st.maxCause, 'logo netflix.png, fondu');
+  assert.match(core.report(), /max 298 ms \(logo netflix\.png, fondu\)/);
+  core.resetLatency();
+  run(150, []);
+  assert.equal(core.latencyStats().maxCause, 'inconnue');
+});
+
+test('latence : un tas JS qui diminue pendant l’appui est noté comme GC probable', () => {
+  core.resetLatency(); core.resetEvents();
+  let t = 0, heap = 50e6;
+  globalThis.performance = { memory: { get usedJSHeapSize() { return heap; } } };
+  try {
+    const frames = [];
+    core.keyLatency(() => t, (fn) => frames.push(fn));
+    heap = 30e6; t = 120;
+    frames.shift()(); frames.shift()();
+    assert.equal(core.latencyStats().maxCause, 'GC probable');
+  } finally { delete globalThis.performance; }
+});
+
+test('storage : lecture du localStorage mémorisée, mise à jour par saveStored', () => {
+  let reads = 0; const mem = {};
+  globalThis.window = globalThis;
+  globalThis.localStorage = { getItem: (k) => { reads++; return k in mem ? mem[k] : null; }, setItem: (k, v) => { mem[k] = v; } };
+  try {
+    core.resetStoredCache();
+    core.loadStored(); core.loadStored(); core.loadStored();
+    assert.equal(reads, 1);
+    const s = core.loadStored(); s.prefs.x = 1; core.saveStored(s);
+    assert.equal(core.loadStored().prefs.x, 1);
+    assert.equal(reads, 1);
+  } finally { delete globalThis.localStorage; core.resetStoredCache(); }
 });

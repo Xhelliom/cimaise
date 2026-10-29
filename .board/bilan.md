@@ -1,10 +1,9 @@
-# Bilan — sous-titres et pistes audio
+# Bilan — premier affichage de l'accueil et pics de latence
 
-## Fait (cette reprise)
-- Critère 1 corrigé : `avplay.ts` n'appelle plus `setSilentSubtitle(true)` à l'ouverture (il coupait `onsubtitlechange`). Le lecteur Plex appelle `setSubtitlesVisible(true)` quand une piste de texte (interne ou externe) est choisie, `false` quand les sous-titres sont coupés, en échec ou transcodés (incrustés).
-- Faux AVPlay des tests : n'émet plus `onsubtitlechange` en mode silencieux ; test qui aurait attrapé le bug (`tests/player.test.mjs`), test Plex adapté (`subs:true` après le choix de piste).
-- `rememberSeries` : ordre de récence explicite (`prefs.plexSeriesOrder`) au lieu de l'ordre des clés d'objet ; test avec clés numériques. `docs/decisions.md` corrigé.
-- `npm run check` : 404 tests verts.
+Fait : marques intermédiaires (storageRead, catalogLoaded, homeBuilt, firstPaint, interactive, painted, enriched) ; premier rendu minimal
+(1 seule lecture localStorage, tuiles avec nom, logos/teinte/description différés via `enrich()`, logos chargés hors DOM) ; cause du max de
+latence enregistrée (événement logo/fondu, GC probable) et affichée au diagnostic ; `font-display: swap`. Avant/après dans docs/decisions.md.
+`npm run check` passe (413 tests).
 
-## Non fait / réserve
-- Non testé sur la TV : arrivée des événements `onsubtitlechange` en mode non silencieux, absence de double affichage natif + page, piste externe = dernière piste TEXT.
+Pas fait : mesure « après » (aucun navigateur ni TV ici). Les cibles (firstPaint < 300 ms, max < 100 ms) sont à vérifier par Stéphane sur la Frame ;
+la cause exacte des 583 ms n'est qu'une hypothèse (suspects listés) tant que les nouvelles marques n'ont pas été lues sur la TV.

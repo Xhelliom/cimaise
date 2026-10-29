@@ -701,3 +701,42 @@ test('Préférence Smart Hub : ID configurable, vide par défaut', () => {
   H.saveSmartHubTarget('x.y', store);
   assert.equal(H.loadSmartHubTarget(store), 'x.y');
 });
+
+// --- rendu minimal puis enrichi (premier affichage) ---
+function imgDoc() {
+  const base = fakeDoc(), made = [];
+  return { made, doc: { ...base, createElement: (t) => { const e = base.createElement(t); if (t === 'img') made.push(e); return e; } } };
+}
+const NETFLIX = { id: 'n', name: 'Netflix', color: '#e50914', type: 'tv' };
+
+test('rendu minimal : tuiles avec nom seulement, ni logo ni teinte tant qu’enrich() n’a pas tourné', () => {
+  const { doc, made } = imgDoc();
+  const { p } = mount({ catalog: [NETFLIX, { id: 'x', name: 'Inconnue', color: '#113ccf', type: 'tv' }], deferRich: true, doc });
+  const tuiles = byClass(p.el, 'tuile');
+  assert.deepEqual(tuiles.map((t) => t.textContent), ['Netflix', 'Inconnue']);
+  assert.equal(made.length, 0, 'aucune image créée');
+  assert.equal(byClass(p.el, 'fond').every((f) => f.style.background === undefined), true, 'aucune teinte');
+  p.enrich();
+  assert.ok(byClass(p.el, 'fond').some((f) => f.style.background), 'teinte posée par enrich');
+  assert.equal(made.length, 1, 'un logo demandé (Netflix), pas pour l’app inconnue');
+  assert.equal(tuiles[0].children.length, 0, 'le logo n’est posé qu’une fois chargé');
+  assert.equal(tuiles[0].textContent, 'Netflix');
+  made[0].onload();
+  assert.equal(tuiles[0].children.length, 1);
+  assert.equal(tuiles[0].textContent, '', 'le nom cède la place au logo');
+});
+
+test('enrich : un logo qui échoue laisse le nom ; deux appels ne doublent rien', () => {
+  const { doc, made } = imgDoc();
+  const { p } = mount({ catalog: [NETFLIX], deferRich: true, doc });
+  p.enrich(); p.enrich();
+  assert.equal(made.length, 1);
+  made[0].onerror();
+  assert.equal(byClass(p.el, 'tuile')[0].textContent, 'Netflix');
+  assert.equal(byClass(p.el, 'tuile')[0].children.length, 0);
+});
+
+test('sans deferRich : comportement d’origine (teinte et logos tout de suite)', () => {
+  const { p } = mount({}, 3);
+  assert.ok(byClass(p.el, 'fond').some((f) => f.style.background));
+});

@@ -1,3 +1,4 @@
+import { noteEvent } from '../../../tv-core/src/diag';
 import { applyIcon } from '../../../tv-core/src/icon';
 import { Key } from '../../../tv-core/src/keys';
 import { Focus } from '../../../tv-core/src/focus';
@@ -25,6 +26,8 @@ export interface HomeOptions {
   mode?: HomeMode;   // défaut : grille
   tiles?: number;    // tuiles à l'écran : 4 (défaut), 5 ou 6
   doc?: Document;
+  // Premier rendu minimal : tuiles avec leur nom, sans logo ni teinte ni description ; enrich() ajoute le reste après la 1re peinture.
+  deferRich?: boolean;
 }
 
 export interface HomePanel extends Panel {
@@ -32,6 +35,7 @@ export interface HomePanel extends Panel {
   setMode(mode: HomeMode): void;
   setTiles(n: number): void;
   notify(text: string): void;   // petit message à l'écran (disparaît seul)
+  enrich(): void;               // après la 1re peinture : teinte, description et logos (chargés hors DOM, posés une fois prêts)
 }
 
 var MESSAGE_MS = 4000;
@@ -101,6 +105,7 @@ export function createHome(opts: HomeOptions): HomePanel {
   var chips = new Focus(PASTILLES.length, PASTILLES.length);
   var zone: 'tiles' | 'pastilles' = 'tiles';
   var shownKey = '';
+  var rich = !opts.deferRich;
 
   // --- teinte : écrite sur le calque caché, puis fondu d'opacity (CSS) ; jamais de couleur animée ---
   var cur = 0, fadeTimer: any = null, tintHex = '', tintTimer: any = null;
@@ -114,6 +119,7 @@ export function createHome(opts: HomeOptions): HomePanel {
     if (hex === tintHex) return;
     if (tintHex === '') { tintHex = hex; layers[0].style.background = tintGradient(hex); return; } // état initial : rien à fondre
     tintHex = hex;
+    noteEvent('fondu');
     if (fadeTimer !== null) timer.clear(fadeTimer);
     var nx = layers[1 - cur], old = layers[cur];
     nx.style.transition = 'none';
@@ -169,11 +175,11 @@ export function createHome(opts: HomeOptions): HomePanel {
         ? 'translateY(' + -railOffset(row, per) + 'px)'
         : 'translateX(' + -rowOffset(idx, tiles.length, per) + 'px)';
     }
-    var known = zone === 'tiles' && catalog[grid.index] ? knownApp(catalog[grid.index].name) : null;
+    var known = rich && zone === 'tiles' && catalog[grid.index] ? knownApp(catalog[grid.index].name) : null;
     if (desc.textContent !== (known ? known.desc : '')) desc.textContent = known ? known.desc : '';
     if (zone === 'tiles' && catalog[grid.index]) {
       titre.textContent = catalog[grid.index].name;
-      tintLater(catalog[grid.index].color);
+      if (rich) tintLater(catalog[grid.index].color);
     } else if (zone === 'pastilles') titre.textContent = PASTILLES[chips.index].label;
     else titre.textContent = '';
   }
@@ -195,7 +201,7 @@ export function createHome(opts: HomeOptions): HomePanel {
       t.style.background = bg;
       t.style.color = tileInk(bg);
       // Sans logo large : le nom, jamais l'icône carrée de la TV (sauf app sans nom).
-      if (k && k.logoUrl) applyIcon(doc, t, catalog[i].icon || '', catalog[i].name, catalog[i].name, k.logoUrl);
+      if (k && k.logoUrl && rich) applyIcon(doc, t, catalog[i].icon || '', catalog[i].name, catalog[i].name, k.logoUrl);
       else if (catalog[i].name) t.textContent = catalog[i].name;
       else applyIcon(doc, t, catalog[i].icon || '', '', '?');
       tiles.push(t);
@@ -205,6 +211,17 @@ export function createHome(opts: HomeOptions): HomePanel {
     if (!catalog.length) zone = 'pastilles';
     grid.cols = cols();
     shownKey = '';
+  }
+
+  // Logo d'une tuile : l'image est chargée hors DOM, puis posée à la place du nom une fois prête ; en cas d'échec le nom reste.
+  function addLogo(t: HTMLElement, e: CatalogEntry): void {
+    var k = knownApp(e.name);
+    if (!k || !k.logoUrl || !e.name) return;
+    var holder = div('');
+    applyIcon(doc, holder, e.icon || '', e.name, e.name, k.logoUrl, function (img) {
+      if (t.textContent) t.textContent = '';
+      t.appendChild(img);
+    });
   }
 
   // Message transitoire : un seul élément, masqué par la classe, retiré par une minuterie ponctuelle.
@@ -257,6 +274,7 @@ export function createHome(opts: HomeOptions): HomePanel {
 
   el.className = homeClass(0);
   buildTiles();
+  var enriched = false;
   refresh();
   paint();
   tick();
@@ -265,6 +283,15 @@ export function createHome(opts: HomeOptions): HomePanel {
     el: el,
     onKey: press,
     notify: notify,
+    enrich: function () {
+      if (enriched) return;
+      enriched = true;
+      if (rich) return;
+      rich = true;
+      for (var i = 0; i < tiles.length; i++) addLogo(tiles[i], catalog[i]);
+      shownKey = '';
+      paint();
+    },
     setCatalog: function (c: CatalogEntry[]) {
       catalog = c.slice(0);
       buildTiles();

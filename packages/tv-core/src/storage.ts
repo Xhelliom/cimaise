@@ -21,10 +21,19 @@ export function migrate(raw: any): Stored {
   return data;
 }
 
+// Sur la TV, chaque getItem coûte (stockage disque) : le texte du stockage par défaut n'est lu qu'une fois, puis tenu à jour par
+// saveStored. Un Storage passé en argument (tests) n'est jamais mis en cache.
+var cached: { txt: string | null } | null = null;
+export function resetStoredCache(): void { cached = null; }
+
 export function loadStored(store?: Storage): Stored {
   try {
-    var s = store || window.localStorage;
-    var txt = s.getItem(STORAGE_KEY);
+    var txt: string | null;
+    if (store) txt = store.getItem(STORAGE_KEY);
+    else {
+      if (cached === null) cached = { txt: window.localStorage.getItem(STORAGE_KEY) };
+      txt = cached.txt;
+    }
     return migrate(txt === null ? null : JSON.parse(txt));
   } catch (e) {
     return migrate(null);
@@ -32,5 +41,7 @@ export function loadStored(store?: Storage): Stored {
 }
 
 export function saveStored(data: Stored, store?: Storage): void {
-  (store || window.localStorage).setItem(STORAGE_KEY, JSON.stringify(data));
+  var txt = JSON.stringify(data);
+  (store || window.localStorage).setItem(STORAGE_KEY, txt);
+  if (!store) cached = { txt: txt };
 }
