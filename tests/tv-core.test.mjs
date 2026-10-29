@@ -242,3 +242,41 @@ test('device.exitApp passe par tizen.application', () => {
   try { core.exitApp(); } finally { delete globalThis.window; }
   assert.equal(exited, 1);
 });
+
+test('device.launchApp : launch, repli launchAppControl, erreurs explicites', () => {
+  globalThis.window = {};
+  try {
+    assert.throws(() => core.launchApp('a.b'), (e) => e.code === 'NO_TIZEN');
+    assert.throws(() => core.listInstalledApps(() => {}), (e) => e.code === 'NO_TIZEN');
+  } finally { delete globalThis.window; }
+  const calls = [];
+  const app = {
+    launch: (id, ok, err) => { calls.push('launch:' + id); err({ message: 'refus' }); },
+    launchAppControl: (ctl, id, ok) => { calls.push('control:' + id); ok(); },
+  };
+  globalThis.window = { tizen: { application: app, ApplicationControl: function (op) { this.operation = op; } } };
+  try {
+    assert.throws(() => core.launchApp(''), (e) => e.code === 'NO_APP_ID');
+    core.launchApp('a.b', () => calls.push('ok'), () => calls.push('ko'));
+    assert.deepEqual(calls, ['launch:a.b', 'control:a.b', 'ok']);
+    app.launchAppControl = (ctl, id, ok, err) => err({ message: 'non' });
+    let failed = null;
+    core.launchApp('a.b', () => {}, (e) => { failed = e; });
+    assert.equal(failed.code, 'LAUNCH_FAILED');
+  } finally { delete globalThis.window; }
+});
+
+test('device.listInstalledApps : id, nom, icône via getAppsInfo', () => {
+  globalThis.window = { tizen: { application: {
+    getAppsInfo: (ok) => ok([{ id: 'a.b', name: 'A', iconPath: 'file:///a.png', extra: 1 }, { id: 'c.d', name: 'C' }]),
+  } } };
+  try {
+    let got = null;
+    core.listInstalledApps((l) => { got = l; });
+    assert.deepEqual(got, [{ id: 'a.b', name: 'A', icon: 'file:///a.png' }, { id: 'c.d', name: 'C', icon: undefined }]);
+    globalThis.window.tizen.application.getAppsInfo = (ok, err) => err({ message: 'x' });
+    let failed = null;
+    core.listInstalledApps(() => {}, (e) => { failed = e; });
+    assert.equal(failed.code, 'LIST_FAILED');
+  } finally { delete globalThis.window; }
+});

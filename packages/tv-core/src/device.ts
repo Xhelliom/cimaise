@@ -34,3 +34,34 @@ export function registerKeys(names: string[]): void {
 export function exitApp(): void {
   getTizen().application.getCurrentApplication().exit();
 }
+
+export interface InstalledApp { id: string; name: string; icon?: string; }
+
+// Lance une app par son ID. Si `launch` échoue, repli sur launchAppControl (opération par défaut).
+// Hors TV : DeviceError NO_TIZEN, jamais de succès simulé.
+export function launchApp(id: string, onOk?: () => void, onErr?: (e: DeviceError) => void): void {
+  var tizen = getTizen();
+  if (!id) throw new DeviceError('NO_APP_ID', "launchApp : ID d'app vide");
+  var fail = function (err: any) {
+    if (onErr) onErr(new DeviceError('LAUNCH_FAILED', 'Lancement de ' + id + ' refusé : ' + (err && err.message ? err.message : 'erreur inconnue')));
+  };
+  var fallback = function () {
+    try {
+      var ctl = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/default');
+      tizen.application.launchAppControl(ctl, id, function () { if (onOk) onOk(); }, fail);
+    } catch (e) { fail(e); }
+  };
+  tizen.application.launch(id, function () { if (onOk) onOk(); }, fallback);
+}
+
+// Inventaire des apps installées (id, nom, icône). À appeler à la demande uniquement, jamais au démarrage.
+export function listInstalledApps(onOk: (apps: InstalledApp[]) => void, onErr?: (e: DeviceError) => void): void {
+  var tizen = getTizen();
+  tizen.application.getAppsInfo(function (list: any[]) {
+    var out: InstalledApp[] = [];
+    for (var i = 0; i < list.length; i++) out.push({ id: list[i].id, name: list[i].name, icon: list[i].iconPath });
+    onOk(out);
+  }, function (err: any) {
+    if (onErr) onErr(new DeviceError('LIST_FAILED', 'Inventaire des apps impossible : ' + (err && err.message ? err.message : 'erreur inconnue')));
+  });
+}
