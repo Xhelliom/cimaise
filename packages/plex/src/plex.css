@@ -69,6 +69,7 @@
 .plex-pl-bar{width:1680px;height:8px;background:#e5a00d;transform-origin:0 0;transform:scaleX(0)}
 .plex-pl-time{position:absolute;left:120px;top:990px;font-size:30px;color:rgba(255,255,255,.85)}
 .plex-pl-state{position:absolute;left:1500px;top:990px;width:300px;text-align:right;font-size:30px;color:#e5a00d}
+.plex-pl-mode{position:absolute;left:120px;top:1040px;width:1500px;font-size:22px;color:rgba(255,255,255,.55);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .plex-pl-menu{position:absolute;left:1260px;top:300px;width:540px;opacity:0;pointer-events:none;transition:opacity .2s}
 .plex-pl-menu.on{opacity:1}
 .plex-pl-opt{height:80px;margin-bottom:12px;border-radius:40px;padding:0 40px;line-height:80px;font-size:32px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:rgba(0,0,0,.7)}

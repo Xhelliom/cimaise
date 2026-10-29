@@ -1,5 +1,5 @@
-import { Item, Part } from '../api/types';
-import { directPlayUrl } from '../api/media';
+import { Item } from '../api/types';
+import { decidePlayback, directPlaybackUrl, PlaybackPlan, requestTranscode } from '../playback';
 import { getMetadata } from '../api/library';
 import { xhrHttp } from '../api/xhr';
 import { createProgress, Progress } from '../progress';
@@ -40,12 +40,13 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
   var bar = el(doc, 'plex-pl-bar');
   var time = el(doc, 'plex-pl-time', '');
   var state = el(doc, 'plex-pl-state', '');
+  var modeLine = el(doc, 'plex-pl-mode', '');
   var menu = el(doc, 'plex-pl-menu');
   var dialog = el(doc, 'plex-pl-dialog');
   var text = el(doc, 'plex-pl-text', 'Chargement…');
   var btns = el(doc, 'plex-pl-btns');
   track.appendChild(bar);
-  ui.appendChild(title); ui.appendChild(track); ui.appendChild(time); ui.appendChild(state);
+  ui.appendChild(title); ui.appendChild(track); ui.appendChild(time); ui.appendChild(state); ui.appendChild(modeLine);
   dialog.appendChild(text); dialog.appendChild(btns);
   root.appendChild(ui); root.appendChild(menu); root.appendChild(dialog);
 
@@ -54,7 +55,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
   var player: Player | null = null;
   var progress: Progress | null = null;
   var full: Item = item;
-  var part: Part | null = null;
+  var plan: PlaybackPlan | null = null;
   var durationMs = item.duration || 0;
   var paused = false, menuOpen = false;
   var suspendPos = -1;
@@ -154,17 +155,51 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
       getPosition: function () { return suspendPos >= 0 ? suspendPos : p.getPosition(); },
       onFinish: function (ms, watched) { c.data.progressed(full, ms, watched); }
     });
-    p.open(directPlayUrl(c.session, part!.key), startMs > 0 ? { startMs: startMs } : {}, function (err) {
-      if (closed || mode === 'error') return;
-      if (err) { fail(err); return; }
-      mode = 'play';
-      setClass(dialog, 'plex-pl-dialog', false);
-      time.textContent = formatTime(startMs) + ' / ' + formatTime(durationMs);
-      bar.style.transform = 'scaleX(' + (durationMs > 0 ? Math.min(1, startMs / durationMs) : 0) + ')';
-      live(true);
-      progress!.playing();
-      show();
-    });
+    function opened(url: string): void {
+      p.open(url, startMs > 0 ? { startMs: startMs } : {}, function (err) {
+        if (closed || mode === 'error') return;
+        if (err) { fail(err); return; }
+        mode = 'play';
+        setClass(dialog, 'plex-pl-dialog', false);
+        time.textContent = formatTime(startMs) + ' / ' + formatTime(durationMs);
+        bar.style.transform = 'scaleX(' + (durationMs > 0 ? Math.min(1, startMs / durationMs) : 0) + ')';
+        modeLine.textContent = plan!.reason;
+        applyDefaultTracks(p);
+        live(true);
+        progress!.playing();
+        show();
+      });
+    }
+    if (plan!.mode === 'direct') {
+      var url: string;
+      try { url = directPlaybackUrl(c.session, plan!); } catch (e) { fail(e as Error); return; }
+      opened(url);
+    } else {
+      metaReq = requestTranscode(http, identityOf(arg), c.session, plan!, identityOf(arg).clientId, function (err, r) {
+        metaReq = null;
+        if (closed || mode === 'error') return;
+        if (err || !r) { fail(err || new Error('transcodage impossible')); return; }
+        opened(r.url);
+      });
+    }
+  }
+
+  // Pistes par défaut du plan, appliquées une fois le flux préparé. Le n-ième flux interne d'un type est la n-ième piste AVPlay de ce type
+  // (les index d'AVPlay ne sont pas ceux de Plex). Transcodé, le flux porte déjà l'audio choisi et les sous-titres incrustés.
+  function applyDefaultTracks(p: Player): void {
+    if (plan!.mode !== 'direct') return;
+    var streams = plan!.part.Stream || [], tracks = p.getTracks();
+    function avplayTrack(kind: 'audio' | 'text', type: number, wanted: { id: number } | null): Track | null {
+      if (!wanted) return null;
+      var rank = 0, i: number;
+      for (i = 0; i < streams.length && streams[i].id !== wanted.id; i++) if (streams[i].streamType === type && !streams[i].key) rank++;
+      for (i = 0; i < tracks.length; i++) if (tracks[i].kind === kind && rank-- === 0) return tracks[i];
+      return null;
+    }
+    var a = avplayTrack('audio', 2, plan!.audio);
+    if (a) p.selectTrack('audio', a.index);
+    var t = plan!.subtitleMode === 'embedded' ? avplayTrack('text', 3, plan!.subtitle) : null;
+    if (t) { p.setSubtitlesVisible(true); p.selectTrack('text', t.index); } else p.setSubtitlesVisible(false);
   }
 
   function begin(): void {
@@ -184,9 +219,9 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
     if (closed) return;
     var m = v && v.Media && v.Media[0] && v.Media[0].Part && v.Media[0].Part![0];
     if (err || !v || !m) { fail(err || new Error('aucun fichier lisible pour ce titre')); return; }
+    try { plan = decidePlayback(v, {}); } catch (e) { fail(e as Error); return; }
     full = v;
-    part = m;
-    durationMs = v.duration || m.duration || durationMs;
+    durationMs = v.duration || plan.part.duration || durationMs;
     title.textContent = v.title;
     begin();
   }) || null;
