@@ -1076,3 +1076,25 @@ test('retour de lecture : coches et progression mis à jour sans rouvrir la fich
   assert.ok(ep2().classList.contains('done'), 'épisode terminé : coche');
   assert.ok(seasonTile().classList.contains('done'), 'saison terminée : coche');
 });
+
+test('accueil : « En cours » vise l’épisode transmis ; « Ajoutés récemment » ouvre la série sur son épisode à suivre', async () => {
+  const added = JSON.stringify({ MediaContainer: { size: 1, Metadata: [
+    { ratingKey: '999', type: 'episode', title: 'Titre d’épisode 5', grandparentRatingKey: '700', grandparentTitle: 'Titre de série 700', parentIndex: 3, index: 5 }] } });
+  const routes = [
+    [/\/library\/recentlyAdded/, added],
+    [/\/library\/metadata\/(200|700)(\?|$)/, fx('show-ondeck')],
+    ...serverRoutes(),
+  ];
+  const d = deps({ http: fakeHttp(routes) });
+  const home = ui.createHomePanel(d.arg);
+  await flush();
+  home.onKey('enter');   // En cours : épisode 300 (S1 E8), transmis tel quel
+  await flush();
+  assert.match(playBtn(d.pushed[0]), /^Reprendre S1 E8|^Lire S1 E/, 'En cours : épisode visé');
+  assert.notEqual(playBtn(d.pushed[0]), 'Lire S1 E2', 'pas remplacé par l’à suivre du serveur');
+  home.onKey('down');
+  home.onKey('enter');   // Ajoutés récemment : S3 E5 ajouté, mais l’épisode à suivre est S1 E2 (OnDeck)
+  await flush();
+  assert.equal(d.pushed.length, 2);
+  assert.equal(playBtn(d.pushed[1]), 'Lire S1 E2', 'l’OnDeck de la série, pas l’épisode ajouté');
+});

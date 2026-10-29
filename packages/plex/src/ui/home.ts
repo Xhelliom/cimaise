@@ -56,9 +56,10 @@ export function createHomePanel(arg: PlexArg): Panel {
     return h;
   }
 
-  function openItem(it: Item): void {
+  // `aimed` : seul « En cours » vise l'épisode ; pour « Ajoutés récemment », la fiche choisit elle-même l'épisode à suivre.
+  function openItem(it: Item, aimed: boolean): void {
     var target = openable(it);
-    if (target) c.nav.push(createDetailPanel(arg, target, it.type === 'episode' ? it : undefined));
+    if (target) c.nav.push(createDetailPanel(arg, target, aimed && it.type === 'episode' ? it : undefined));
   }
 
   // Positions : une rangée vide est masquée, les suivantes remontent. Le défilement vertical est un seul transform.
@@ -90,8 +91,8 @@ export function createHomePanel(arg: PlexArg): Panel {
 
   function fail(e: Error): void { if (!loaded()) status.textContent = 'Serveur Plex injoignable : ' + e.message; }
 
-  var onDeck = addHub('En cours', function (it, img) { return tileInfo(c.session, it, img); }, openItem);
-  var recent = addHub('Ajoutés récemment', function (it, img) { return tileInfo(c.session, it, img); }, openItem);
+  var onDeck = addHub('En cours', function (it, img) { return tileInfo(c.session, it, img); }, function (it) { openItem(it, true); });
+  var recent = addHub('Ajoutés récemment', function (it, img) { return tileInfo(c.session, it, img); }, function (it) { openItem(it, false); });
   var libs = addHub('Bibliothèques', function (s: Section) { return { title: s.title, image: null }; }, function (s: Section) {
     c.nav.push(createLibraryPanel(arg, { key: s.key, title: s.title }));
   });
