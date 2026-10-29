@@ -333,14 +333,14 @@ test('retour de lecture : la fiche série recharge les épisodes de la saison co
   await flush();
   const seasonKids = () => reqs(d.arg.http, /\/library\/metadata\/500\/children/);
   assert.equal(seasonKids(), 1, 'épisodes de la saison 500 chargés une fois');
-  assert.equal(reqs(d.arg.http, /\/library\/metadata\/200$/), 1);
+  assert.equal(reqs(d.arg.http, /\/library\/metadata\/200(\?|$)/), 1);
 
   p.suspend();
   sharedData(d).progressed({ ratingKey: '9', type: 'episode', parentRatingKey: '500', grandparentRatingKey: '200' }, 42000, false);
   p.resume();
   await flush();
   assert.equal(seasonKids(), 2, 'épisodes de la saison courante redemandés');
-  assert.equal(reqs(d.arg.http, /\/library\/metadata\/200$/), 2, 'fiche de la série redemandée');
+  assert.equal(reqs(d.arg.http, /\/library\/metadata\/200(\?|$)/), 2, 'fiche de la série redemandée');
 });
 
 test('Retour dépile fiche → grille → accueil par le routeur ; l’écran dépilé n’a plus aucune image', async () => {
@@ -589,4 +589,79 @@ test('accueil : les images restent chargées sur la rangée précédente (partie
   assert.ok(count(1) > 0, 'rangée active chargée');
   p.onKey('up');
   assert.equal(count(0), before, 'retour en haut : images présentes');
+});
+
+// ---- Lire depuis la fiche d’une série : toujours un épisode ----------------------------------------------------
+// Fiche d’une série avec « à suivre » du serveur (?includeOnDeck=1) : forme réelle, épisode tiré de ondeck.json.
+const showWithDeck = (deck) => {
+  const ep = deck === null ? null : JSON.parse(fx('ondeck')).MediaContainer.Metadata[0];
+  const show = { ratingKey: '200', type: 'show', title: 'Titre de série 1', thumb: '/library/metadata/200/thumb/1700000000', leafCount: 20, viewedLeafCount: 7 };
+  if (ep) show.OnDeck = { Metadata: ep };
+  return JSON.stringify({ MediaContainer: { size: 1, Metadata: [show] } });
+};
+const SHOW = { ratingKey: '200', type: 'show', title: 'Titre de série 1', thumb: '/library/metadata/200/thumb/1700000000' };
+const playBtn = (p) => byClass(p.el, 'plex-play')[0].textContent;
+const showDeps = (deck) => {
+  const played = [];
+  const d = deps({ onPlay: (it) => played.push(it), http: fakeHttp([[/\/library\/metadata\/200(\?|$)/, showWithDeck(deck)], ...serverRoutes()]) });
+  return { d, played };
+};
+
+test('depuis « En cours » : la fiche de la série garde l’épisode visé et Lire lit CET épisode', async () => {
+  const { d, played } = showDeps(null);
+  const home = ui.createHomePanel(d.arg);
+  await flush();
+  const deck = JSON.parse(fx('ondeck')).MediaContainer.Metadata;
+  assert.equal(deck[0].type, 'episode');
+  home.onKey('enter');   // première tuile de « En cours » : l’épisode 300 de la série 200
+  assert.equal(d.pushed.length, 1);
+  const detail = d.pushed[0];
+  await flush();
+  assert.equal(playBtn(detail), 'Reprendre S1 E8');
+  detail.onKey('enter');
+  assert.deepEqual(played.map((i) => i.ratingKey), ['300'], 'l’épisode, jamais la série');
+  assert.equal(played[0].type, 'episode');
+});
+
+test('depuis « En cours » : la fiche s’ouvre sur la saison et l’épisode visés', async () => {
+  const { d, played } = showDeps(null);
+  const ep = { ratingKey: '501', type: 'episode', title: 'Titre d’épisode 4', grandparentRatingKey: '200', parentIndex: 1, index: 2, viewOffset: 5000 };
+  const p = ui.createDetailPanel(d.arg, SHOW, ep);
+  await flush();
+  assert.equal(playBtn(p), 'Lire S1 E2', 'la version du serveur (sans reprise) remplace celle de En cours');
+  p.onKey('down'); p.onKey('down'); p.onKey('down');
+  const focused = byClass(byClass(p.el, 'plex-episodes')[0], 'focus');
+  assert.equal(focused.length, 1);
+  assert.ok(texts(focused[0]).some((t) => /Titre d'épisode 4/.test(t)), 'tuile de l’épisode visé focalisée : ' + texts(focused[0]));
+});
+
+test('fiche de série : Lire = l’épisode « à suivre » du serveur, libellé saison/épisode', async () => {
+  const { d, played } = showDeps(fx('ondeck'));
+  const p = ui.createDetailPanel(d.arg, SHOW);
+  await flush();
+  assert.ok(d.arg.http.calls.some((c) => /\/library\/metadata\/200\?includeOnDeck=1/.test(c.url)), 'demande includeOnDeck');
+  assert.equal(playBtn(p), 'Reprendre S1 E8');
+  p.onKey('enter');
+  assert.deepEqual(played.map((i) => i.ratingKey), ['300']);
+});
+
+test('fiche de série sans « à suivre » : Lire = le premier épisode', async () => {
+  const { d, played } = showDeps(null);
+  const p = ui.createDetailPanel(d.arg, SHOW);
+  await flush();
+  assert.equal(playBtn(p), 'Lire S1 E1');
+  p.onKey('enter');
+  assert.deepEqual(played.map((i) => i.ratingKey), ['500']);
+  assert.equal(played[0].type, 'episode');
+});
+
+test('le lecteur refuse une série ou une saison avec un message explicite, sans requête', async () => {
+  for (const type of ['show', 'season']) {
+    const d = deps();
+    const p = ui.createPlayerPanel(d.arg, { ratingKey: '200', type, title: 'Titre' });
+    await flush();
+    assert.equal(d.arg.http.calls.length, 0, type + ' : aucune requête');
+    assert.ok(texts(p.el).some((t) => /Lecture impossible : .*(série|saison).*épisode/.test(t)), type + ' : ' + texts(p.el));
+    p.destroy && p.destroy();
+  }
 });

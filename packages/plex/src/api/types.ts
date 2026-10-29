@@ -44,6 +44,8 @@ export interface Item {
   // Saisons (recentlyAdded) : série parente.
   parentRatingKey?: string; parentThumb?: string;
   Media?: Media[];
+  // Série interrogée avec ?includeOnDeck=1 : l'épisode « à suivre » du serveur.
+  OnDeck?: { Metadata?: Item | Item[] };
 }
 // Rayon de /hubs ; Metadata n'est présent que pour /hubs/sections/{id}.
 export interface Hub { key: string; title: string; type: string; hubIdentifier: string; size: number; Metadata?: Item[]; }

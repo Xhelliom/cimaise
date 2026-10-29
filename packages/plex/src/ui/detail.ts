@@ -22,7 +22,9 @@ function progress(it: Item): number {
 
 // Fiche film ou série : affiche, titre, méta, Lire/Reprendre, résumé ; pour une série, saisons puis épisodes.
 // `stub` (déjà connu par la liste) s'affiche tout de suite ; la fiche complète le remplace à son arrivée.
-export function createDetailPanel(arg: PlexArg, stub: Item): Panel {
+// `focus` : épisode visé (ouvert depuis « En cours ») ; sinon, pour une série, Lire = l'épisode « à suivre » du serveur,
+// à défaut le premier. Le lecteur ne reçoit jamais une série ni une saison.
+export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel {
   var c = resolve(arg) as Ctx;
   var doc = c.doc;
   var item = stub;
@@ -44,6 +46,8 @@ export function createDetailPanel(arg: PlexArg, stub: Item): Panel {
   for (var p = 0; p < parts.length; p++) root.appendChild(parts[p]);
 
   var seasons: Item[] = [], episodes: Item[] = [];
+  var target: Item | null = stub.type === 'show' && focus ? focus : null;   // l'épisode que lit Lire
+  var pinned = !!target;   // visé par l'appelant : ni « à suivre » ni premier épisode ne le remplacent
   var cancels: Array<() => void> = [], epCancel: (() => void) | null = null;
   var zone: Zone = 'play';
   var held = false;
@@ -59,7 +63,11 @@ export function createDetailPanel(arg: PlexArg, stub: Item): Panel {
     var r = progress(item);
     bar.style.transform = 'scaleX(' + r + ')';
     prog.style.opacity = r > 0 ? '1' : '0';
-    play.textContent = r > 0 && r < 1 ? 'Reprendre' : 'Lire';
+    if (stub.type === 'show') {
+      var ep = target;
+      var se = ep && ep.parentIndex !== undefined && ep.index !== undefined ? ' S' + ep.parentIndex + ' E' + ep.index : '';
+      play.textContent = (ep && ep.viewOffset ? 'Reprendre' : 'Lire') + se;
+    } else play.textContent = r > 0 && r < 1 ? 'Reprendre' : 'Lire';
     if (!held) { var u = detailPosterUrl(c.session, item); if (u) poster.setAttribute('src', u); }
     play.className = zone === 'play' ? 'plex-play focus' : 'plex-play';
   }
@@ -96,6 +104,10 @@ export function createDetailPanel(arg: PlexArg, stub: Item): Panel {
     epCancel = c.data.children(season.ratingKey, function (l) {
       episodes = l;
       episodeList!.setCount(l.length);
+      var t = target ? target.ratingKey : '';
+      for (var i = 0; i < l.length; i++) if (l[i].ratingKey === t) { target = l[i]; episodeList!.setFocus(i); break; }   // version à jour
+      if (!target && l.length) target = l[0];
+      paint();
     });
   }
 
@@ -103,15 +115,28 @@ export function createDetailPanel(arg: PlexArg, stub: Item): Panel {
   var metaCancel: (() => void) | null = null;
   function loadMeta(): void {
     if (metaCancel) metaCancel();
-    metaCancel = c.data.metadata(stub.ratingKey, function (full) { item = full; paint(); });
+    metaCancel = c.data.metadata(stub.ratingKey, function (full) {
+      item = full;
+      var d = full.OnDeck && full.OnDeck.Metadata;
+      var next: Item | undefined = d instanceof Array ? d[0] : d;
+      if (stub.type === 'show' && !pinned) {
+        if (next && next.type === 'episode') target = next; else if (!next && target && !(target.ratingKey && episodes.length)) target = null;
+      }
+      paint();
+    }, undefined, stub.type === 'show');
   }
   loadMeta();
   if (seasonList) {
     cancels.push(c.data.children(stub.ratingKey, function (l) {
       seasons = l;
       seasonList!.setCount(l.length);
-      var first = 0;
+      var first = 0, want = focus;
       for (var i = 0; i < l.length; i++) if ((l[i].index || 0) > 0) { first = i; break; } // « Épisodes spéciaux » (0) en dernier recours
+      if (want) {   // la saison de l'épisode visé, par clé puis par numéro
+        for (var j = 0; j < l.length; j++) {
+          if (want.parentRatingKey ? l[j].ratingKey === want.parentRatingKey : (want.parentIndex !== undefined && l[j].index === want.parentIndex)) { first = j; break; }
+        }
+      }
       if (l.length) { seasonList!.setFocus(first); loadEpisodes(l[first]); }
     }));
   }
@@ -139,7 +164,8 @@ export function createDetailPanel(arg: PlexArg, stub: Item): Panel {
       if (k === 'up') { if (at <= 0) return false; setZone(z[at - 1]); return true; }
       if (zone === 'play') {
         if (k !== 'enter') return false;
-        startPlay(item);
+        if (item.type === 'show' && !target) { say('Chargement de l’épisode…'); return true; }
+        startPlay(item.type === 'show' ? target! : item);
         return true;
       }
       return (zone === 'seasons' ? seasonList! : episodeList!).handleKey(k);

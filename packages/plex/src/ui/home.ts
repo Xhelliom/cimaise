@@ -55,7 +55,7 @@ export function createHomePanel(arg: PlexArg): Panel {
 
   function openItem(it: Item): void {
     var target = openable(it);
-    if (target) c.nav.push(createDetailPanel(arg, target));
+    if (target) c.nav.push(createDetailPanel(arg, target, it.type === 'episode' ? it : undefined));
   }
 
   // Positions : une rangée vide est masquée, les suivantes remontent. Le défilement vertical est un seul transform.

@@ -179,7 +179,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
   }
 
   // Fiche à jour directement auprès du serveur (jamais le cache : la reprise vient peut-être d'un autre appareil).
-  metaReq = getMetadata(http, identityOf(arg), c.session, item.ratingKey, function (err, v) {
+  metaReq = item.type === 'show' || item.type === 'season' ? null : getMetadata(http, identityOf(arg), c.session, item.ratingKey, function (err, v) {
     metaReq = null;
     if (closed) return;
     var m = v && v.Media && v.Media[0] && v.Media[0].Part && v.Media[0].Part![0];
@@ -190,7 +190,9 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
     title.textContent = v.title;
     begin();
   }) || null;
-  ask('Chargement…', []);
+  // Une série ou une saison n'a pas de fichier : la fiche doit passer un épisode ou un film.
+  if (item.type === 'show' || item.type === 'season') fail(new Error('une ' + (item.type === 'show' ? 'série' : 'saison') + ' ne se lit pas : choisir un épisode'));
+  else ask('Chargement…', []);
 
   function openMenu(): void {
     var tracks = player ? player.getTracks() : [];
