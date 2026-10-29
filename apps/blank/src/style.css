@@ -1,0 +1,4 @@
+/* Page vide de référence : fond uni, aucune image, aucune police embarquée. */
+html,body{margin:0;height:100%;background:#101418;color:#e8eaed;font-family:sans-serif;overflow:hidden}
+#clock{position:absolute;left:0;right:0;top:40%;text-align:center;font-size:160px}
+#marks{position:absolute;left:32px;bottom:24px;margin:0;font:24px monospace;color:#8a9199}

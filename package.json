@@ -4,17 +4,18 @@
   "private": true,
   "workspaces": [
     "apps/tv",
+    "apps/blank",
     "packages/*",
     "mocks",
     "scripts"
   ],
   "scripts": {
-    "build": "node scripts/build/build.mjs && node scripts/build/wgt.mjs && node scripts/build/size-report.mjs",
+    "build": "node scripts/build/all.mjs",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "check:es5": "node scripts/build/check-es5.mjs",
     "check": "npm run typecheck && npm run build && npm run check:es5 && npm test",
     "dev": "node scripts/dev/server.mjs",
-    "test": "node --test tests/*.test.mjs"
+    "test": "node --test --test-concurrency=1 tests/*.test.mjs"
   },
   "devDependencies": {
     "es-check": "^9.8.1",

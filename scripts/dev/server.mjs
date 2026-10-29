@@ -33,7 +33,10 @@ const routes = {
   '/app/app.js': async () => [await bundle('apps/tv/src/index.ts'), 'text/javascript'],
   '/demo/virtual': async () => [readFileSync(`${root}packages/tv-core/demo/virtual.html`, 'utf8'), 'text/html'],
   '/demo/virtual.js': async () => [await bundle('packages/tv-core/demo/virtual.ts'), 'text/javascript'],
-  '/app/app.css': async () => [await bundle('apps/tv/src/style.css'), 'text/css'],
+  '/app/plex.js': async () => [await bundle('apps/tv/src/chunks/plex.ts'), 'text/javascript'],
+  '/app/settings.js': async () => [await bundle('apps/tv/src/chunks/settings.ts'), 'text/javascript'],
+  '/app/outfit-latin.woff2': async () => [readFileSync(`${root}packages/launcher/mockups/outfit-latin.woff2`), 'font/woff2'],
+  '/app/app.css': async () => [await bundle('apps/tv/src/style.css', { external: ['*.woff2'] }), 'text/css'],
 };
 
 // Maquettes statiques de packages/launcher/mockups (aperçu seulement, jamais dans le .wgt).

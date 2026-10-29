@@ -133,3 +133,24 @@ non testé, je n'ai pas pu confirmer la liste exacte pour Tizen 5.0 depuis la do
 lire le message de `sdb`/`vd_appinstall` et ajuster.
 
 **Coût.** ~2 Ko minifié estimé, zéro dépendance.
+
+## apps/tv devient l'app cimaise ; page vide en cible séparée `apps/blank` (2026-10-29)
+
+**Décision.** `apps/tv` = accueil Dock (`cimaise00.Cimaise`, identité inchangée). La page vide de référence (mesure plancher M1,
+HANDOFF §6 bis) est déplacée telle quelle dans `apps/blank` avec **sa propre identité** `cimaiseblk.Blank` (package `cimaiseblk`,
+widget `https://local.cimaise/blank`) : les deux s'installent côte à côte. `npm run build` (`scripts/build/all.mjs`) produit
+`apps/tv/build/cimaise-unsigned.wgt` et `apps/blank/build/blank-unsigned.wgt`.
+
+**Démarrage en deux temps.** Premier affichage : horloge + 6 tuiles (aplats, police système, aucun fond). Puis, par `setTimeout(0)` :
+fond teinté (2 calques, fondu d'`opacity`), salutation, date, titre, pastille Réglages, police Outfit (`body.late` ; `@font-face` ne
+télécharge qu'au premier usage, donc rien avant), enregistrement des touches média. Horodatages `tv-core` (`scriptLoaded`,
+`firstPaint`, `interactive`) et diagnostic caché (Entrée sur une tuile sans action) conservés ; les réglages affichent aussi le rapport.
+
+**Chunks séparés.** Plex et réglages sont des bundles ES5 distincts (`plex.js`, `settings.js`, un par fichier de `apps/tv/src/chunks/`),
+injectés par `chunkLoader` (tv-core) via le hook `lazy` du routeur à la première ouverture : ils ne sont pas dans le JS initial
+(contrairement au « même bundle » envisagé le 2026-10-28 : le gain réseau/parse est réel et coûte ~0,3 Ko par chunk). Le panneau Plex
+est un provisoire (M3). Retour à la racine : confirmation de sortie du routeur.
+
+**Coût mesuré (build, non mesuré sur la TV).** JS initial 11,72 Ko minifié (budget 100 Ko) ; `.wgt` cimaise 28,58 Ko (budget 1,5 Mo),
+dont police Outfit 19,06 Ko + OFL.txt 4,29 Ko ; `.wgt` blank 4,82 Ko. `npm test` passe en `--test-concurrency=1` : plusieurs fichiers
+reconstruisaient `dist/` en parallèle et se marchaient dessus.
