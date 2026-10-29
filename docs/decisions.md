@@ -367,3 +367,10 @@ D'après la doc Tizen Application API ; **non testé sur la TV** (à confirmer a
 - URL et jeton : `prefs.haUrl` / `prefs.haToken` de `cimaise.v1`. En aperçu, `/__mocks/ha-session.js` les injecte depuis `.local/ha.env` (chemin absolu, ou `HA_ENV_FILE`) ; jamais dans le build ni git ni un message d'erreur.
 - À savoir : l'appel REST depuis la TV (ou l'aperçu) est inter-origine et porte un en-tête `Authorization` : Home Assistant doit autoriser l'origine de l'app (`http: cors_allowed_origins`). Non testé sur la TV ni contre le vrai serveur.
 - Tests : `tests/widgets.test.mjs` (faux serveur).
+
+## Scènes Home Assistant sur l'accueil — 29/10
+- **Rangée de pastilles** au-dessus du Dock (3 à 6, 6 au plus) : nom + point, aplats, aucun flou, `transform`/`opacity` seulement. Haut depuis le Dock y monte, Haut encore va aux pastilles Réglages ; Bas redescend. Entrée : la pastille s'allume tout de suite, puis « ✓ » 1,5 s (une minuterie ponctuelle, aucune au repos) ; erreur : message discret « Scène : cause » (jamais le jeton).
+- **Absente** si Home Assistant n'est pas configuré, qu'aucune scène n'est choisie, ou qu'il est injoignable / refuse le jeton (`quickScenes` ne remonte pas d'erreur) : aucun nœud dans l'accueil.
+- **Chargement différé** : requête lancée après la 1re peinture (`afterPaint`), et à la fermeture des Réglages si quelque chose a changé. Coût : app.js 26,8 → 33 Ko (budget 100 Ko), `settings.js` +~6 Ko ; aucune ressource, aucune dépendance.
+- **Réglages → « Scènes Home Assistant »** : adresse et jeton (champ `<input>` : le clavier à l'écran de la TV s'ouvre au focus ; Entrée valide, Retour annule ; le jeton n'est jamais affiché), pièce (Toutes puis chaque pièce), recherche par lettres (sans casse ni accents, validée par Entrée), scènes choisies en tête avec Monter / Descendre / Retirer, puis candidates (Ajouter). Choix dans `prefs.haScenes` (ids, ordre d'affichage).
+- **À vérifier sur la TV** : le clavier à l'écran sur un `<input>` (non testé), et la recherche qui n'est pas « en direct » (filtre à la validation) pour ne pas perdre le focus du champ.

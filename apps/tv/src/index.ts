@@ -6,6 +6,7 @@ import { loadStored, mark, toggleDiag, keyLatency, normalizeKey, isDiagOpen, has
 import { Router, lazy, chunkLoader, Panel } from '../../../packages/tv-core/src/index';
 import { createHome, loadHomeMode, saveHomeMode, loadHomeTiles, saveHomeTiles, loadSmartHubTarget } from '../../../packages/launcher/src/home';
 import { loadCatalog, saveCatalog, launchEntry } from '../../../packages/launcher/src/catalog';
+import { xhrHttp, haConfigFromPrefs, listScenes, activateScene, quickScenes, normalizeChosen, saveHaConfig, saveHaScenes } from '../../../packages/widgets/src/index';
 
 interface Chunk { createPanel(arg?: any): Panel; createProbePanel?(arg?: any): Panel; }
 
@@ -32,6 +33,12 @@ function openSmartHub(): void {
   try { launchApp(target, undefined, leave); } catch (e) { leave(); }
 }
 
+// Scènes Home Assistant (rangée au-dessus du Dock) : chargées après la 1re peinture, jamais au démarrage ; injoignable ou
+// non configuré = pas de rangée (quickScenes ne remonte pas d'erreur).
+function refreshScenes(): void {
+  quickScenes(xhrHttp, loadStored().prefs, function (list) { home.setScenes(list); });
+}
+
 var home = createHome({
   deferRich: true,
   catalog: catalog,
@@ -55,12 +62,31 @@ var home = createHome({
       });
     });
   },
+  onScene: function (id, done) {
+    activateScene(xhrHttp, haConfigFromPrefs(loadStored().prefs), id, function (err) { done(err); });
+  },
   // Lancement impossible (pas d'ID relevé, hors TV…) : l'accueil affiche lui-même un message ; le diagnostic reste à la touche 0.
   onPastille: function (name) {
     if (name === 'smarthub') { openSmartHub(); return; }
+    var scenesDirty = false;
     router.pushLazy(settings, function (m) {
+      var prefs = loadStored().prefs;
       return m.createPanel({
         catalog: catalog,
+        ha: {
+          url: typeof prefs.haUrl === 'string' ? prefs.haUrl : '',
+          token: typeof prefs.haToken === 'string' ? prefs.haToken : '',
+          chosen: normalizeChosen(prefs.haScenes),
+          onConfig: function (url: string, token: string) {
+            scenesDirty = true;
+            try { saveHaConfig(url, token); } catch (e) { /* stockage refusé : valable pour cette session */ }
+          },
+          onChosen: function (ids: string[]) {
+            scenesDirty = true;
+            try { saveHaScenes(ids); } catch (e) { /* stockage refusé : valable pour cette session */ }
+          },
+          listScenes: function (cb: (err: Error | null, scenes?: any) => void) { listScenes(xhrHttp, haConfigFromPrefs(loadStored().prefs), cb); }
+        },
         mode: mode,
         onMode: function (next: typeof mode) {
           mode = next;
@@ -79,7 +105,10 @@ var home = createHome({
           try { saveCatalog(catalog); } catch (e) { /* stockage plein ou refusé : le catalogue reste valable pour cette session */ }
           home.setCatalog(catalog);
         },
-        onClose: function () { router.pop(); }
+        onClose: function () {
+          router.pop();
+          if (scenesDirty) { scenesDirty = false; refreshScenes(); } // la rangée suit les choix, sans minuterie
+        }
       });
     });
   }
@@ -97,6 +126,8 @@ document.addEventListener('keydown', function (e) {
 // Diagnostic caché (horodatages) : touche 0 de la télécommande (pavé numérique) ou du clavier.
 // Sonde formats : touche 1 (ou pavé 1) pendant que le diagnostic est ouvert ; le diagnostic se referme, l'écran de la sonde le remplace.
 document.addEventListener('keydown', function (e) {
+  var tag = e.target && (e.target as HTMLElement).tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA') return; // saisie en cours (adresse, jeton) : les chiffres sont du texte
   if (e.keyCode === 48 || e.keyCode === 96) { toggleDiag(); return; }
   if ((e.keyCode === 49 || e.keyCode === 97) && isDiagOpen()) {
     toggleDiag();
@@ -119,6 +150,7 @@ afterPaint(function () {
   document.body.className = 'late';
   home.enrich();
   mark('enriched');
+  refreshScenes();
   // Sans TV (aperçu), l'appel lève en signalant l'absence de TV ; l'accueil reste fonctionnel.
   if (hasTizen()) {
     try { registerKeys(REGISTER_KEYS); } catch (e) { /* l'erreur est déjà signalée (console + bandeau) */ }

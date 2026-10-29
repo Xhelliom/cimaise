@@ -66,9 +66,10 @@ function boot({ failChunk, stored, launched } = {}) {
   ctx.window = ctx;
   vm.runInContext(code.app, ctx);
   const key = (keyCode) => listeners.forEach((f) => f({ keyCode }));
+  const keyOn = (keyCode, target) => listeners.forEach((f) => f({ keyCode, target }));
   const tick = () => new Promise((r) => setImmediate(r));
   const flush = () => { const t = timers.splice(0).filter((x) => x.ms === 0); t.forEach((x) => x.f()); }; // minuteries différées (0 ms)
-  return { root, body, loaded, key, tick, flush, exits, store, reads: () => reads };
+  return { root, body, loaded, key, keyOn, tick, flush, exits, store, reads: () => reads };
 }
 const LEFT = 37, UP = 38, RIGHT = 39, DOWN = 40, OK = 13, BACK = 10009;
 
@@ -281,4 +282,17 @@ test('après la peinture : marques painted puis enriched, teinte posée', () => 
   assert.ok(find(a.root, 'fond').some((f) => f.style.background), 'teinte posée');
   a.key(48);
   assert.match(a.body.children.find((c) => c.tag === 'pre').textContent, /interactive: [^\n]*\npainted: [^\n]*\nenriched: /);
+});
+
+test('0 ou 1 tapé dans un champ de saisie : ni diagnostic ni sonde', () => {
+  const a = boot();
+  a.flush();
+  const pressIn = (keyCode) => a.keyOn(keyCode, { tagName: 'INPUT' });
+  pressIn(48); pressIn(96);
+  assert.equal(a.body.children.find((c) => c.tag === 'pre'), undefined, 'diagnostic fermé');
+  a.key(48); // hors champ : le diagnostic s'ouvre toujours
+  assert.ok(a.body.children.find((c) => c.tag === 'pre'));
+  pressIn(49); pressIn(97);
+  assert.equal(find(a.root, 'plex-panel').length, 0);
+  assert.ok(a.body.children.find((c) => c.tag === 'pre'), 'diagnostic toujours ouvert, sonde non lancée');
 });
