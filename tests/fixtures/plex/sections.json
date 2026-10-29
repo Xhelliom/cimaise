@@ -1,3 +1,22 @@
-{ "MediaContainer": { "size": 2, "Directory": [
-  { "key": "1", "title": "Films", "type": "movie" },
-  { "key": "2", "title": "Séries", "type": "show" } ] } }
+{
+  "MediaContainer": {
+    "size": 3,
+    "Directory": [
+      {
+        "key": "1",
+        "title": "Films",
+        "type": "movie"
+      },
+      {
+        "key": "2",
+        "title": "Séries",
+        "type": "show"
+      },
+      {
+        "key": "3",
+        "title": "Musique",
+        "type": "artist"
+      }
+    ]
+  }
+}

@@ -1,10 +1,119 @@
 [
-  { "name": "Lecteur", "provides": "player", "accessToken": "FAKE-PLAYER", "connections": [] },
-  { "name": "Serveur test", "provides": "server,client", "accessToken": "FAKE-SERVER-TOKEN",
+  {
+    "name": "Serveur test",
+    "product": "Plex Media Server",
+    "provides": "server",
+    "owned": true,
+    "home": false,
+    "presence": true,
+    "httpsRequired": false,
+    "accessToken": "FAKE-SERVER-TOKEN",
     "connections": [
-      { "protocol": "https", "address": "203.0.113.5", "port": 32400, "uri": "https://203.0.113.5:32400", "local": false, "relay": false },
-      { "protocol": "https", "address": "203.0.113.9", "port": 8443, "uri": "https://relay.example.invalid:8443", "local": false, "relay": true },
-      { "protocol": "http", "address": "192.0.2.11", "port": 32400, "uri": "http://192.0.2.11:32400", "local": true, "relay": false },
-      { "protocol": "http", "address": "192.0.2.10", "port": 32400, "uri": "http://192.0.2.10:32400", "local": true, "relay": false }
-    ] }
+      {
+        "protocol": "https",
+        "address": "192.0.2.10",
+        "port": 32400,
+        "uri": "https://192-0-2-10.00000000000000000000000000000000.plex.direct:32400",
+        "local": true,
+        "relay": false,
+        "IPv6": false
+      },
+      {
+        "protocol": "https",
+        "address": "203.0.113.5",
+        "port": 32400,
+        "uri": "https://203-0-113-5.00000000000000000000000000000000.plex.direct:32400",
+        "local": false,
+        "relay": false,
+        "IPv6": false
+      },
+      {
+        "protocol": "https",
+        "address": "203.0.113.9",
+        "port": 8443,
+        "uri": "https://203-0-113-9.00000000000000000000000000000000.plex.direct:8443",
+        "local": false,
+        "relay": true,
+        "IPv6": false
+      }
+    ]
+  },
+  {
+    "name": "Serveur partagé",
+    "product": "Plex Media Server",
+    "provides": "server",
+    "owned": false,
+    "home": false,
+    "presence": true,
+    "httpsRequired": false,
+    "accessToken": "FAKE-SHARED-TOKEN",
+    "connections": [
+      {
+        "protocol": "https",
+        "address": "192.0.2.11",
+        "port": 32400,
+        "uri": "https://192-0-2-11.00000000000000000000000000000000.plex.direct:32400",
+        "local": true,
+        "relay": false,
+        "IPv6": false
+      },
+      {
+        "protocol": "https",
+        "address": "203.0.113.6",
+        "port": 32400,
+        "uri": "https://203-0-113-6.00000000000000000000000000000000.plex.direct:32400",
+        "local": false,
+        "relay": false,
+        "IPv6": false
+      },
+      {
+        "protocol": "https",
+        "address": "203.0.113.10",
+        "port": 8443,
+        "uri": "https://203-0-113-10.00000000000000000000000000000000.plex.direct:8443",
+        "local": false,
+        "relay": true,
+        "IPv6": false
+      }
+    ]
+  },
+  {
+    "name": "Lecteur",
+    "product": "Plex for Samsung",
+    "provides": "client,player",
+    "owned": true,
+    "home": false,
+    "presence": false,
+    "httpsRequired": false,
+    "accessToken": "FAKE-PLAYER",
+    "connections": [
+      {
+        "protocol": "https",
+        "address": "192.0.2.12",
+        "port": 32400,
+        "uri": "https://192-0-2-12.00000000000000000000000000000000.plex.direct:32400",
+        "local": true,
+        "relay": false,
+        "IPv6": false
+      },
+      {
+        "protocol": "https",
+        "address": "203.0.113.7",
+        "port": 32400,
+        "uri": "https://203-0-113-7.00000000000000000000000000000000.plex.direct:32400",
+        "local": false,
+        "relay": false,
+        "IPv6": false
+      },
+      {
+        "protocol": "https",
+        "address": "203.0.113.11",
+        "port": 8443,
+        "uri": "https://203-0-113-11.00000000000000000000000000000000.plex.direct:8443",
+        "local": false,
+        "relay": true,
+        "IPv6": false
+      }
+    ]
+  }
 ]

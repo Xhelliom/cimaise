@@ -167,3 +167,32 @@ l'image des outils, sans effet sur l'app TV.
 
 
 Le mot de passe VNC transite par l'environnement du conteneur (`-e CIMAISE_VNC_PW`) : il est donc lisible par `docker inspect` tant que le conteneur tourne. Acceptable sur la VM (usage personnel, mot de passe à usage unique renouvelé à chaque lancement, jamais écrit dans git ni un log).
+
+## Client Plex vérifié contre le vrai serveur (2026-10-29)
+
+**Méthode.** `node scripts/plex/verify.mjs` (hors gate npm, secrets lus dans `.local/plex.env`, jamais affichés) compile
+le client réel et appelle chaque fonction sur le serveur du homelab. Transport en lecture seule (GET/HEAD, tout le reste
+est refusé) ; `sendTimeline`, `scrobble`, `unscrobble` ne sont jamais envoyés, seulement construits contre un faux transport.
+`scripts/plex/capture-fixtures.mjs` régénère `tests/fixtures/plex/` (liste blanche, titres remplacés, identifiants renumérotés,
+échec si un secret ou un hôte réel subsiste). `pin-*.json` restent manuels (créer un PIN écrit chez plex.tv).
+
+**Résultat : tout conforme** — plex.tv `resources`, `/identity`, `sections`, `all` paginé (en-têtes `X-Plex-Container-*`
+honorés, `totalSize` et `offset` présents), `onDeck`, `recentlyAdded`, `/hubs`, `/hubs/sections/{id}`, `metadata`, `children`
+(saisons puis épisodes), transcodeur photo (JPEG 300×450 réellement reçu, ~25 Ko), partie média en HEAD (200, `video/x-matroska`).
+
+**Écarts réel/types, corrigés.**
+- `Server.owned` manquait : le compte voit plusieurs serveurs (le sien et un partagé) et rien ne permettait de les distinguer. Ajouté ; le choix du serveur reste à l'UI (non tranché ici).
+- `Item` ignorait les champs des épisodes (`grandparentTitle`, `grandparentRatingKey`, `grandparentThumb`, `parentTitle`, `parentIndex`) et `year` : sans eux, « En cours » ne peut pas afficher la série. Ajoutés (optionnels).
+- Les hubs n'étaient pas couverts : ajout de `getHubs(…, sectionKey | null, cb)` et du type `Hub`. `/hubs` ne renvoie que des descripteurs ; `/hubs/sections/{id}` embarque les éléments (`Metadata`) et couvre « en cours », « ajoutés récemment », etc. par bibliothèque.
+- Fixtures écrites à la main (IP nues, `http`, un seul serveur) remplacées par des réponses réelles anonymisées.
+
+**Connexion.** plex.tv renvoie pour chaque serveur trois connexions, toutes en `https://<ip>.<hash>.plex.direct:<port>` : locale
+(32400), distante directe (32400), relais (8443). Le client les ordonne déjà local > distante > relais ; la locale `*.plex.direct`
+répond avec un certificat valide. Le même serveur en `https://<ip>:32400` (`PLEX_SERVER_URL`) échoue en `ERR_TLS_CERT_ALTNAME_INVALID` :
+**ne jamais construire d'URL à partir d'une IP, toujours utiliser `uri` tel que fourni par plex.tv.** Non testé sur la TV : l'acceptation
+de la chaîne de certificats plex.direct par Tizen 5 reste à observer (M3).
+
+**À noter, non corrigé (hors carte).**
+- `/library/recentlyAdded` mélange films, saisons et albums de toutes les bibliothèques (musique hors MVP) : filtrer par `type` côté UI, ou passer par `/hubs/sections/{id}` par bibliothèque.
+- Les entrées de `recentlyAdded` de type `season`/`album` n'ont pas de `Media` : seul un film ou un épisode est lisible.
+- `provides` d'un lecteur peut contenir `client,player` ; le filtre `server` actuel l'écarte correctement.

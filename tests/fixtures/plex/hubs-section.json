@@ -1,0 +1,129 @@
+{
+  "MediaContainer": {
+    "size": 2,
+    "Hub": [
+      {
+        "key": "/library/sections/1/all?sort=originallyAvailableAt:desc&originallyAvailableAt>=-1y",
+        "title": "Rayon 5",
+        "type": "movie",
+        "hubIdentifier": "movie.recentlyreleased.1",
+        "size": 6,
+        "Metadata": [
+          {
+            "ratingKey": "600",
+            "key": "/library/metadata/600",
+            "type": "movie",
+            "title": "Titre de film 4",
+            "summary": "Résumé.",
+            "year": 2026,
+            "duration": 5112490,
+            "thumb": "/library/metadata/600/thumb/1700000000",
+            "art": "/library/metadata/600/art/1700000000",
+            "Media": [
+              {
+                "id": 124,
+                "container": "mp4",
+                "videoCodec": "h264",
+                "audioCodec": "aac",
+                "Part": [
+                  {
+                    "id": 25,
+                    "key": "/library/parts/25/1700000000/file.mp4",
+                    "duration": 5112490
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "ratingKey": "601",
+            "key": "/library/metadata/601",
+            "type": "movie",
+            "title": "Titre de film 5",
+            "summary": "Résumé.",
+            "year": 2026,
+            "duration": 7256864,
+            "thumb": "/library/metadata/601/thumb/1700000000",
+            "art": "/library/metadata/601/art/1700000000",
+            "Media": [
+              {
+                "id": 126,
+                "container": "mkv",
+                "videoCodec": "hevc",
+                "audioCodec": "eac3",
+                "Part": [
+                  {
+                    "id": 27,
+                    "key": "/library/parts/27/1700000000/file.mkv",
+                    "duration": 7256864
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "key": "/library/sections/1/all?sort=addedAt:desc",
+        "title": "Rayon 6",
+        "type": "movie",
+        "hubIdentifier": "movie.recentlyadded.1",
+        "size": 6,
+        "Metadata": [
+          {
+            "ratingKey": "602",
+            "key": "/library/metadata/602",
+            "type": "movie",
+            "title": "Titre de film 3",
+            "summary": "Résumé.",
+            "year": 2008,
+            "duration": 5540451,
+            "thumb": "/library/metadata/602/thumb/1700000000",
+            "art": "/library/metadata/602/art/1700000000",
+            "Media": [
+              {
+                "id": 118,
+                "container": "mkv",
+                "videoCodec": "hevc",
+                "audioCodec": "truehd",
+                "Part": [
+                  {
+                    "id": 19,
+                    "key": "/library/parts/19/1700000000/file.mkv",
+                    "duration": 5540451
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "ratingKey": "603",
+            "key": "/library/metadata/603",
+            "type": "movie",
+            "title": "Titre de film 6",
+            "summary": "Résumé.",
+            "year": 2026,
+            "duration": 7136480,
+            "thumb": "/library/metadata/603/thumb/1700000000",
+            "art": "/library/metadata/603/art/1700000000",
+            "Media": [
+              {
+                "id": 128,
+                "container": "mkv",
+                "videoCodec": "hevc",
+                "audioCodec": "eac3",
+                "Part": [
+                  {
+                    "id": 29,
+                    "key": "/library/parts/29/1700000000/file.mkv",
+                    "duration": 7136480
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

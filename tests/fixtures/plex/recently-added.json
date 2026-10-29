@@ -1,1 +1,60 @@
-{ "MediaContainer": { "size": 1, "Metadata": [ { "ratingKey": "401", "title": "Nouveau film", "type": "movie" } ] } }
+{
+  "MediaContainer": {
+    "size": 3,
+    "Metadata": [
+      {
+        "ratingKey": "400",
+        "key": "/library/metadata/400",
+        "type": "movie",
+        "title": "Titre de film 3",
+        "summary": "Résumé.",
+        "year": 2008,
+        "duration": 5540451,
+        "thumb": "/library/metadata/400/thumb/1700000000",
+        "art": "/library/metadata/400/art/1700000000",
+        "Media": [
+          {
+            "id": 118,
+            "container": "mkv",
+            "videoCodec": "hevc",
+            "audioCodec": "truehd",
+            "Part": [
+              {
+                "id": 19,
+                "key": "/library/parts/19/1700000000/file.mkv",
+                "duration": 5540451
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "ratingKey": "401",
+        "key": "/library/metadata/401",
+        "type": "season",
+        "title": "Titre de saison 1",
+        "parentTitle": "Titre de série 2",
+        "summary": "Résumé.",
+        "index": 1,
+        "leafCount": 39,
+        "viewedLeafCount": 29,
+        "thumb": "/library/metadata/401/thumb/1700000000",
+        "art": "/library/metadata/401/art/1700000000"
+      },
+      {
+        "ratingKey": "402",
+        "key": "/library/metadata/402",
+        "type": "album",
+        "title": "Titre d'album 1",
+        "parentTitle": "Titre d'artiste 1",
+        "summary": "Résumé.",
+        "year": 2005,
+        "index": 1,
+        "leafCount": 15,
+        "viewedLeafCount": 0,
+        "thumb": "/library/metadata/402/thumb/1700000000",
+        "art": "/library/metadata/402/art/1700000000"
+      }
+    ]
+  }
+}

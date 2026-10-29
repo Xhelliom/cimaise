@@ -1,3 +1,61 @@
-{ "MediaContainer": { "size": 2, "totalSize": 57, "offset": 20, "Metadata": [
-  { "ratingKey": "101", "title": "Film A", "type": "movie", "thumb": "/library/metadata/101/thumb/1" },
-  { "ratingKey": "102", "title": "Film B", "type": "movie", "thumb": "/library/metadata/102/thumb/1" } ] } }
+{
+  "MediaContainer": {
+    "size": 2,
+    "totalSize": 412,
+    "offset": 20,
+    "Metadata": [
+      {
+        "ratingKey": "100",
+        "key": "/library/metadata/100",
+        "type": "movie",
+        "title": "Titre de film 1",
+        "summary": "Résumé.",
+        "year": 1980,
+        "duration": 6164384,
+        "thumb": "/library/metadata/100/thumb/1700000000",
+        "art": "/library/metadata/100/art/1700000000",
+        "Media": [
+          {
+            "id": 110,
+            "container": "mkv",
+            "videoCodec": "hevc",
+            "audioCodec": "eac3",
+            "Part": [
+              {
+                "id": 11,
+                "key": "/library/parts/11/1700000000/file.mkv",
+                "duration": 6164384
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "ratingKey": "101",
+        "key": "/library/metadata/101",
+        "type": "movie",
+        "title": "Titre de film 2",
+        "summary": "Résumé.",
+        "year": 2020,
+        "duration": 7069632,
+        "thumb": "/library/metadata/101/thumb/1700000000",
+        "art": "/library/metadata/101/art/1700000000",
+        "Media": [
+          {
+            "id": 112,
+            "container": "mkv",
+            "videoCodec": "h264",
+            "audioCodec": "eac3",
+            "Part": [
+              {
+                "id": 13,
+                "key": "/library/parts/13/1700000000/file.mkv",
+                "duration": 7069632
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
