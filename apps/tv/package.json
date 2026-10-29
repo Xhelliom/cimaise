@@ -7,6 +7,6 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "cimaise": {
-    "assets": ["../../packages/launcher/src/home/fonts/OFL.txt"]
+    "assets": ["../../packages/launcher/src/home/fonts/OFL.txt", "../../packages/launcher/src/catalog/known-apps/logos"]
   }
 }

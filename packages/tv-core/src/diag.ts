@@ -22,11 +22,11 @@ export function toggleDiag(): void {
 }
 
 // Icônes d'apps : iconPath brut renvoyé par la TV et résultat du chargement.
-// Statuts : '?' (pas encore d'événement ou jamais chargée), 'ok', 'échec', 'vide' (iconPath absent).
+// Statuts : '?' (pas encore d'événement ou jamais chargée), 'ok', 'logo' (logo de la bibliothèque), 'échec', 'vide' (iconPath absent).
 export interface IconRecord { label: string; path: string; status: string; url?: string; }
 var icons: IconRecord[] = [];
 var ICON_LINES = 22;                       // tient à côté des horodatages dans 1080 px
-var ORDER: { [s: string]: number } = { 'échec': 0, 'vide': 1, '?': 2, 'ok': 3 };
+var ORDER: { [s: string]: number } = { 'échec': 0, 'vide': 1, '?': 2, 'ok': 3, 'logo': 3 };
 
 export function resetIcons(): void { icons = []; }
 

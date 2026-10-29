@@ -78,10 +78,17 @@ const mockupRoute = (url) => {
   return async () => [readFileSync(file, ext === 'woff2' ? undefined : 'utf8'), MIME[ext]];
 };
 
+// Logos d'apps (packages/launcher/src/catalog/known-apps/logos) : /app/logos/<nom>.png, noms simples seulement.
+const logoRoute = (url) => {
+  const m = /^\/app\/logos\/([\w-]+\.png)$/.exec(url);
+  const file = m && `${root}packages/launcher/src/catalog/known-apps/logos/${m[1]}`;
+  return file && existsSync(file) ? async () => [readFileSync(file), 'image/png'] : null;
+};
+
 export function startDevServer({ port = 5173 } = {}) {
   const srv = createServer(async (req, res) => {
     const url = (req.url ?? '/').split('?')[0];
-    const route = routes[url] ?? mockupRoute(url);
+    const route = routes[url] ?? mockupRoute(url) ?? logoRoute(url);
     if (!route) { res.writeHead(404).end('introuvable'); return; }
     try {
       const [body, type] = await route();

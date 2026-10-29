@@ -1,7 +1,7 @@
 // Chaîne de build (HANDOFF §4) : tsc fait le passage réel en ES5 (modules ES conservés),
 // esbuild ne fait que le bundling/minification (il ne sait pas abaisser vers l'ES5).
 import { execFileSync } from 'node:child_process';
-import { rmSync, mkdirSync, existsSync, readdirSync, copyFileSync, readFileSync } from 'node:fs';
+import { rmSync, mkdirSync, existsSync, readdirSync, copyFileSync, readFileSync, statSync, cpSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import { build } from 'esbuild';
 
@@ -45,4 +45,8 @@ if (existsSync(`${app}/src/style.css`)) {
 }
 // Fichiers copiés tels quels dans dist/ : package.json de l'app, clé "cimaise.assets" (chemins relatifs à l'app).
 const pkg = existsSync(`${app}/package.json`) ? JSON.parse(readFileSync(`${app}/package.json`, 'utf8')) : {};
-for (const a of pkg.cimaise?.assets ?? []) copyFileSync(join(app, a), join(outDir, basename(a)));
+// Un dossier (ex. les logos d'apps) est copié tel quel sous son nom : il n'est lu qu'à l'affichage, jamais bundlé.
+for (const a of pkg.cimaise?.assets ?? []) {
+  if (statSync(join(app, a)).isDirectory()) cpSync(join(app, a), join(outDir, basename(a)), { recursive: true });
+  else copyFileSync(join(app, a), join(outDir, basename(a)));
+}

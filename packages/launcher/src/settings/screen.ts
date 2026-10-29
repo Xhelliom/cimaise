@@ -3,6 +3,7 @@ import { Key } from '../../../tv-core/src/keys';
 import { Panel } from '../../../tv-core/src/router/router';
 import { AppEntry, DiscoveredApp, removeAt, moveItem, setTint, nextTint, addDiscovered, ROW_H, scrollOffset } from './model';
 import { fillIds } from '../catalog/model';
+import { knownApp } from '../catalog/known-apps';
 
 export interface SettingsOptions {
   catalog: AppEntry[];
@@ -25,7 +26,8 @@ var CSS =
   '.reglages .ligne.saisie{background:rgba(255,255,255,.2)}' +
   '.reglages .tuile{width:64px;height:64px;margin-right:28px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:500;overflow:hidden}' +
   '.reglages .tuile img{width:64px;height:64px}' +
-  '.reglages .nom{flex:1}' +
+  '.reglages .nom{flex:1;min-width:0}' +
+  '.reglages .nom .desc{margin-top:6px;font-size:22px;color:rgba(255,255,255,.5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
   '.reglages .puce{margin-left:16px;padding:10px 24px;border-radius:24px;font-size:26px;font-weight:500;background:rgba(255,255,255,.08)}' +
   '.reglages .puce.focus{background:rgba(255,255,255,.9);color:#111;transform:scale(1.1)}' +
   '.reglages .bouton{font-weight:500;color:#fff}' +
@@ -64,7 +66,8 @@ export function createSettings(opts: SettingsOptions): Panel {
   function tile(name: string, tint: string | null, icon?: string): HTMLElement {
     var t = div('tuile');
     if (tint) t.style.background = tint;
-    applyIcon(doc, t, icon || '', name, monogram(name));
+    var k = knownApp(name);
+    applyIcon(doc, t, icon || '', name, monogram(name), k ? k.logoUrl : undefined);
     return t;
   }
 
@@ -110,7 +113,9 @@ export function createSettings(opts: SettingsOptions): Panel {
         var f = pos - catalog.length - 2, fon = row === pos - 1;
         var fl = div('ligne' + (fon ? ' focus' : ''));
         fl.appendChild(tile(found[f].name, null, found[f].icon));
-        fl.appendChild(div('nom', found[f].name));
+        var fk = knownApp(found[f].name), nom = div('nom', fk ? undefined : found[f].name);
+        if (fk) { nom.appendChild(div('', found[f].name)); nom.appendChild(div('desc', fk.desc)); }
+        fl.appendChild(nom);
         if (inCat[found[f].id]) fl.appendChild(div('deja', 'Au catalogue'));
         else if (fon) fl.appendChild(div('puce focus', 'Ajouter'));
         list.appendChild(absRow(fl, pos));

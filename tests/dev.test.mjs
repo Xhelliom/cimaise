@@ -166,3 +166,11 @@ test('aperçu : le bundle servi avec les mocks affiche l’accueil et pose l’�
   timers.filter((t) => t.ms === 0).forEach((t) => t.f()); // chargement différé
   assert.ok(logs.some((l) => /registerKey/.test(l)), 'le mock doit rester bruyant : ' + logs.join('|'));
 });
+
+test('aperçu : sert les logos d’apps sous /app/logos/, rien d’autre que des PNG de la bibliothèque', async () => {
+  const r = await fetch(base + '/app/logos/netflix.png');
+  assert.equal(r.status, 200);
+  assert.match(r.headers.get('content-type') ?? '', /image\/png/);
+  assert.equal((await fetch(base + '/app/logos/../index.ts')).status, 404);
+  assert.equal((await fetch(base + '/app/logos/inconnu.png')).status, 404);
+});
