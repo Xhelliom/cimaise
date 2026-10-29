@@ -755,8 +755,8 @@ test('menu : choisir un sous-titre PGS relance en transcodage incrusté à la po
   assert.equal(param(req, 'subtitles'), 'burn');
   assert.match(s.player.url, /start\.m3u8/);
   assert.equal(param(req, 'offset'), '100');
-  assert.ok(!s.player.openOpts.startMs, 'transcodé : le flux démarre à l’offset');
-  assert.equal(s.player.transcode[0], 100000); assert.ok(s.player.transcode[1] > 0);
+  assert.equal(s.player.openOpts.startMs, 100000, 'transcodé : la liste couvre tout le film, la reprise se fait par seekTo');
+  assert.equal(s.player.transcode[0], 0); assert.ok(s.player.transcode[1] > 0);
 });
 
 test('menu : choisir la piste déjà active (« Aucun » sans sous-titre actif) ne relance rien, ni flux ni nouvelle décision', async () => {
@@ -856,7 +856,7 @@ test('transcodage : la timeline indique la session de transcodage au serveur', a
   for (const x of t) assert.equal(x.headers['X-Plex-Session-Identifier'], session);
 });
 
-test('transcodage : saut lointain → la session est arrêtée puis relancée à la nouvelle position (même session), sans seekTo', async () => {
+test('transcodage : saut lointain → la session est arrêtée puis relancée à la nouvelle position (même session), puis seekTo à cette position', async () => {
   const s = await playing('mkv-h264-dts', {}, { transcode: true });
   s.player.ready();
   assert.equal(s.player.transcode[0], 0); assert.ok(s.player.transcode[1] > 0);
@@ -870,10 +870,9 @@ test('transcodage : saut lointain → la session est arrêtée puis relancée à
   assert.equal(param(calls[iDec], 'session'), session);
   assert.equal(param(calls[iStop], 'session'), session);
   assert.ok(s.player.calls.includes('open'));
-  assert.ok(!s.player.calls.some((c) => /^seekTo/.test(c)));
   assert.equal(param({ url: s.player.url }, 'offset'), '3600');
-  assert.ok(!s.player.openOpts.startMs, 'le flux démarre déjà à la position demandée');
-  assert.equal(s.player.transcode[0], 3600000); assert.ok(s.player.transcode[1] > 0);
+  assert.equal(s.player.openOpts.startMs, 3600000, 'seekTo avant play : la liste couvre tout le film');
+  assert.equal(s.player.transcode[0], 0); assert.ok(s.player.transcode[1] > 0);
   s.player.ready();
   assert.match(mode(s.panel), /^Transcodage/);
   s.panel.onKey('back');
@@ -886,7 +885,8 @@ test('transcodage : reprise à une position → le flux est demandé avec cet of
   const panel = ui.createPlayerPanel(s.arg, MOVIE, 1800000);
   await flush();
   assert.equal(param(urls(s, DECISION_URL)[0], 'offset'), '1800');
-  assert.equal(s.player.transcode[0], 1800000); assert.ok(s.player.transcode[1] > 0);
+  assert.equal(s.player.openOpts.startMs, 1800000);
+  assert.equal(s.player.transcode[0], 0); assert.ok(s.player.transcode[1] > 0);
 });
 
 test('transcodage : serveur occupé (503) → message clair et repli vers Plex officiel, session arrêtée', async () => {

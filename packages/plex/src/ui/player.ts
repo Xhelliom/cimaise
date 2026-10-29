@@ -417,9 +417,11 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number, ch
     function opened(url: string): void {
       var oo: OpenOptions = {};
       extFailed = false;
-      // Direct : seekTo avant play. Transcodé : le flux démarre déjà à startMs (offset), AVPlay compte depuis 0 et le wrapper ajoute le décalage.
-      if (plan!.mode === 'transcode') p.setTranscode(startMs, durationMs);
-      else { p.setTranscode(null); if (startMs > 0) oo.startMs = startMs; }
+      // Direct : seekTo avant play. Transcodé : la liste de lecture couvre TOUT le film (vérifié sur le serveur : segments de 10 s numérotés depuis 0,
+      // stubs vides de 188 octets avant l'offset, #EXT-X-START:TIME-OFFSET) ; AVPlay compte donc déjà sur la ligne de temps du film (pas de décalage ajouté)
+      // et la position de départ se rejoint par seekTo, sinon la lecture commence sur des segments vides (image figée).
+      p.setTranscode(plan!.mode === 'transcode' ? 0 : null, durationMs);
+      if (startMs > 0) oo.startMs = startMs;
       try {
         var su = subtitleUrl(c.session, plan!);
         if (su) oo.subtitleUrl = su;

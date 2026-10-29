@@ -143,8 +143,12 @@ Cause NON établie (on ne sait pas si le menu a seulement été ouvert ou si une
 figée ; elle est repartie après un saut en arrière. Deux défauts :
 1. **Corrigé (test : « choisir la piste déjà active … »).** Choisir la piste déjà active (« Aucun » sans sous-titre actif) relançait une décision et un rechargement
    pour rien : `choose()` ne fait plus rien si l'entrée est déjà courante.
-2. **Cause NON établie : le gel après rechargement d'une session transcodée.** Vérifié sans trouver : l'ancienne session serveur est arrêtée avant la nouvelle décision
-   (`launch` → `stopSession`) ; AVPlay est fermé avant la réouverture ; l'ordre est open → setDisplayRect → setDisplayMethod → prepareAsync → play, sans seekTo (le flux
-   démarre à l'offset du serveur). Test serveur (session réutilisée après arrêt, offset 1200 s, vs nouvelle session) : la liste de lecture est identique dans les deux cas.
-   Aucune preuve côté serveur ni côté TV : à reproduire avec `watch-transcode.mjs` (la session redémarrée progresse-t-elle ? `prog` avance-t-il pendant le gel ?).
-   Le même rechargement sert aux sauts lointains et aux changements d'audio : à tester là aussi.
+2. **Gel après rechargement d'une session transcodée : cause établie côté serveur (relevé du 2026-10-29, TV injoignable pendant la mesure), correctif non encore vu sur la TV.**
+   Une session à un offset renvoie une liste de lecture **sur toute la durée du film** : 523 segments de 10 s numérotés depuis 0, `#EXT-X-START:TIME-OFFSET=<offset>`.
+   Les segments avant l'offset sont des **stubs vides de 188 octets** (premier segment resté à 188 o pendant 25 s pour un offset de 1234 s, contre 8,4 Mo en 1,8 s
+   à l'offset 0 ; contenu réel vers le segment 123, ex. 17 Mo pour le 300ᵉ). Le lecteur supposait un flux commençant à l'offset (temps AVPlay + offset, aucun seekTo) :
+   si AVPlay démarre en début de liste, il lit des segments vides, d'où l'image figée ; un saut arrière tombe sur de vrais segments. Le test serveur « session réutilisée
+   vs nouvelle session » est identique : l'identifiant de session n'est pas en cause.
+   Correctif : la ligne de temps AVPlay est celle du film (`setTranscode(0, durée)`), la position de départ se rejoint par `seekTo` avant `play` (reprise, saut lointain,
+   changement de piste). **À confirmer sur la Frame** (AVPlay honore-t-il déjà EXT-X-START ? sinon seekTo suffit ; dans les deux cas la position affichée doit être juste).
+   Le journal d'état AVPlay pendant un gel n'a pas pu être relevé (TV injoignable).
