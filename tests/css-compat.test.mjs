@@ -36,3 +36,21 @@ test('autres fonctions récentes refusées', () => {
 test('commentaires ignorés', () => {
   assert.equal(run(tmpCss('/* gap:1px */ .a{margin:0}')).status, 0);
 });
+
+test('couleur #rrggbbaa refusée', () => {
+  assert.notEqual(run(tmpCss('.a{background:#ffffff80}')).status, 0);
+  assert.equal(run(tmpCss('.a{background:#ffffff;color:#abc}')).status, 0);
+});
+
+test('le build garde rgba() et les quatre côtés à 0 (ni #rrggbbaa ni inset)', async () => {
+  const { buildCss } = await import('../scripts/build/css-build.mjs');
+  const dir = mkdtempSync(join(tmpdir(), 'cssb-'));
+  const src = join(dir, 'style.css');
+  writeFileSync(src, '.a{position:absolute;top:0;right:0;bottom:0;left:0;background:rgba(255,255,255,.5);border:1px solid rgba(0,0,0,.25)}');
+  await buildCss(src, join(dir, 'out'));
+  const out = join(dir, 'out', 'app.css');
+  const css = (await import('node:fs')).readFileSync(out, 'utf8');
+  assert.match(css, /rgba\(/);
+  assert.doesNotMatch(css, /#[0-9a-f]{8}\b|inset/i);
+  assert.equal(run(out).status, 0, css);
+});

@@ -9,11 +9,12 @@ const RULES = [
   [/(^|[;{\s])inset(-[a-z]+)?\s*:/, 'inset'],
   [/\b(clamp|min|max)\(/, 'clamp()/min()/max()'],
   [/:(is|where|has)\(/, ':is/:where/:has'],
+  [/#[0-9a-f]{8}\b/i, 'couleur #rrggbbaa (utiliser rgba())'],
   [/backdrop-filter\s*:/, 'backdrop-filter'],
 ];
 
 const files = process.argv.length > 2 ? process.argv.slice(2)
-  : ['packages/*/src/**/*.css', 'apps/*/src/**/*.css'].flatMap((g) => globSync(g));
+  : ['packages/*/src/**/*.css', 'apps/*/src/**/*.css', 'apps/*/dist/**/*.css'].flatMap((g) => globSync(g));
 
 let bad = 0;
 for (const f of files) {
