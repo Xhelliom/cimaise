@@ -295,3 +295,80 @@ test('device.listInstalledApps : 300 entrées, seules les apps visibles, triées
     assert.equal(got[0].name, 'Alpha');
   } finally { delete globalThis.window; }
 });
+
+test('icônes : un chemin absolu sans schéma est essayé en file:// puis tel quel', () => {
+  assert.deepEqual(core.iconCandidates('/opt/usr/apps/x/icon.png'), ['file:///opt/usr/apps/x/icon.png', '/opt/usr/apps/x/icon.png']);
+  assert.deepEqual(core.iconCandidates('file:///a.png'), ['file:///a.png']);
+  assert.deepEqual(core.iconCandidates('http://h/a.png'), ['http://h/a.png']);
+  assert.deepEqual(core.iconCandidates('res/a.png'), ['res/a.png']);
+  assert.deepEqual(core.iconCandidates(''), []);
+});
+
+function iconDoc() {
+  return { createElement: () => {
+    const img = { attrs: {}, parentNode: null, setAttribute(k, v) { this.attrs[k] = v; } };
+    return img;
+  } };
+}
+function iconTile() {
+  const t = { children: [], textContent: '' };
+  t.appendChild = (c) => { c.parentNode = t; t.children.push(c); };
+  t.removeChild = (c) => { t.children.splice(t.children.indexOf(c), 1); c.parentNode = null; };
+  return t;
+}
+
+test('icônes : repli sur la variante suivante, résultat dans le diagnostic', () => {
+  core.resetIcons();
+  const tile = iconTile();
+  core.applyIcon(iconDoc(), tile, '/opt/a.png', 'Netflix', 'N');
+  const img = tile.children[0];
+  assert.equal(img.attrs.src, 'file:///opt/a.png');
+  img.onerror();
+  assert.equal(img.attrs.src, '/opt/a.png');
+  img.onload();
+  assert.match(core.iconReport(), /Netflix \[ok\] \/opt\/a\.png(\n|$)/);
+  const t2 = iconTile();
+  core.applyIcon(iconDoc(), t2, '/opt/b.png', 'Plex', 'P');
+  t2.children[0].onload();
+  assert.match(core.iconReport(), /Plex \[ok\] \/opt\/b\.png -> file:\/\/\/opt\/b\.png/);
+  assert.equal(tile.textContent, '');
+});
+
+test('icônes : illisible -> image retirée, monogramme affiché, échec tracé', () => {
+  core.resetIcons();
+  const tile = iconTile();
+  core.applyIcon(iconDoc(), tile, 'file:///x.png', 'YouTube', 'Y');
+  tile.children[0].onerror();
+  assert.equal(tile.children.length, 0);
+  assert.equal(tile.textContent, 'Y');
+  assert.match(core.iconReport(), /YouTube \[échec\] file:\/\/\/x\.png/);
+  const vide = iconTile();
+  core.applyIcon(iconDoc(), vide, '', 'Z', 'Z');
+  assert.equal(vide.textContent, 'Z');
+});
+
+test('icônes : pas de doublon après plusieurs rendus, iconPath vide tracé', () => {
+  core.resetIcons();
+  for (let i = 0; i < 5; i++) core.applyIcon(iconDoc(), iconTile(), '/opt/dup.png', 'Dup', 'D');
+  assert.equal(core.iconReport().split('\n').filter((l) => l.startsWith('Dup ')).length, 1);
+  const t = iconTile();
+  core.applyIcon(iconDoc(), t, '', 'SansIcone', 'S');
+  core.applyIcon(iconDoc(), t, undefined, 'SansIcone', 'S');
+  assert.equal(t.textContent, 'S');
+  assert.equal(core.iconReport().split('\n').filter((l) => /^SansIcone \[vide\] \(vide\)$/.test(l)).length, 1);
+});
+
+test('icônes : toute app découverte est tracée, rapport plafonné', () => {
+  core.resetIcons();
+  globalThis.window = { tizen: { application: {
+    getAppsInfo: (ok) => ok([{ id: 'x', name: 'Decouverte', iconPath: '/opt/d.png', show: true }, { id: 'y', name: 'DecouverteVide', show: true }]),
+  } } };
+  try { core.listInstalledApps(() => {}); } finally { delete globalThis.window; }
+  const r = core.iconReport();
+  assert.match(r, /Decouverte \[\?\] \/opt\/d\.png/);
+  assert.match(r, /DecouverteVide \[vide\]/);
+  for (let i = 0; i < 60; i++) core.applyIcon(iconDoc(), iconTile(), '/p' + i, 'A' + i, 'A');
+  const lines = core.iconReport().split('\n');
+  assert.ok(lines.length <= 23);
+  assert.match(lines[lines.length - 1], /^\+ \d+ autres$/);
+});
