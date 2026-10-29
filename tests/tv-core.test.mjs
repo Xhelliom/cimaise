@@ -318,6 +318,7 @@ function iconTile() {
 }
 
 test('icônes : repli sur la variante suivante, résultat dans le diagnostic', () => {
+  core.resetIcons();
   const tile = iconTile();
   core.applyIcon(iconDoc(), tile, '/opt/a.png', 'Netflix', 'N');
   const img = tile.children[0];
@@ -334,6 +335,7 @@ test('icônes : repli sur la variante suivante, résultat dans le diagnostic', (
 });
 
 test('icônes : illisible -> image retirée, monogramme affiché, échec tracé', () => {
+  core.resetIcons();
   const tile = iconTile();
   core.applyIcon(iconDoc(), tile, 'file:///x.png', 'YouTube', 'Y');
   tile.children[0].onerror();
@@ -346,6 +348,7 @@ test('icônes : illisible -> image retirée, monogramme affiché, échec tracé'
 });
 
 test('icônes : pas de doublon après plusieurs rendus, iconPath vide tracé', () => {
+  core.resetIcons();
   for (let i = 0; i < 5; i++) core.applyIcon(iconDoc(), iconTile(), '/opt/dup.png', 'Dup', 'D');
   assert.equal(core.iconReport().split('\n').filter((l) => l.startsWith('Dup ')).length, 1);
   const t = iconTile();
@@ -356,6 +359,7 @@ test('icônes : pas de doublon après plusieurs rendus, iconPath vide tracé', (
 });
 
 test('icônes : toute app découverte est tracée, rapport plafonné', () => {
+  core.resetIcons();
   globalThis.window = { tizen: { application: {
     getAppsInfo: (ok) => ok([{ id: 'x', name: 'Decouverte', iconPath: '/opt/d.png', show: true }, { id: 'y', name: 'DecouverteVide', show: true }]),
   } } };

@@ -28,6 +28,8 @@ var icons: IconRecord[] = [];
 var ICON_LINES = 22;                       // tient à côté des horodatages dans 1080 px
 var ORDER: { [s: string]: number } = { 'échec': 0, 'vide': 1, '?': 2, 'ok': 3 };
 
+export function resetIcons(): void { icons = []; }
+
 // Une seule entrée par (label, chemin) : les rendus répétés réutilisent l'entrée existante.
 export function noteIcon(label: string, path: string): IconRecord {
   path = path || '';
