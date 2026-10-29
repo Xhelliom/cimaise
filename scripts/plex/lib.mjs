@@ -37,14 +37,17 @@ export function makeRedact(env) {
 }
 
 // Compile le client réel (tsc ES5 puis bundle CJS), comme tests/plex-api.test.mjs.
-export async function loadClient() {
+// modules : chemins sous packages/ (sans extension) dont les exports s'ajoutent à ceux de l'API.
+export async function loadClient(modules = []) {
   const dir = mkdtempSync(join(tmpdir(), 'plexverify-'));
   try {
     const es5 = join(dir, 'es5');
     const t = spawnSync(join(ROOT, 'node_modules/.bin/tsc'), ['-p', join(ROOT, 'packages/plex/tsconfig.json'), '--outDir', es5], { encoding: 'utf8' });
     if (t.status !== 0) throw new Error('tsc : ' + t.stdout + t.stderr);
     const out = join(dir, 'plex.cjs');
-    await build({ entryPoints: [join(es5, 'plex/src/api/index.js')], bundle: true, format: 'cjs', target: 'es5', outfile: out, logLevel: 'warning' });
+    const mods = ['plex/src/api/index'].concat(modules);
+    const stdin = { contents: mods.map((m) => "export * from './" + m + "';").join('\n'), resolveDir: es5 };
+    await build({ stdin, bundle: true, format: 'cjs', target: 'es5', outfile: out, logLevel: 'warning' });
     return createRequire(import.meta.url)(out);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 }
