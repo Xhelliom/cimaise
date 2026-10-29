@@ -297,7 +297,14 @@ D'après la doc Tizen Application API ; **non testé sur la TV** (à confirmer a
 
 - **Constat (Frame, 29/10).** Légère latence quand le focus passe d'une app à l'autre. Budget §6 bis : touche → focus < 100 ms.
 - **Mesure.** `keyLatency()` (tv-core/diag) part du `keydown` et s'arrête à la 2e `requestAnimationFrame` ; min/médiane/max des 20 derniers déplacements dans le diagnostic (touche 0), ligne « latence touche→frame ». Coût : une paire de rAF par touche, quelques octets. **Mesure TV à faire par Stéphane** : appuyer ~20 fois sur gauche/droite dans le Dock, puis touche 0.
-- **Avant/après (aperçu).** **Non mesuré** : l'outil navigateur de la session n'a pas pu joindre le serveur local (`chrome-error`), et un chiffre pris sur un ordinateur ne prouve de toute façon rien pour la Frame. Le « avant » de la TV est à relever avec la version précédente si besoin de comparer.
+- **Avant/après (aperçu, mesure d'ordinateur).** Chromium 155 sans écran (nix, rendu logiciel), 1920×1080, 20 appuis gauche/droite espacés de 400 ms dans le Dock, lecture de la ligne du diagnostic (touche 0). « Avant » = 6f83cbf avec la seule sonde `keyLatency` ajoutée (teinte écrite à chaque déplacement) ; « après » = HEAD.
+
+  | | CPU normal (min / méd / max) | CPU ralenti ×4 |
+  |---|---|---|
+  | Avant | 17 / 27 / 40 ms | 13 / 31 / 37 ms |
+  | Après | 20 / 26 / 31 ms | 8 / 26 / 55 ms |
+
+  **Lecture honnête :** sur ordinateur, tout est déjà à 1–2 frames (< 60 ms) avant comme après ; l'écart est dans le bruit. Le rendu logiciel d'un navigateur sans GPU ne reproduit pas le coût de rastérisation de la Frame : ces chiffres ne prouvent ni gain ni perte. La mesure qui compte est celle de la TV (Stéphane : ~20 appuis, puis touche 0).
 - **Changements (suspects 1, 2, 4, sans mesure préalable sur la TV).**
   - Teinte : le focus bouge immédiatement ; la teinte n'est écrite qu'après 150 ms sans mouvement (`TINT_DELAY_MS`), donc plus de réécriture du dégradé à chaque appui rapide.
   - Calques de teinte rastérisés en 960×540 puis `transform: scale(2)` (4× moins de pixels ; le dégradé est lisse, rendu identique), `will-change: opacity`.
