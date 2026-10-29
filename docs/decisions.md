@@ -75,7 +75,7 @@ et AVPlay (CleanFrame amont : 6.5). Non testé sur la TV : si l'installation est
 **Privilèges.** Seulement `http://tizen.org/privilege/tv.inputdevice` (touches média). Chaque
 privilège ajouté plus tard doit venir avec la fonctionnalité qui l'exige.
 
-**Empaquetage.** `package.sh` réduit le nom de sortie à `[A-Za-z0-9._-]` (espaces → `-`, reste supprimé : `CleanFrame (bench).wgt` → `CleanFrame-bench.wgt`). Raison : le repli `vd_appinstall` est relu par le shell de la TV, où espaces et parenthèses cassent la commande ; c'est le chemin de la TV de référence. `install.sh` refuse avec un message clair tout `.wgt` au nom différent. Testé (faux packager, repli forcé) dans `scripts/tizen/test.sh`, que `npm run check` n'exécute pas.
+**Empaquetage.** `npm run build` écrit `apps/tv/dist/` (dossier à signer par `scripts/tizen/package.sh`,
 `APP_DIR=apps/tv/dist`) et `apps/tv/build/cimaise-unsigned.wgt` (zip non signé), puis affiche la taille
 (budget 1,5 Mo). Aucune dépendance ajoutée. Page vide de référence : 3,19 Ko au premier build.
 Icône `icon.png` : 117×117 uni, 230 octets.

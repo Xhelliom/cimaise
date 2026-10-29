@@ -10,7 +10,6 @@ APP_DIR="${1:-${APP_DIR:-}}"
 [ -f "$REPO_ROOT/$APP_DIR/config.xml" ] || die "$APP_DIR/config.xml introuvable"
 mkdir -p "$REPO_ROOT/dist"
 run_in_container tizen package -t wgt -s "$SIGN_PROFILE" -o /work/dist -- "/work/$APP_DIR"
-# Le packager nomme la sortie d'après <name> (espaces possibles) : on les remplace par « - ».
 # Le packager nomme la sortie d'après <name> : la TV relit la ligne vd_appinstall dans son shell, donc
 # espaces et parenthèses sont interdits. Espaces → « - », tout caractère hors [A-Za-z0-9._-] supprimé.
 for f in "$REPO_ROOT"/dist/*.wgt; do
