@@ -75,7 +75,7 @@ et AVPlay (CleanFrame amont : 6.5). Non testé sur la TV : si l'installation est
 **Privilèges.** Seulement `http://tizen.org/privilege/tv.inputdevice` (touches média). Chaque
 privilège ajouté plus tard doit venir avec la fonctionnalité qui l'exige.
 
-**Empaquetage.** `npm run build` écrit `apps/tv/dist/` (dossier à signer par `scripts/tizen/package.sh`,
+**Empaquetage.** `package.sh` réduit le nom de sortie à `[A-Za-z0-9._-]` (espaces → `-`, reste supprimé : `CleanFrame (bench).wgt` → `CleanFrame-bench.wgt`). Raison : le repli `vd_appinstall` est relu par le shell de la TV, où espaces et parenthèses cassent la commande ; c'est le chemin de la TV de référence. `install.sh` refuse avec un message clair tout `.wgt` au nom différent. Testé (faux packager, repli forcé) dans `scripts/tizen/test.sh`, que `npm run check` n'exécute pas.
 `APP_DIR=apps/tv/dist`) et `apps/tv/build/cimaise-unsigned.wgt` (zip non signé), puis affiche la taille
 (budget 1,5 Mo). Aucune dépendance ajoutée. Page vide de référence : 3,19 Ko au premier build.
 Icône `icon.png` : 117×117 uni, 230 octets.
@@ -243,12 +243,11 @@ La réponse réelle a des champs en plus (`qr`, `trusted`, `location`, `expiresA
 **Constat sur la Frame.** La page vide (`cimaiseblk`) et CleanFrame (`cmbnchcf01`) s'installent ; cimaise était refusée
 (`install failed[118, -19], reason: Parsing error`) : `cimaise00` fait 9 caractères, Tizen exige exactement 10.
 **Décision.** Package `cimaise001`, application `cimaise001.Cimaise`. L'app n'ayant jamais été installée, aucune mise à jour sur place
-n'est cassée ; l'identité redevient définitive. Un test vérifie que le package des trois `config.xml` (apps/tv, apps/blank, bench/cleanframe)
-fait 10 caractères alphanumériques. `.local/tizen.env` (APP_ID) doit être mis à jour à la main ; aucun ID d'app de la TV n'est versionné.
+n'est cassée ; l'identité redevient définitive. Le package fait 10 caractères alphanumériques, vérifié par `wgt.test.mjs` (apps/tv et apps/blank) et `bench-cleanframe.test.mjs` (bench).
+`.local/tizen.env` (APP_ID) doit être mis à jour à la main ; aucun ID d'app de la TV n'est versionné.
 
 **Privilèges.** Ajoutés dans `apps/tv/config.xml` : `http://tizen.org/privilege/application.launch` (`tizen.application.launch` et `launchAppControl`,
 utilisés par `device.launchApp`) et `http://tizen.org/privilege/application.info` (`tizen.application.getAppsInfo`, inventaire à la demande depuis Réglages).
 D'après la doc Tizen Application API ; **non testé sur la TV** (à confirmer au prochain lancement d'une app depuis l'accueil).
 
-**Empaquetage.** `package.sh` renomme la sortie sans espace (`CleanFrame (bench).wgt` → `CleanFrame-(bench).wgt`) : `install.sh` prend le plus récent
-de `dist/` et le repli `vd_appinstall` n'est plus déclenché à tort. Testé avec un faux packager dans `scripts/tizen/test.sh`.
+**Empaquetage.** `package.sh` réduit le nom de sortie à `[A-Za-z0-9._-]` (espaces → `-`, reste supprimé : `CleanFrame (bench).wgt` → `CleanFrame-bench.wgt`). Raison : le repli `vd_appinstall` est relu par le shell de la TV, où espaces et parenthèses cassent la commande ; c'est le chemin de la TV de référence. `install.sh` refuse avec un message clair tout `.wgt` au nom différent. Testé (faux packager, repli forcé) dans `scripts/tizen/test.sh`, que `npm run check` n'exécute pas.

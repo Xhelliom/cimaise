@@ -137,14 +137,20 @@ grep -q "^TIZEN .* package -t wgt -s cimaise" "$TMP/docker.log" && ok "package a
 
 # 7 bis. <name> avec espaces : package.sh nomme la sortie sans espace, install.sh l'installe
 rm -f "$REPO"/dist/*.wgt; : > "$TMP/docker.log"; FAKE_WGT_DIR="$REPO/dist" "$HERE/package.sh" apps/_t >/dev/null 2>&1
-[ -f "$REPO/dist/CleanFrame-(bench).wgt" ] && ! ls "$REPO"/dist/*\ *.wgt >/dev/null 2>&1 && ok "package : sortie sans espace" || fail "package : sortie sans espace"
+[ -f "$REPO/dist/CleanFrame-bench.wgt" ] && ! ls "$REPO"/dist/*\ *.wgt >/dev/null 2>&1 && ok "package : sortie sans espace" || fail "package : sortie sans espace"
 : > "$TMP/docker.log"; "$HERE/install.sh" >/dev/null 2>&1 && ok "install du .wgt produit" || fail "install du .wgt produit"
-grep -q "^SDB .* install /work/dist/CleanFrame-(bench).wgt" "$TMP/docker.log" && ok "install : sdb install du .wgt produit" || fail "install : sdb install du .wgt produit"
+grep -q "^SDB .* install /work/dist/CleanFrame-bench.wgt" "$TMP/docker.log" && ok "install : sdb install du .wgt produit" || fail "install : sdb install du .wgt produit"
 grep -q "^SDB .* vd_appinstall" "$TMP/docker.log" && fail "install : pas de repli vd_appinstall" || ok "install : pas de repli vd_appinstall"
-rm -f "$REPO/dist/CleanFrame-(bench).wgt"
+# repli vd_appinstall forcé : la ligne journalisée ne contient ni espace ni caractère spécial du shell
+: > "$TMP/docker.log"; FAKE_INSTALL_OUT="transfer only" "$HERE/install.sh" >/dev/null 2>&1
+vd="$(grep '^SDB .* vd_appinstall' "$TMP/docker.log" | head -n1 | grep -o 'vd_appinstall.*')"
+[[ "$vd" =~ ^vd_appinstall\ [A-Za-z0-9._-]+\ [A-Za-z0-9._/-]+/CleanFrame-bench\.wgt$ ]] && ok "repli vd_appinstall : aucun caractère spécial du shell" || fail "repli vd_appinstall : aucun caractère spécial du shell ($vd)"
+rm -f "$REPO/dist/CleanFrame-bench.wgt"
+# un .wgt au nom non sûr est refusé avec un message clair, sans rien envoyer à la TV
 : > "$TMP/docker.log"; touch "$REPO/dist/Clean Frame (bench).wgt"
-"$HERE/install.sh" "$REPO/dist/Clean Frame (bench).wgt" >/dev/null 2>&1 && ok "install : .wgt existant avec espaces" || fail "install : .wgt existant avec espaces"
-grep -q "^SDB .* install /work/dist/Clean Frame (bench).wgt" "$TMP/docker.log" && ok "install : chemin avec espaces cité" || fail "install : chemin avec espaces cité"
+out="$("$HERE/install.sh" "$REPO/dist/Clean Frame (bench).wgt" 2>&1)"; rc=$?
+[ $rc -ne 0 ] && [[ "$out" == *"nom de .wgt invalide"* ]] && ok "install : .wgt au nom non sûr refusé" || fail "install : .wgt au nom non sûr refusé"
+grep -q "^SDB" "$TMP/docker.log" && fail "install : rien envoyé à la TV si nom refusé" || ok "install : rien envoyé à la TV si nom refusé"
 rm -f "$REPO/dist/Clean Frame (bench).wgt"
 
 # 8. aucun secret dans les logs/arguments Docker ni dans la sortie
