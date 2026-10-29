@@ -7,9 +7,9 @@ import { AppEntry, DiscoveredApp } from '../src/settings/model';
 var hud = document.getElementById('hud')!;
 var catalog: AppEntry[] = [
   { id: 'cimaise.plex', name: 'Plex intégré', tint: '#e5a00d' },
-  { id: 'com.plexapp.tizen', name: 'Plex', tint: '#5a5a5f' },
-  { id: 'org.tizen.netflix-app', name: 'Netflix', tint: '#e50914' },
-  { id: '9Ur5IzDKqV.TizenYouTube', name: 'YouTube', tint: '#c4302b' },
+  { id: 'fake.plex-officiel', name: 'Plex', tint: '#5a5a5f' },
+  { id: 'fake.netflix', name: 'Netflix', tint: '#e50914' },
+  { id: 'fake.youtube', name: 'YouTube', tint: '#c4302b' },
   { id: 'disney', name: 'Disney+', tint: '#113ccf' },
   { id: 'canal', name: 'Canal+', tint: '#5a5a5f' },
   { id: 'prime', name: 'Prime Video', tint: '#1f8a5b' },
