@@ -138,3 +138,13 @@ Cause NON établie (on ne sait pas si le menu a seulement été ouvert ou si une
 - ouvrir le menu ne touche pas à AVPlay (`openMenu` peint seulement la liste du plan) ; choisir une piste relance le flux (`relaunch` : « Chargement… », arrêt de l'ancienne session, nouvelle décision) ;
 - en revanche Entrée (ou Pause) met la lecture en **pause** et ouvre la barre (`playKey`) : si Stéphane a atteint le bouton Sous-titres ainsi, l'image figée est la pause, et le saut arrière l'a peut-être relancée.
 À départager avec Stéphane : touche utilisée pour ouvrir la barre (Entrée ou Haut/Bas), présence du mot « Pause » à l'écran, piste choisie ou non. Le relevé serveur n'a rien capté à ce moment.
+
+**Précision de Stéphane sur le gel (observée physiquement) :** menu Sous-titres ouvert, aucune piste, choix de « Aucun » → le lecteur a **rechargé**, puis l'image s'est
+figée ; elle est repartie après un saut en arrière. Deux défauts :
+1. **Corrigé (test : « choisir la piste déjà active … »).** Choisir la piste déjà active (« Aucun » sans sous-titre actif) relançait une décision et un rechargement
+   pour rien : `choose()` ne fait plus rien si l'entrée est déjà courante.
+2. **Cause NON établie : le gel après rechargement d'une session transcodée.** Vérifié sans trouver : l'ancienne session serveur est arrêtée avant la nouvelle décision
+   (`launch` → `stopSession`) ; AVPlay est fermé avant la réouverture ; l'ordre est open → setDisplayRect → setDisplayMethod → prepareAsync → play, sans seekTo (le flux
+   démarre à l'offset du serveur). Test serveur (session réutilisée après arrêt, offset 1200 s, vs nouvelle session) : la liste de lecture est identique dans les deux cas.
+   Aucune preuve côté serveur ni côté TV : à reproduire avec `watch-transcode.mjs` (la session redémarrée progresse-t-elle ? `prog` avance-t-il pendant le gel ?).
+   Le même rechargement sert aux sauts lointains et aux changements d'audio : à tester là aussi.

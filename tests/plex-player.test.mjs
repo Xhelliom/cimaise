@@ -734,6 +734,8 @@ test('menu : changer de sous-titre interne en direct se fait en place (setSelect
 
 test('menu : choisir un SRT externe relance le flux à la position courante avec le fichier de sous-titres', async () => {
   const s = await playing('mkv-h264-ac3-pgs', {});
+  s.player.ready(); s.player.pos = 321000;
+  choose(s.panel, 'sub', /Aucun/); // piste active ≠ SRT externe (le défaut est un sous-titre actif)
   s.player.ready(); s.player.pos = 321000; s.player.calls.length = 0;
   choose(s.panel, 'sub', /Français · SRT · externe/);
   assert.ok(s.player.calls.includes('open'), s.player.calls.join());
@@ -755,6 +757,23 @@ test('menu : choisir un sous-titre PGS relance en transcodage incrusté à la po
   assert.equal(param(req, 'offset'), '100');
   assert.ok(!s.player.openOpts.startMs, 'transcodé : le flux démarre à l’offset');
   assert.equal(s.player.transcode[0], 100000); assert.ok(s.player.transcode[1] > 0);
+});
+
+test('menu : choisir la piste déjà active (« Aucun » sans sous-titre actif) ne relance rien, ni flux ni nouvelle décision', async () => {
+  // Film DTS sans aucune piste de sous-titres (le cas observé sur la Frame) : « Aucun » est la piste active.
+  const bare = () => { const j = JSON.parse(sample('mkv-h264-dts')); const part = j.MediaContainer.Metadata[0].Media[0].Part[0]; part.Stream = part.Stream.filter((x) => x.streamType !== 3); return JSON.stringify(j); };
+  const s = setup({ meta: bare, transcode: true });
+  withDecision(s);
+  const panel = ui.createPlayerPanel(s.arg, MOVIE);
+  await flush();
+  s.panel = panel;
+  s.player.ready(); s.player.pos = 100000; s.player.calls.length = 0;
+  const before = s.arg.http.calls.length;
+  choose(s.panel, 'sub', /Aucun/);
+  await flush();
+  assert.ok(!s.player.calls.includes('open') && !s.player.calls.includes('stop') && !s.player.calls.includes('close'), s.player.calls.join());
+  assert.equal(s.arg.http.calls.length, before, 'aucune requête au serveur');
+  assert.ok(!byClass(s.panel.el, 'plex-pl-menu')[0].classList.contains('on'), 'menu refermé');
 });
 
 test('séries : le choix de piste est retenu pour les autres épisodes (langue, pas identifiant de piste)', async () => {

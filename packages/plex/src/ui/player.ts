@@ -625,6 +625,8 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number, ch
   // en place (setSelectTrack). Sinon (transcodage, sous-titre externe, autre mode) : le flux est relancé à la position courante.
   // Le choix est retenu pour la série (par langue : les identifiants de piste changent d'un épisode à l'autre).
   function choose(e: TrackEntry): void {
+    // Piste déjà active (dont « Aucun » sans sous-titre actif) : rien à changer, surtout pas de nouvelle décision ni de rechargement du flux.
+    if (e.current) return;
     var p = player!, cur = plan!, g = prefs();
     var next: PlaybackPlan;
     try {
