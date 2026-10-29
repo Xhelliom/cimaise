@@ -1,3 +1,71 @@
-{ "MediaContainer": { "size": 2, "Metadata": [
-  { "ratingKey": "501", "title": "Saison 1", "type": "season", "index": 1, "leafCount": 8, "viewedLeafCount": 3 },
-  { "ratingKey": "502", "title": "Saison 2", "type": "season", "index": 2, "leafCount": 8, "viewedLeafCount": 0 } ] } }
+{
+  "MediaContainer": {
+    "size": 2,
+    "Metadata": [
+      {
+        "ratingKey": "500",
+        "key": "/library/metadata/500",
+        "type": "episode",
+        "title": "Titre d'épisode 3",
+        "grandparentTitle": "Titre de série 3",
+        "grandparentRatingKey": "202",
+        "grandparentThumb": "/library/metadata/202/thumb/1700000000",
+        "parentTitle": "Titre de saison 1",
+        "parentIndex": 1,
+        "summary": "Résumé.",
+        "year": 2025,
+        "index": 1,
+        "duration": 2780945,
+        "thumb": "/library/metadata/500/thumb/1700000000",
+        "art": "/library/metadata/500/art/1700000000",
+        "Media": [
+          {
+            "id": 120,
+            "container": "mkv",
+            "videoCodec": "hevc",
+            "audioCodec": "eac3",
+            "Part": [
+              {
+                "id": 21,
+                "key": "/library/parts/21/1700000000/file.mkv",
+                "duration": 2780945
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "ratingKey": "501",
+        "key": "/library/metadata/501",
+        "type": "episode",
+        "title": "Titre d'épisode 4",
+        "grandparentTitle": "Titre de série 3",
+        "grandparentRatingKey": "202",
+        "grandparentThumb": "/library/metadata/202/thumb/1700000000",
+        "parentTitle": "Titre de saison 1",
+        "parentIndex": 1,
+        "summary": "Résumé.",
+        "year": 2025,
+        "index": 2,
+        "duration": 3082330,
+        "thumb": "/library/metadata/501/thumb/1700000000",
+        "art": "/library/metadata/501/art/1700000000",
+        "Media": [
+          {
+            "id": 122,
+            "container": "mkv",
+            "videoCodec": "hevc",
+            "audioCodec": "eac3",
+            "Part": [
+              {
+                "id": 23,
+                "key": "/library/parts/23/1700000000/file.mkv",
+                "duration": 3082330
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

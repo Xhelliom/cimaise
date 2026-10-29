@@ -1,4 +1,4 @@
-// Types de l'API Plex (HANDOFF §5.2). Formes écrites d'après les clients tiers : non vérifiées contre un vrai serveur.
+// Types de l'API Plex (HANDOFF §5.2). Formes vérifiées contre un vrai serveur par scripts/plex/verify.mjs (docs/decisions.md).
 export interface Identity { clientId: string; product: string; version: string; platform: string; device: string; }
 
 export interface HttpRequest { method: string; url: string; headers: { [k: string]: string }; timeoutMs?: number; }
@@ -20,7 +20,8 @@ export interface Timers {
 export interface ServerRef { uri: string; token: string; }
 
 export interface Connection { uri: string; local: boolean; relay: boolean; }
-export interface Server { name: string; accessToken: string; connections: Connection[]; }
+// owned : serveur du compte (false = partagé par un autre compte) ; plex.tv en liste plusieurs.
+export interface Server { name: string; accessToken: string; owned: boolean; connections: Connection[]; }
 
 export interface Section { key: string; title: string; type: string; }
 export interface Part { id: number; key: string; duration?: number; }
@@ -28,6 +29,11 @@ export interface Media { id: number; container?: string; videoCodec?: string; au
 export interface Item {
   ratingKey: string; title: string; type: string; thumb?: string; art?: string; summary?: string;
   duration?: number; viewOffset?: number; index?: number; leafCount?: number; viewedLeafCount?: number;
+  year?: number;
+  // Épisodes (onDeck, children) : série et saison parentes.
+  grandparentTitle?: string; grandparentRatingKey?: string; grandparentThumb?: string; parentTitle?: string; parentIndex?: number;
   Media?: Media[];
 }
+// Rayon de /hubs ; Metadata n'est présent que pour /hubs/sections/{id}.
+export interface Hub { key: string; title: string; type: string; hubIdentifier: string; size: number; Metadata?: Item[]; }
 export interface Page { items: Item[]; total: number; offset: number; }

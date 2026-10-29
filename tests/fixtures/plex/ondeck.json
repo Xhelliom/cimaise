@@ -1,2 +1,73 @@
-{ "MediaContainer": { "size": 1, "Metadata": [
-  { "ratingKey": "301", "title": "Épisode 3", "type": "episode", "viewOffset": 600000, "duration": 2400000 } ] } }
+{
+  "MediaContainer": {
+    "size": 2,
+    "Metadata": [
+      {
+        "ratingKey": "300",
+        "key": "/library/metadata/300",
+        "type": "episode",
+        "title": "Titre d'épisode 1",
+        "grandparentTitle": "Titre de série 1",
+        "grandparentRatingKey": "200",
+        "grandparentThumb": "/library/metadata/200/thumb/1700000000",
+        "parentTitle": "Titre de saison 1",
+        "parentIndex": 1,
+        "summary": "Résumé.",
+        "year": 2018,
+        "index": 8,
+        "duration": 438099,
+        "viewOffset": 600000,
+        "thumb": "/library/metadata/300/thumb/1700000000",
+        "art": "/library/metadata/300/art/1700000000",
+        "Media": [
+          {
+            "id": 114,
+            "container": "mkv",
+            "videoCodec": "h264",
+            "audioCodec": "eac3",
+            "Part": [
+              {
+                "id": 15,
+                "key": "/library/parts/15/1700000000/file.mkv",
+                "duration": 438099
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "ratingKey": "301",
+        "key": "/library/metadata/301",
+        "type": "episode",
+        "title": "Titre d'épisode 2",
+        "grandparentTitle": "Titre de série 2",
+        "grandparentRatingKey": "201",
+        "grandparentThumb": "/library/metadata/201/thumb/1700000000",
+        "parentTitle": "Titre de saison 1",
+        "parentIndex": 1,
+        "summary": "Résumé.",
+        "year": 1983,
+        "index": 30,
+        "duration": 1203456,
+        "viewOffset": 601000,
+        "thumb": "/library/metadata/301/thumb/1700000000",
+        "art": "/library/metadata/301/art/1700000000",
+        "Media": [
+          {
+            "id": 116,
+            "container": "mkv",
+            "videoCodec": "h264",
+            "audioCodec": "ac3",
+            "Part": [
+              {
+                "id": 17,
+                "key": "/library/parts/17/1700000000/file.mkv",
+                "duration": 1203456
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

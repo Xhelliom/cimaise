@@ -20,7 +20,7 @@ before(async () => {
 
 const fx = (n) => readFileSync('tests/fixtures/plex/' + n + '.json', 'utf8');
 const ID = { clientId: 'test-client-uuid', product: 'Cimaise', version: '0.0.0', platform: 'Tizen', device: 'Frame' };
-const SERVER = { uri: 'http://192.0.2.10:32400', token: 'FAKE-SERVER-TOKEN' };
+const SERVER = { uri: 'https://192-0-2-10.' + '0'.repeat(32) + '.plex.direct:32400', token: 'FAKE-SERVER-TOKEN' };
 
 // Faux transport : routes = [[regex sur l'URL, {status, body} | fonction]] ; enregistre les requêtes.
 function fakeHttp(routes) {
@@ -121,34 +121,43 @@ test('PIN : expiration au délai', async () => {
   assert.equal(timers.pending(), 0);
 });
 
-test('ressources : serveurs seulement, locale joignable choisie en priorité', async () => {
-  const http = fakeHttp([
-    [/plex\.tv\/api\/v2\/resources/, { body: fx('resources') }],
-    [/192\.0\.2\.11.*\/identity/, { error: 'injoignable' }],
-    [/192\.0\.2\.10.*\/identity/, { body: '{}' }],
-  ]);
+// Réponse réelle de plex.tv (anonymisée) : une URI *.plex.direct par connexion, jamais d'IP nue en HTTPS.
+const HASH = '0'.repeat(32);
+const LOCAL = 'https://192-0-2-10.' + HASH + '.plex.direct:32400';
+const REMOTE = 'https://203-0-113-5.' + HASH + '.plex.direct:32400';
+
+test('ressources : serveurs seulement (pas les lecteurs), drapeau owned conservé', async () => {
+  const http = fakeHttp([[/plex\.tv\/api\/v2\/resources/, { body: fx('resources') }]]);
   const [err, servers] = await sync((cb) => api.getServers(http, ID, 'FAKE-ACCOUNT-TOKEN', cb));
   assert.equal(err, null);
-  assert.equal(servers.length, 1);
-  assert.equal(servers[0].name, 'Serveur test');
-  const [e2, ref] = await sync((cb) => api.chooseConnection(http, ID, servers[0], cb));
-  assert.equal(e2, null);
-  assert.deepEqual(ref, { uri: 'http://192.0.2.10:32400', token: 'FAKE-SERVER-TOKEN' });
-  const probed = http.calls.filter((c) => /identity/.test(c.url)).map((c) => c.url);
-  assert.ok(probed[0].indexOf('192.0.2.11') === 0 || probed[0].indexOf('http://192.0.2.11') === 0);
-  assert.ok(probed.every((u) => u.indexOf('203.0.113') < 0 && u.indexOf('relay') < 0), 'distantes non sondées si une locale répond');
+  assert.deepEqual(servers.map((s) => [s.name, s.owned]), [['Serveur test', true], ['Serveur partagé', false]]);
+  assert.match(http.calls[0].url, /includeHttps=1/);
 });
 
-test('ressources : repli sur une connexion distante si aucune locale ne répond', async () => {
+test('ressources : locale *.plex.direct choisie en priorité, distantes non sondées', async () => {
   const http = fakeHttp([
-    [/plex\.tv/, { body: fx('resources') }],
-    [/192\.0\.2\./, { error: 'hors ligne' }],
-    [/203\.0\.113\.5.*identity/, { body: '{}' }],
+    [/plex\.tv\/api\/v2\/resources/, { body: fx('resources') }],
+    [/192-0-2-10.*\/identity/, { body: '{}' }],
   ]);
   const [, servers] = await sync((cb) => api.getServers(http, ID, 'T', cb));
   const [err, ref] = await sync((cb) => api.chooseConnection(http, ID, servers[0], cb));
   assert.equal(err, null);
-  assert.equal(ref.uri, 'https://203.0.113.5:32400');
+  assert.deepEqual(ref, { uri: LOCAL, token: 'FAKE-SERVER-TOKEN' });
+  const probed = http.calls.filter((c) => /identity/.test(c.url)).map((c) => c.url);
+  assert.equal(probed.length, 1);
+  assert.ok(probed.every((u) => u.indexOf('203-0-113') < 0 && u.indexOf(':8443') < 0));
+});
+
+test('ressources : repli sur une connexion distante si la locale ne répond pas', async () => {
+  const http = fakeHttp([
+    [/plex\.tv/, { body: fx('resources') }],
+    [/192-0-2-10/, { error: 'hors ligne' }],
+    [/203-0-113-5.*identity/, { body: '{}' }],
+  ]);
+  const [, servers] = await sync((cb) => api.getServers(http, ID, 'T', cb));
+  const [err, ref] = await sync((cb) => api.chooseConnection(http, ID, servers[0], cb));
+  assert.equal(err, null);
+  assert.equal(ref.uri, REMOTE);
 });
 
 test('ressources : aucune connexion joignable → erreur', async () => {
@@ -162,7 +171,7 @@ test('/library/sections', async () => {
   const http = fakeHttp([[/\/library\/sections$/, { body: fx('sections') }]]);
   const [err, s] = await sync((cb) => api.getSections(http, ID, SERVER, cb));
   assert.equal(err, null);
-  assert.deepEqual(s.map((x) => [x.key, x.title, x.type]), [['1', 'Films', 'movie'], ['2', 'Séries', 'show']]);
+  assert.deepEqual(s.map((x) => [x.key, x.title, x.type]), [['1', 'Films', 'movie'], ['2', 'Séries', 'show'], ['3', 'Musique', 'artist']]);
   assert.equal(http.calls[0].headers['X-Plex-Token'], 'FAKE-SERVER-TOKEN');
 });
 
@@ -170,7 +179,7 @@ test('/library/sections/{id}/all paginé', async () => {
   const http = fakeHttp([[/sections\/1\/all/, { body: fx('section-all') }]]);
   const [err, page] = await sync((cb) => api.getSectionItems(http, ID, SERVER, '1', 20, 2, cb));
   assert.equal(err, null);
-  assert.equal(page.total, 57); assert.equal(page.offset, 20); assert.equal(page.items.length, 2);
+  assert.equal(page.total, 412); assert.equal(page.offset, 20); assert.equal(page.items.length, 2);
   assert.equal(http.calls[0].headers['X-Plex-Container-Start'], '20');
   assert.equal(http.calls[0].headers['X-Plex-Container-Size'], '2');
 });
@@ -178,18 +187,32 @@ test('/library/sections/{id}/all paginé', async () => {
 test('onDeck, recentlyAdded', async () => {
   const http = fakeHttp([[/onDeck/, { body: fx('ondeck') }], [/recentlyAdded/, { body: fx('recently-added') }]]);
   const [, d] = await sync((cb) => api.getOnDeck(http, ID, SERVER, cb));
+  assert.equal(d[0].type, 'episode');
   assert.equal(d[0].viewOffset, 600000);
+  assert.equal(d[0].grandparentTitle, 'Titre de série 1');
+  assert.equal(d[0].parentIndex, 1);
   const [, r] = await sync((cb) => api.getRecentlyAdded(http, ID, SERVER, cb));
-  assert.equal(r[0].title, 'Nouveau film');
+  assert.ok(r.length > 0 && r.every((i) => typeof i.ratingKey === 'string' && typeof i.title === 'string'));
   assert.match(http.calls[0].url, /\/library\/onDeck$/);
 });
 
 test('metadata et children', async () => {
-  const http = fakeHttp([[/metadata\/101\/children/, { body: fx('children') }], [/metadata\/101$/, { body: fx('metadata') }]]);
-  const [, m] = await sync((cb) => api.getMetadata(http, ID, SERVER, '101', cb));
+  const http = fakeHttp([[/metadata\/500\/children/, { body: fx('children') }], [/metadata\/100$/, { body: fx('metadata') }]]);
+  const [, m] = await sync((cb) => api.getMetadata(http, ID, SERVER, '100', cb));
   assert.equal(m.Media[0].Part[0].key, '/library/parts/11/1700000000/file.mkv');
-  const [, c] = await sync((cb) => api.getChildren(http, ID, SERVER, '101', cb));
+  const [, c] = await sync((cb) => api.getChildren(http, ID, SERVER, '500', cb));
   assert.equal(c.length, 2);
+});
+
+test('hubs : /hubs et /hubs/sections/{id} (éléments en ligne)', async () => {
+  const http = fakeHttp([[/hubs\/sections\/1$/, { body: fx('hubs-section') }], [/\/hubs$/, { body: fx('hubs') }]]);
+  const [e1, all] = await sync((cb) => api.getHubs(http, ID, SERVER, null, cb));
+  assert.equal(e1, null);
+  assert.ok(all.length > 0 && all.every((h) => typeof h.key === 'string' && typeof h.hubIdentifier === 'string' && typeof h.size === 'number'));
+  const [e2, sec] = await sync((cb) => api.getHubs(http, ID, SERVER, '1', cb));
+  assert.equal(e2, null);
+  assert.ok(sec.some((h) => h.Metadata && h.Metadata.length > 0 && typeof h.Metadata[0].ratingKey === 'string'));
+  assert.match(http.calls[1].url, /\/hubs\/sections\/1$/);
 });
 
 test('erreur HTTP → erreur typée', async () => {
@@ -200,7 +223,7 @@ test('erreur HTTP → erreur typée', async () => {
 
 test('transcodeur photo : largeur/hauteur exactes, URL source encodée', () => {
   const u = api.photoUrl(SERVER, '/library/metadata/101/thumb/1', 300, 450);
-  assert.ok(u.indexOf('http://192.0.2.10:32400/photo/:/transcode?') === 0);
+  assert.ok(u.indexOf(SERVER.uri + '/photo/:/transcode?') === 0);
   assert.match(u, /[?&]width=300(&|$)/);
   assert.match(u, /[?&]height=450(&|$)/);
   assert.match(u, /[?&]url=%2Flibrary%2Fmetadata%2F101%2Fthumb%2F1(&|$)/);
@@ -210,7 +233,7 @@ test('transcodeur photo : largeur/hauteur exactes, URL source encodée', () => {
 
 test('lecture directe : URL de la partie avec jeton', () => {
   assert.equal(api.directPlayUrl(SERVER, '/library/parts/11/1700000000/file.mkv'),
-    'http://192.0.2.10:32400/library/parts/11/1700000000/file.mkv?X-Plex-Token=FAKE-SERVER-TOKEN');
+    SERVER.uri + '/library/parts/11/1700000000/file.mkv?X-Plex-Token=FAKE-SERVER-TOKEN');
 });
 
 test('timeline, scrobble, unscrobble', async () => {

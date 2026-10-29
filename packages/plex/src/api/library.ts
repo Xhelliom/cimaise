@@ -1,4 +1,4 @@
-import { Callback, Http, Identity, Item, Page, Section, ServerRef } from './types';
+import { Callback, Hub, Http, Identity, Item, Page, Section, ServerRef } from './types';
 import { serverGet } from './request';
 
 function container(j: any): any { return (j && j.MediaContainer) || {}; }
@@ -24,6 +24,12 @@ export function getOnDeck(http: Http, id: Identity, s: ServerRef, cb: Callback<I
 
 export function getRecentlyAdded(http: Http, id: Identity, s: ServerRef, cb: Callback<Item[]>) {
   return serverGet(http, id, s, '/library/recentlyAdded', null, function (err, j) { err ? cb(err) : cb(null, items(j)); });
+}
+
+// Rayons : /hubs (descripteurs seuls) ou /hubs/sections/{id} (avec leurs éléments en ligne).
+export function getHubs(http: Http, id: Identity, s: ServerRef, sectionKey: string | null, cb: Callback<Hub[]>) {
+  var path = sectionKey === null ? '/hubs' : '/hubs/sections/' + encodeURIComponent(sectionKey);
+  return serverGet(http, id, s, path, null, function (err, j) { err ? cb(err) : cb(null, container(j).Hub || []); });
 }
 
 export function getMetadata(http: Http, id: Identity, s: ServerRef, ratingKey: string, cb: Callback<Item>) {

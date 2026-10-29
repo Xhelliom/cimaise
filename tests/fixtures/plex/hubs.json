@@ -1,0 +1,35 @@
+{
+  "MediaContainer": {
+    "size": 4,
+    "Hub": [
+      {
+        "key": "/hubs/home/continueWatching",
+        "title": "Rayon 1",
+        "type": "mixed",
+        "hubIdentifier": "home.continue",
+        "size": 0
+      },
+      {
+        "key": "/hubs/home/onDeck",
+        "title": "Rayon 2",
+        "type": "episode",
+        "hubIdentifier": "home.ondeck",
+        "size": 4
+      },
+      {
+        "key": "/hubs/home/recentlyAdded?type=1",
+        "title": "Rayon 3",
+        "type": "movie",
+        "hubIdentifier": "home.movies.recent",
+        "size": 6
+      },
+      {
+        "key": "/hubs/home/recentlyAdded?type=2",
+        "title": "Rayon 4",
+        "type": "mixed",
+        "hubIdentifier": "home.television.recent",
+        "size": 6
+      }
+    ]
+  }
+}

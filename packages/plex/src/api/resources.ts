@@ -16,7 +16,7 @@ export function getServers(http: Http, id: Identity, accountToken: string, cb: C
         var c = rc[k];
         cs.push({ uri: c.uri, local: !!c.local, relay: !!c.relay });
       }
-      out.push({ name: r.name, accessToken: r.accessToken, connections: cs });
+      out.push({ name: r.name, accessToken: r.accessToken, owned: !!r.owned, connections: cs });
     }
     cb(null, out);
   });
