@@ -339,5 +339,73 @@ test('hors TV : le vrai lecteur signale l’absence de webapis, aucune lecture s
 test('fiche introuvable côté serveur : erreur claire plutôt qu’un écran noir', async () => {
   const s = await started({ meta: () => JSON.stringify({ MediaContainer: { size: 1, Metadata: [{ ratingKey: '100', type: 'movie', title: 'x' }] } }) });
   assert.ok(has(s.panel.el, /Lecture impossible/));
-  assert.deepEqual(s.player.calls, []);
+  assert.ok(!s.player.calls.includes('open'));
+});
+
+// --- Décision lecture directe / transcodage (playback/decide) ---------------------------------------------------
+const sample = (name) => {
+  const s = JSON.parse(readFileSync('tests/fixtures/plex/media-samples.json', 'utf8')).find((x) => x.name === name);
+  assert.ok(s, name);
+  return JSON.stringify({ MediaContainer: s.MediaContainer });
+};
+const mode = (panel) => byClass(panel.el, 'plex-pl-mode')[0].textContent;
+
+test('décision : média compatible → lecture directe, URI plex.direct, mode et raison affichés', async () => {
+  const s = await started({ meta: () => sample('mp4-h264-aac') });
+  assert.equal(s.player.calls[0], 'open');
+  assert.ok(s.player.url.startsWith(SERVER.uri + '/library/parts/'), s.player.url);
+  assert.ok(!/transcode/.test(s.player.url));
+  s.player.ready();
+  assert.match(mode(s.panel), /^Lecture directe : /);
+});
+
+test('décision : audio DTS non pris en charge → transcodage HLS (décision demandée au serveur), raison affichée', async () => {
+  const s = setup({ meta: () => sample('mkv-h264-dts') });
+  const base = s.http;
+  const http = (req, cb) => {
+    if (/transcode\/universal\/decision/.test(req.url)) { http.calls.push(req); setImmediate(() => cb(null, { status: 200, body: JSON.stringify({ MediaContainer: { generalDecisionCode: 1000 } }) })); return { abort() {} }; }
+    return base(req, cb);
+  };
+  http.calls = base.calls; http.timelines = base.timelines; http.scrobbles = base.scrobbles;
+  s.arg.http = http;
+  const panel = ui.createPlayerPanel(s.arg, MOVIE);
+  await flush();
+  assert.ok(http.calls.some((c) => /transcode\/universal\/decision/.test(c.url)), texts(panel.el).join('|') + http.calls.map((c) => c.url).join(' '));
+  assert.match(s.player.url, /\/video\/:\/transcode\/universal\/start\.m3u8\?/);
+  assert.equal(new URL(s.player.url).searchParams.get('protocol'), 'hls');
+  s.player.ready();
+  assert.match(mode(panel), /^Transcodage : .*dca/);
+});
+
+test('décision : codec non pris en charge → transcodage ; refus du serveur → erreur claire', async () => {
+  const s = setup({ meta: () => sample('mkv-av1-opus') });
+  const base = s.http;
+  const http = (req, cb) => {
+    if (/transcode\/universal\/decision/.test(req.url)) { setImmediate(() => cb(null, { status: 200, body: JSON.stringify({ MediaContainer: { generalDecisionCode: 2000, generalDecisionText: 'non' } }) })); return { abort() {} }; }
+    return base(req, cb);
+  };
+  s.arg.http = http;
+  const panel = ui.createPlayerPanel(s.arg, MOVIE);
+  await flush();
+  assert.ok(!s.player.calls.includes('open'));
+  assert.ok(has(panel.el, /Lecture impossible.*transcodage refusé/));
+});
+
+test('décision : pistes par défaut appliquées après la préparation (audio et sous-titre forcé)', async () => {
+  const s = await started({ meta: () => sample('mkv-h264-ac3-srt-force') });
+  s.player.calls.length = 0;
+  s.player.tracks = [
+    { kind: 'audio', index: 1, info: {} }, { kind: 'audio', index: 2, info: {} }, { kind: 'text', index: 3, info: {} },
+  ];
+  s.player.ready();
+  assert.ok(s.player.calls.some((c) => /^select:audio\d$/.test(c)), s.player.calls.join());
+});
+
+test('décision : URI du serveur sans plex.direct refusée sans fuite de l’adresse', async () => {
+  const s = setup({ meta: () => sample('mp4-h264-aac'), arg: { session: { uri: 'https://192.0.2.10:32400', token: 'T' } } });
+  const panel = ui.createPlayerPanel(s.arg, MOVIE);
+  await flush();
+  assert.ok(has(panel.el, /plex\.direct/));
+  assert.ok(!texts(panel.el).join('|').includes('192.0.2.10'));
+  assert.ok(!s.player.calls.includes('open'));
 });
