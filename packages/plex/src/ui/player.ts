@@ -1,15 +1,17 @@
 import { Item } from '../api/types';
-import { decidePlayback, directPlaybackUrl, PlaybackPlan, requestTranscode } from '../playback';
+import { decidePlayback, directPlaybackUrl, normalizeLang, PlaybackPlan, requestTranscode, subtitleUrl, trackEntries, TrackEntry } from '../playback';
 import { getMetadata } from '../api/library';
 import { xhrHttp } from '../api/xhr';
 import { createProgress, Progress } from '../progress';
 import { Panel } from '../../../tv-core/src/router/router';
 import { Key } from '../../../tv-core/src/keys';
-import { createPlayer, Player, Track } from '../../../tv-core/src/player';
+import { createPlayer, OpenOptions, Player, Track } from '../../../tv-core/src/player';
+import { langPrefsFor, LangPrefs, rememberSeries } from '../../../tv-core/src/langprefs';
 import { recordMeasure } from '../../../tv-core/src/diag';
 import { Ctx, el, identityOf, PlexArg, realTimers, resolve } from './context';
 
 var HIDE_MS = 3000;
+var SUB_MS = 3000; // durée d'affichage d'un sous-titre dont AVPlay ne donne pas la durée
 
 function two(n: number): string { return (n < 10 ? '0' : '') + n; }
 // hh:mm:ss, toujours avec les heures (« Reprendre à 00:51:22 »).
@@ -21,6 +23,11 @@ export function formatTime(ms: number): string {
 function trackLabel(t: Track): string {
   var lang = t.info.language || t.info.track_lang || t.info.lang;
   return (t.kind === 'audio' ? 'Audio' : 'Sous-titres') + ' · ' + (lang ? String(lang) : 'piste ' + t.index);
+}
+
+// Texte d'un événement AVPlay : balises HTML (<i>) et codes de style ASS/SSA ({\an8}) retirés, retours à la ligne gardés.
+export function cleanSubtitle(text: string): string {
+  return String(text || '').replace(/<[^>]*>/g, '').replace(/\{\\[^}]*\}/g, '').replace(/\\N/g, '\n').replace(/\r/g, '').replace(/^\s+|\s+$/g, '');
 }
 
 interface Choice { label: string; apply(): void; }
@@ -42,6 +49,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
   var time = el(doc, 'plex-pl-time', '');
   var state = el(doc, 'plex-pl-state', '');
   var modeLine = el(doc, 'plex-pl-mode', '');
+  var sub = el(doc, 'plex-pl-sub', '');
   var menu = el(doc, 'plex-pl-menu');
   var dialog = el(doc, 'plex-pl-dialog');
   var text = el(doc, 'plex-pl-text', 'Chargement…');
@@ -49,7 +57,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
   track.appendChild(bar);
   ui.appendChild(title); ui.appendChild(track); ui.appendChild(time); ui.appendChild(state); ui.appendChild(modeLine);
   dialog.appendChild(text); dialog.appendChild(btns);
-  root.appendChild(ui); root.appendChild(menu); root.appendChild(dialog);
+  root.appendChild(sub); root.appendChild(ui); root.appendChild(menu); root.appendChild(dialog);
 
   var mode: Mode = 'loading';
   var closed = false;
@@ -60,6 +68,8 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
   var durationMs = item.duration || 0;
   var paused = false, menuOpen = false;
   var suspendPos = -1;
+  // Sous-titres rendus par la page (AVPlay n'est réveillé que pour une piste choisie) : subsOn = la piste choisie est lue par AVPlay (interne ou externe), pas incrustée.
+  var extFailed = false, subsOn = false, subTimer: any = null, seriesKey = item.grandparentRatingKey;
   // Mesure (diagnostic) : Entrée sur Lire → première image (1er temps de lecture signalé par AVPlay). Avec la question de reprise, part du choix.
   var t0 = Date.now(), awaitFrame = false;
   var hideTimer: any = null;
@@ -82,6 +92,23 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
     setClass(dialog, 'plex-pl-dialog', true);
   }
 
+  // AVPlay n'émet onsubtitlechange que s'il n'est pas silencieux : on le réveille seulement quand une piste est choisie.
+  function setSubs(on: boolean): void {
+    subsOn = on;
+    if (player) player.setSubtitlesVisible(on);
+  }
+  function clearSub(): void {
+    if (subTimer !== null) { timers.clearTimeout(subTimer); subTimer = null; }
+    sub.textContent = '';
+  }
+  function showSub(text: string, durationMs: number): void {
+    if (closed || !subsOn || mode !== 'play') return;
+    var t = cleanSubtitle(text);
+    if (subTimer !== null) { timers.clearTimeout(subTimer); subTimer = null; }
+    sub.textContent = t;
+    if (t) subTimer = timers.setTimeout(function () { subTimer = null; sub.textContent = ''; }, durationMs > 0 ? durationMs : SUB_MS);
+  }
+
   function clearHide(): void { if (hideTimer !== null) { timers.clearTimeout(hideTimer); hideTimer = null; } }
   function show(): void {
     setClass(ui, 'plex-pl-ui', true);
@@ -100,6 +127,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
   function cleanup(): void {
     closed = true;
     clearHide();
+    clearSub();
     if (metaReq) { metaReq.abort(); metaReq = null; }
     if (progress) progress.stop(false);
     if (player) player.destroy();
@@ -121,6 +149,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
     if (progress) progress.stop(false);
     if (player) player.destroy();
     clearHide();
+    clearSub();
     live(false);
     setClass(ui, 'plex-pl-ui', false);
     var list: Array<{ label: string; run(): void }> = [];
@@ -166,6 +195,16 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
         state.textContent = 'Déplacement impossible';
         show();
       },
+      onSubtitle: showSub,
+      onSubtitleError: function () {
+        if (closed) return;
+        extFailed = true; // refus synchrone pendant open() : signalé une fois la lecture lancée (applyTracks)
+        if (mode !== 'play') return;
+        setSubs(false);
+        clearSub();
+        state.textContent = 'Sous-titres indisponibles';
+        show();
+      },
       onEnd: function () { leave(true); },
       onError: fail,
       onSuspend: function (pos) { suspendPos = pos; leave(false); }
@@ -176,8 +215,21 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
       getPosition: function () { return suspendPos >= 0 ? suspendPos : p.getPosition(); },
       onFinish: function (ms, watched) { c.data.progressed(full, ms, watched); }
     });
+    launch(startMs);
+  }
+
+  // Ouvre le flux du plan courant (direct ou transcodé) dans le lecteur déjà créé ; sert aussi à relancer après un changement de piste.
+  function launch(startMs: number): void {
+    var p = player!;
     function opened(url: string): void {
-      p.open(url, startMs > 0 ? { startMs: startMs } : {}, function (err) {
+      var oo: OpenOptions = {};
+      extFailed = false;
+      if (startMs > 0) oo.startMs = startMs;
+      try {
+        var su = subtitleUrl(c.session, plan!);
+        if (su) oo.subtitleUrl = su;
+      } catch (e) { fail(e as Error); return; }
+      p.open(url, oo, function (err) {
         if (closed || mode === 'error') return;
         if (err) { fail(err); return; }
         mode = 'play';
@@ -185,7 +237,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
         time.textContent = formatTime(startMs) + ' / ' + formatTime(durationMs);
         bar.style.transform = 'scaleX(' + (durationMs > 0 ? Math.min(1, startMs / durationMs) : 0) + ')';
         modeLine.textContent = plan!.reason;
-        applyDefaultTracks(p);
+        applyTracks(p, true, true);
         live(true);
         progress!.playing();
         show();
@@ -205,10 +257,11 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
     }
   }
 
-  // Pistes par défaut du plan, appliquées une fois le flux préparé. Le n-ième flux interne d'un type est la n-ième piste AVPlay de ce type
-  // (les index d'AVPlay ne sont pas ceux de Plex). Transcodé, le flux porte déjà l'audio choisi et les sous-titres incrustés.
-  function applyDefaultTracks(p: Player): void {
-    if (plan!.mode !== 'direct') return;
+  // Pistes du plan, appliquées une fois le flux préparé (ou en place après un changement de piste). Le n-ième flux interne d'un type est
+  // la n-ième piste AVPlay de ce type (les index d'AVPlay ne sont pas ceux de Plex). Transcodé, le flux porte déjà l'audio choisi et les
+  // sous-titres incrustés. Les sous-titres d'une piste externe sont, d'après la doc, ajoutés après les pistes internes : on prend la dernière.
+  function applyTracks(p: Player, doAudio: boolean, doSub: boolean): void {
+    if (plan!.mode !== 'direct') { if (doSub) { setSubs(false); clearSub(); } return; }
     var streams = plan!.part.Stream || [], tracks = p.getTracks();
     function avplayTrack(kind: 'audio' | 'text', type: number, wanted: { id: number } | null): Track | null {
       if (!wanted) return null;
@@ -217,11 +270,27 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
       for (i = 0; i < tracks.length; i++) if (tracks[i].kind === kind && rank-- === 0) return tracks[i];
       return null;
     }
-    var a = avplayTrack('audio', 2, plan!.audio);
-    if (a) p.selectTrack('audio', a.index);
-    var t = plan!.subtitleMode === 'embedded' ? avplayTrack('text', 3, plan!.subtitle) : null;
-    if (t) { p.setSubtitlesVisible(true); p.selectTrack('text', t.index); } else p.setSubtitlesVisible(false);
+    if (doAudio) {
+      var a = avplayTrack('audio', 2, plan!.audio);
+      if (a) p.selectTrack('audio', a.index);
+    }
+    if (!doSub) return;
+    clearSub();
+    var t: Track | null = null;
+    if (plan!.subtitleMode === 'external' && extFailed) {
+      setSubs(false);
+      state.textContent = 'Sous-titres indisponibles';
+      return;
+    }
+    if (plan!.subtitleMode === 'embedded') t = avplayTrack('text', 3, plan!.subtitle);
+    else if (plan!.subtitleMode === 'external') {
+      for (var i = tracks.length - 1; i >= 0 && !t; i--) if (tracks[i].kind === 'text') t = tracks[i];
+    }
+    if (t) p.selectTrack('text', t.index);
+    setSubs(!!t);
   }
+
+  function prefs(): LangPrefs { return langPrefsFor(seriesKey, arg.store); }
 
   function begin(): void {
     var off = full.viewOffset || 0;
@@ -241,7 +310,8 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
     if (closed) return;
     var m = v && v.Media && v.Media[0] && v.Media[0].Part && v.Media[0].Part![0];
     if (err || !v || !m) { fail(err || new Error('aucun fichier lisible pour ce titre')); return; }
-    try { plan = decidePlayback(v, {}); } catch (e) { fail(e as Error); return; }
+    seriesKey = v.grandparentRatingKey || item.grandparentRatingKey;
+    try { plan = decidePlayback(v, prefs()); } catch (e) { fail(e as Error); return; }
     full = v;
     durationMs = v.duration || plan.part.duration || durationMs;
     title.textContent = v.title;
@@ -251,22 +321,69 @@ export function createPlayerPanel(arg: PlexArg, item: Item): Panel {
   if (item.type === 'show' || item.type === 'season') fail(new Error('une ' + (item.type === 'show' ? 'série' : 'saison') + ' ne se lit pas : choisir un épisode'));
   else ask('Chargement…', []);
 
+  // Choix d'une piste dans le menu : nouvelle décision avec les deux pistes explicites. Lecture directe → directe sans fichier externe :
+  // en place (setSelectTrack). Sinon (transcodage, sous-titre externe, autre mode) : le flux est relancé à la position courante.
+  // Le choix est retenu pour la série (par langue : les identifiants de piste changent d'un épisode à l'autre).
+  function choose(e: TrackEntry): void {
+    var p = player!, cur = plan!, g = prefs();
+    var next: PlaybackPlan;
+    try {
+      next = decidePlayback(full, {
+        audioLang: g.audioLang, subLang: g.subLang,
+        audioId: e.kind === 'audio' ? e.id! : cur.audio ? cur.audio.id : undefined,
+        subtitleId: e.kind === 'subtitle' ? e.id : cur.subtitle ? cur.subtitle.id : null
+      });
+    } catch (err) { fail(err as Error); return; }
+    if (seriesKey) {
+      try {
+        if (e.kind === 'audio') { var al = normalizeLang(e.stream ? e.stream.languageCode : ''); if (al) rememberSeries(seriesKey, { audioLang: al }, arg.store); }
+        else rememberSeries(seriesKey, { subLang: e.stream && !e.stream.forced ? normalizeLang(e.stream.languageCode) : '' }, arg.store);
+      } catch (err) { /* stockage refusé : le choix vaut pour cet épisode */ }
+    }
+    plan = next;
+    if (cur.mode === 'direct' && next.mode === 'direct' && next.mediaIndex === cur.mediaIndex && cur.subtitleMode !== 'external' && next.subtitleMode !== 'external') {
+      applyTracks(p, e.kind === 'audio', e.kind === 'subtitle');
+      modeLine.textContent = next.reason;
+      return;
+    }
+    var pos = p.getPosition();
+    clearSub();
+    subsOn = false;
+    progress!.paused();
+    mode = 'loading';
+    awaitFrame = false;
+    live(false);
+    setClass(ui, 'plex-pl-ui', false);
+    ask('Chargement…', []);
+    launch(pos);
+  }
+
   function openMenu(): void {
-    var tracks = player ? player.getTracks() : [];
     var out: Choice[] = [];
     var i: number;
-    function pick(t: Track): Choice {
-      return {
-        label: trackLabel(t),
-        apply: function () {
-          if (t.kind === 'text') player!.setSubtitlesVisible(true);
-          player!.selectTrack(t.kind, t.index);
-        }
+    var entries = plan && plan.part.Stream && plan.part.Stream.length ? trackEntries(plan) : [];
+    if (entries.length) {
+      var pickEntry = function (e: TrackEntry): Choice {
+        return { label: (e.current ? '● ' : '') + e.label, apply: function () { choose(e); } };
       };
+      for (i = 0; i < entries.length; i++) out.push(pickEntry(entries[i]));
+    } else {
+      // Fiche sans détail des flux : pistes telles qu'AVPlay les liste.
+      var tracks = player ? player.getTracks() : [];
+      var pick = function (t: Track): Choice {
+        return {
+          label: trackLabel(t),
+          apply: function () {
+            if (t.kind === 'text') clearSub();
+            player!.selectTrack(t.kind, t.index);
+            if (t.kind === 'text') setSubs(true);
+          }
+        };
+      };
+      for (i = 0; i < tracks.length; i++) if (tracks[i].kind === 'audio') out.push(pick(tracks[i]));
+      out.push({ label: 'Sous-titres · Désactivés', apply: function () { setSubs(false); clearSub(); } });
+      for (i = 0; i < tracks.length; i++) if (tracks[i].kind === 'text') out.push(pick(tracks[i]));
     }
-    for (i = 0; i < tracks.length; i++) if (tracks[i].kind === 'audio') out.push(pick(tracks[i]));
-    out.push({ label: 'Sous-titres · Désactivés', apply: function () { player!.setSubtitlesVisible(false); } });
-    for (i = 0; i < tracks.length; i++) if (tracks[i].kind === 'text') out.push(pick(tracks[i]));
     choices = out;
     mi = 0;
     menuOpen = true;

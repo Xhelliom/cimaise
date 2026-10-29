@@ -240,11 +240,14 @@ test('pistes : Haut ouvre le choix audio / sous-titres, setSelectTrack via le le
   s.panel.onKey('up');
   for (let i = 0; i < 3; i++) s.panel.onKey('down');
   s.panel.onKey('enter');
-  assert.deepEqual(s.player.calls, ['subs:true', 'select:text3']);
+  // Piste choisie : AVPlay réveillé (sinon aucun onsubtitlechange), le texte s'affiche dans la page.
+  assert.deepEqual(s.player.calls, ['select:text3', 'subs:true']);
+  s.player.events.onSubtitle('Texte', 1000);
+  assert.equal(byClass(s.panel.el, 'plex-pl-sub')[0].textContent, 'Texte');
   s.panel.onKey('up');
   for (let i = 0; i < 2; i++) s.panel.onKey('down');
   s.panel.onKey('enter');
-  assert.deepEqual(s.player.calls.slice(2), ['subs:false']);
+  assert.equal(byClass(s.panel.el, 'plex-pl-sub')[0].textContent, '');
 });
 
 test('Retour pendant le menu de pistes ferme le menu seulement', async () => {
@@ -438,4 +441,211 @@ test('mesures : avec la question de reprise, la durée part du choix de l’util
     assert.equal(ui.diag.measureStats('lecture').max, 400);
     panel.destroy();
   } finally { Date.now = real; }
+});
+
+// --- Sous-titres et pistes (HANDOFF §5.3–5.4) ------------------------------------------------------------------
+
+const prefsStore = (store, prefs) => store.setItem('cimaise.v1', JSON.stringify({ version: 2, prefs }));
+const storedPrefs = (store) => JSON.parse(store.getItem('cimaise.v1')).prefs;
+const DECISION = JSON.stringify({ MediaContainer: { generalDecisionCode: 1000 } });
+// Serveur factice qui accepte aussi la décision de transcodage (journalisée dans http.calls).
+function withDecision(s) {
+  const base = s.http;
+  const http = (req, cb) => {
+    if (/transcode\/universal\/decision/.test(req.url)) { http.calls.push(req); setImmediate(() => cb(null, { status: 200, body: DECISION })); return { abort() {} }; }
+    return base(req, cb);
+  };
+  http.calls = base.calls; http.timelines = base.timelines; http.scrobbles = base.scrobbles;
+  s.arg.http = http;
+}
+const EPISODE = { ratingKey: '100', type: 'episode', title: 'Épisode 1', grandparentRatingKey: '900' };
+async function playing(name, prefs, over = {}) {
+  const s = setup({ meta: () => sample(name), ...over });
+  if (prefs) prefsStore(s.arg.store, prefs);
+  if (over.transcode) withDecision(s);
+  const panel = ui.createPlayerPanel(s.arg, over.item || MOVIE);
+  await flush();
+  return { ...s, panel };
+}
+const subLine = (panel) => byClass(panel.el, 'plex-pl-sub')[0];
+const menuTexts = (panel) => byClass(byClass(panel.el, 'plex-pl-menu')[0], 'plex-pl-opt').map((o) => o.textContent);
+// Descend jusqu'à l'entrée de menu dont le texte correspond, puis Entrée.
+function pick(panel, re) {
+  const opts = menuTexts(panel), i = opts.findIndex((t) => re.test(t));
+  assert.ok(i >= 0, re + ' absent du menu : ' + opts.join(' | '));
+  for (let k = 0; k < i; k++) panel.onKey('down');
+  panel.onKey('enter');
+}
+
+test('sous-titres : SRT interne choisi par défaut (langue des Réglages) → setSelectTrack sur la bonne piste AVPlay', async () => {
+  const s = await playing('mkv-h264-ac3-srt-externe', { plexAudioLang: 'eng', plexSubLang: 'fra' });
+  s.player.tracks = [
+    { kind: 'audio', index: 1, info: {} }, { kind: 'audio', index: 2, info: {} },
+    { kind: 'text', index: 3, info: {} }, { kind: 'text', index: 4, info: {} }, { kind: 'text', index: 5, info: {} },
+  ];
+  s.player.calls.length = 0;
+  s.player.ready();
+  assert.ok(s.player.calls.includes('select:audio2'), s.player.calls.join());
+  assert.ok(s.player.calls.includes('select:text3'), s.player.calls.join());
+  assert.ok(!s.player.openOpts.subtitleUrl);
+});
+
+test('sous-titres : SRT externe → URL du fichier passée à l’ouverture (setExternalSubtitlePath), lecture directe', async () => {
+  const s = await playing('mkv-h264-ac3-pgs', { plexSubLang: 'fra' });
+  assert.ok(s.player.url.startsWith(SERVER.uri + '/library/parts/'), s.player.url);
+  assert.ok(s.player.openOpts.subtitleUrl.startsWith(SERVER.uri + '/library/streams/'), s.player.openOpts.subtitleUrl);
+  assert.equal(new URL(s.player.openOpts.subtitleUrl).searchParams.get('X-Plex-Token'), SERVER.token);
+});
+
+test('sous-titres : rendu maison des événements AVPlay, en bas, nettoyé, effacé à l’expiration, jamais flou', async () => {
+  const s = await playing('mkv-h264-ac3-pgs', { plexSubLang: 'fra' });
+  s.player.ready();
+  assert.equal(subLine(s.panel).textContent, '');
+  s.player.events.onSubtitle('<i>Bonjour</i>\n{\\an8}tout le monde', 2000);
+  assert.equal(subLine(s.panel).textContent, 'Bonjour\ntout le monde');
+  s.timers.advance(1999);
+  assert.equal(subLine(s.panel).textContent, 'Bonjour\ntout le monde');
+  s.timers.advance(2);
+  assert.equal(subLine(s.panel).textContent, '');
+  s.player.events.onSubtitle('Un', 1000);
+  s.player.events.onSubtitle('Deux', 1000);
+  assert.equal(subLine(s.panel).textContent, 'Deux', 'le nouveau texte remplace l’ancien');
+  const css = readFileSync('packages/plex/src/plex.css', 'utf8');
+  const rule = css.match(/\.plex-pl-sub\{[^}]*\}/);
+  assert.ok(rule, 'règle .plex-pl-sub');
+  assert.doesNotMatch(rule[0], /blur|filter/);
+  assert.match(rule[0], /font-size:(4[4-9]|[5-9]\d)px/, 'lisible à 3 m');
+});
+
+test('sous-titres : rien n’est affiché quand les sous-titres sont coupés (événements d’une piste non choisie ignorés)', async () => {
+  const s = await playing('mp4-h264-aac', {});
+  s.player.ready();
+  s.player.events.onSubtitle('Texte', 2000);
+  assert.equal(subLine(s.panel).textContent, '');
+});
+
+test('sous-titres : un sous-titre externe refusé par AVPlay n’arrête pas la lecture, le lecteur l’indique', async () => {
+  const s = await playing('mkv-h264-ac3-pgs', { plexSubLang: 'fra' });
+  s.player.ready();
+  s.player.events.onSubtitleError(new Error('AVPlay : refusé'));
+  assert.ok(has(s.panel.el, /Sous-titres indisponibles/));
+  assert.ok(!has(s.panel.el, /Lecture impossible/));
+});
+
+test('sous-titres : externe refusé pendant l’ouverture → aucune piste interne choisie à la place, message une fois la lecture lancée', async () => {
+  const s = await playing('mkv-h264-ac3-pgs', { plexSubLang: 'fra' });
+  s.player.tracks = [{ kind: 'audio', index: 1, info: {} }, { kind: 'text', index: 2, info: {} }];
+  s.player.events.onSubtitleError(new Error('AVPlay : refusé')); // synchrone dans open(), avant le prêt
+  s.player.calls.length = 0;
+  s.player.ready();
+  assert.ok(!s.player.calls.some((c) => /^select:text/.test(c)), s.player.calls.join());
+  assert.ok(has(s.panel.el, /Sous-titres indisponibles/));
+  s.player.events.onSubtitle('Interne', 1000);
+  assert.equal(subLine(s.panel).textContent, '');
+});
+
+test('PGS / VobSub / ASS : transcodage avec sous-titres incrustés, demandé au serveur (subtitles=burn)', async () => {
+  const s = await playing('mkv-h264-ac3-vobsub', { plexAudioLang: 'fra', plexSubLang: 'eng' }, { transcode: true });
+  const req = s.arg.http.calls.find((c) => /transcode\/universal\/decision/.test(c.url));
+  assert.ok(req, 'décision demandée');
+  assert.equal(param(req, 'subtitles'), 'burn');
+  assert.equal(param(req, 'subtitleStreamID'), '8303');
+  assert.match(s.player.url, /start\.m3u8\?/);
+  s.player.ready();
+  assert.match(mode(s.panel), /^Transcodage : .*vobsub/);
+  assert.ok(!s.player.openOpts.subtitleUrl, 'pas de sous-titre AVPlay : ils sont dans l’image');
+});
+
+test('menu des pistes : audio et sous-titres avec langue, codec et « forcés », piste courante marquée', async () => {
+  const s = await playing('mkv-h264-ac3-srt-force', {});
+  s.player.ready();
+  s.panel.onKey('up');
+  const m = menuTexts(s.panel);
+  assert.ok(m.some((t) => /Audio · Français · AC3/.test(t) && /●/.test(t)), m.join(' | '));
+  assert.ok(m.some((t) => /Audio · Anglais · AC3/.test(t) && !/●/.test(t)));
+  assert.ok(m.some((t) => /Sous-titres · Français · SRT · forcés/.test(t) && /●/.test(t)), 'forcé actif seul par défaut');
+  assert.ok(m.some((t) => /Sous-titres · Désactivés/.test(t)));
+});
+
+test('menu : sous-titres forcés actifs seuls (sélection interne + affichage) sans rien demander', async () => {
+  const s = await playing('mkv-h264-ac3-srt-force', {});
+  s.player.tracks = [{ kind: 'audio', index: 1, info: {} }, { kind: 'audio', index: 2, info: {} }, { kind: 'text', index: 3, info: {} }, { kind: 'text', index: 4, info: {} }];
+  s.player.ready();
+  assert.ok(s.player.calls.includes('select:text3'), s.player.calls.join());
+  s.player.events.onSubtitle('Traduction', 1500);
+  assert.equal(subLine(s.panel).textContent, 'Traduction');
+});
+
+test('menu : changer de sous-titre interne en direct se fait en place (setSelectTrack), sans relancer le flux', async () => {
+  const s = await playing('mkv-h264-ac3-srt-force', {});
+  s.player.tracks = [{ kind: 'audio', index: 1, info: {} }, { kind: 'audio', index: 2, info: {} }, { kind: 'text', index: 3, info: {} }, { kind: 'text', index: 4, info: {} }];
+  s.player.ready(); s.player.calls.length = 0;
+  s.panel.onKey('up');
+  pick(s.panel, /Sous-titres · Français · SRT$/);
+  assert.deepEqual(s.player.calls.filter((c) => c !== 'subs:true'), ['select:text4']);
+  s.player.events.onSubtitle('Texte', 1000);
+  assert.equal(subLine(s.panel).textContent, 'Texte');
+  s.panel.onKey('up');
+  pick(s.panel, /Désactivés/);
+  assert.equal(subLine(s.panel).textContent, '', 'désactivés : ligne effacée');
+  s.player.events.onSubtitle('Encore', 1000);
+  assert.equal(subLine(s.panel).textContent, '');
+});
+
+test('menu : choisir un SRT externe relance le flux à la position courante avec le fichier de sous-titres', async () => {
+  const s = await playing('mkv-h264-ac3-pgs', {});
+  s.player.ready(); s.player.pos = 321000; s.player.calls.length = 0;
+  s.panel.onKey('up');
+  pick(s.panel, /Sous-titres · Français · SRT · externe/);
+  assert.ok(s.player.calls.includes('open'), s.player.calls.join());
+  assert.equal(s.player.openOpts.startMs, 321000);
+  assert.ok(s.player.openOpts.subtitleUrl);
+  s.player.ready();
+  assert.ok(!has(s.panel.el, /Lecture impossible/));
+});
+
+test('menu : choisir un sous-titre PGS relance en transcodage incrusté à la position courante', async () => {
+  const s = await playing('mkv-h264-ac3-pgs', {}, { transcode: true });
+  s.player.ready(); s.player.pos = 100000; s.player.calls.length = 0;
+  s.panel.onKey('up');
+  pick(s.panel, /Sous-titres · Anglais · PGS · incrustés/);
+  await flush();
+  const req = s.arg.http.calls.filter((c) => /transcode\/universal\/decision/.test(c.url)).pop();
+  assert.ok(req, 'décision demandée');
+  assert.equal(param(req, 'subtitles'), 'burn');
+  assert.match(s.player.url, /start\.m3u8/);
+  assert.equal(s.player.openOpts.startMs, 100000);
+});
+
+test('séries : le choix de piste est retenu pour les autres épisodes (langue, pas identifiant de piste)', async () => {
+  const s = await playing('mkv-h264-ac3-srt-force', {}, { item: EPISODE });
+  s.player.ready();
+  s.panel.onKey('up'); pick(s.panel, /Audio · Anglais/);
+  s.panel.onKey('up'); pick(s.panel, /Sous-titres · Français · SRT$/);
+  assert.deepEqual(storedPrefs(s.arg.store).plexSeries['900'], { audioLang: 'eng', subLang: 'fra' });
+  // Autre épisode de la même série : mêmes choix sans toucher au menu.
+  const t = setup({ meta: () => sample('mkv-h264-ac3-srt-force'), arg: { store: s.arg.store } });
+  const panel = ui.createPlayerPanel(t.arg, { ...EPISODE, ratingKey: '101' });
+  await flush();
+  t.player.tracks = [{ kind: 'audio', index: 1, info: {} }, { kind: 'audio', index: 2, info: {} }, { kind: 'text', index: 3, info: {} }, { kind: 'text', index: 4, info: {} }];
+  t.player.ready();
+  assert.ok(t.player.calls.includes('select:audio2') && t.player.calls.includes('select:text4'), t.player.calls.join());
+  // Une autre série garde les réglages globaux (audio français, forcé seul).
+  const u = setup({ meta: () => sample('mkv-h264-ac3-srt-force'), arg: { store: s.arg.store } });
+  ui.createPlayerPanel(u.arg, { ...EPISODE, grandparentRatingKey: '777' });
+  await flush();
+  u.player.tracks = t.player.tracks;
+  u.player.ready();
+  assert.ok(u.player.calls.includes('select:audio1') && u.player.calls.includes('select:text3'), u.player.calls.join());
+});
+
+test('séries : désactiver les sous-titres est retenu aussi ; un film ne laisse aucune mémoire de série', async () => {
+  const s = await playing('mkv-h264-ac3-srt-force', { plexSubLang: 'fra' }, { item: EPISODE });
+  s.player.ready();
+  s.panel.onKey('up'); pick(s.panel, /Désactivés/);
+  assert.equal(storedPrefs(s.arg.store).plexSeries['900'].subLang, '');
+  const m = await playing('mkv-h264-ac3-srt-force', {});
+  m.player.ready();
+  m.panel.onKey('up'); pick(m.panel, /Audio · Anglais/);
+  assert.equal(storedPrefs(m.arg.store).plexSeries, undefined);
 });

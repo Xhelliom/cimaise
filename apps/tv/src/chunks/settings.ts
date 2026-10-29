@@ -1,6 +1,7 @@
 import { Panel } from '../../../../packages/tv-core/src/router/router';
 import { createSettings } from '../../../../packages/launcher/src/settings';
 import { AppEntry, DiscoveredApp } from '../../../../packages/launcher/src/settings/model';
+import { loadLangPrefs, saveLangPrefs } from '../../../../packages/tv-core/src/langprefs';
 import { HomeMode } from '../../../../packages/launcher/src/home/model';
 import { CatalogEntry } from '../../../../packages/launcher/src/catalog/model';
 
@@ -35,7 +36,7 @@ function toEntry(a: AppEntry, from: CatalogEntry[]): CatalogEntry {
 }
 
 function createPanel(arg: SettingsArg): Panel {
-  var current = arg.catalog;
+  var current = arg.catalog, langs = loadLangPrefs();
   return createSettings({
     catalog: current.map(toApp),
     // Hors TV l'adaptateur lève (DeviceError) au lieu d'appeler fail : on ramène ça au rappel d'erreur de l'écran.
@@ -51,6 +52,11 @@ function createPanel(arg: SettingsArg): Panel {
     onMode: arg.onMode,
     tiles: arg.tiles,
     onTiles: arg.onTiles,
+    // Langues par défaut du lecteur Plex : lues et écrites ici (chunk chargé à la demande), pas dans le bundle initial.
+    audioLang: langs.audioLang,
+    onAudioLang: function (code) { try { saveLangPrefs({ audioLang: code }); } catch (e) { /* stockage refusé : valable pour cette session */ } },
+    subLang: langs.subLang,
+    onSubLang: function (code) { try { saveLangPrefs({ subLang: code }); } catch (e) { /* stockage refusé : valable pour cette session */ } },
     onClose: arg.onClose
   });
 }

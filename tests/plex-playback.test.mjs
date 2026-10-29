@@ -449,3 +449,87 @@ test('aucun secret ni IP réelle dans les fixtures de médias', () => {
   assert.doesNotMatch(txt, /\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/);
   assert.doesNotMatch(txt, /X-Plex-Token|"file"\s*:/);
 });
+
+// --- Sous-titres et pistes (HANDOFF §5.3–5.4) : fiches réelles anonymisées --------------------------------------
+
+test('sous-titres : langue choisie → SRT interne en lecture directe (setSelectTrack)', () => {
+  const plan = pb.decidePlayback(item('mkv-h264-ac3-srt-externe'), { audioLang: 'eng', subLang: 'fra' });
+  assert.equal(plan.mode, 'direct');
+  assert.equal(plan.subtitleMode, 'embedded');
+  assert.equal(plan.subtitle.codec, 'srt');
+  assert.equal(plan.subtitle.languageCode, 'fra');
+  assert.ok(!plan.subtitle.key);
+});
+
+test('sous-titres : seul un SRT externe existe dans la langue → lecture directe, URL du fichier à côté', () => {
+  const plan = pb.decidePlayback(item('mkv-h264-ac3-pgs'), { audioLang: 'eng', subLang: 'fra' });
+  assert.equal(plan.mode, 'direct');
+  assert.equal(plan.subtitleMode, 'external');
+  const url = pb.subtitleUrl(SERVER, plan);
+  assert.ok(url.startsWith(SERVER.uri + '/library/streams/'), url);
+  assert.equal(new URL(url).searchParams.get('X-Plex-Token'), SERVER.token);
+});
+
+test('sous-titres : un SRT lisible l’emporte sur ASS/PGS de la même langue (pas de transcodage inutile)', () => {
+  const ass = pb.decidePlayback(item('mkv-h264-ac3-ass'), { audioLang: 'ita', subLang: 'eng' });
+  assert.equal(ass.mode, 'direct');
+  assert.equal(ass.subtitle.codec, 'srt');
+  assert.equal(ass.subtitleMode, 'external');
+  const pgs = pb.decidePlayback(item('mkv-h264-truehd-pgs'), { audioLang: 'fra', subLang: 'eng' });
+  assert.equal(pgs.subtitle.codec, 'srt');
+});
+
+test('sous-titres : ASS seul dans la langue → transcodage, sous-titres incrustés (subtitles=burn)', () => {
+  const plan = pb.decidePlayback(item('mkv-h264-ac3-ass'), { audioLang: 'eng', subLang: 'ita' });
+  assert.equal(plan.mode, 'transcode');
+  assert.equal(plan.subtitleMode, 'burned');
+  assert.ok(codes(plan).includes('subtitle-format'));
+  assert.equal(plan.subtitle.codec, 'ass');
+  assert.equal(plan.subtitle.forced, undefined, 'la piste complète est préférée à la piste forcée');
+});
+
+test('sous-titres : VobSub et PGS seuls → incrustés par le transcodeur, id de piste dans la requête', async () => {
+  for (const [name, audio, sub, id] of [['mkv-h264-ac3-vobsub', 'fra', 'eng', 8303], ['mkv-av1-opus', 'eng', 'fra', 12304]]) {
+    const plan = pb.decidePlayback(item(name), { audioLang: audio, subLang: sub });
+    assert.equal(plan.mode, 'transcode', name);
+    assert.equal(plan.subtitleMode, 'burned', name);
+    const http = fakeHttp(OK_DECISION);
+    const [err, r] = await sync((cb) => pb.requestTranscode(http, ID, SERVER, plan, 's', cb));
+    assert.equal(err, null);
+    const q = new URL(http.calls[0].url).searchParams;
+    assert.equal(q.get('subtitles'), 'burn');
+    assert.equal(q.get('subtitleStreamID'), String(plan.subtitle.id));
+    assert.equal(plan.subtitle.id, id, name);
+    assert.match(r.url, /start\.m3u8/);
+  }
+});
+
+test('sous-titres : la langue demandée donne la piste complète (même langue que l’audio comprise)', () => {
+  assert.equal(pb.decidePlayback(item('mkv-h264-ac3-srt-force'), { audioLang: 'fra', subLang: 'fra' }).subtitle.id, 10304);
+  assert.equal(pb.decidePlayback(item('mkv-h264-ac3-srt-force'), { audioLang: 'eng', subLang: 'fra' }).subtitle.id, 10304);
+  assert.equal(pb.decidePlayback(item('mkv-h264-dts'), { subLang: 'jpn' }).subtitle, null, 'langue absente : coupés');
+});
+
+test('sous-titres : défaut « aucun » → coupés, sauf piste forcée dans la langue de l’audio (s’active seule)', () => {
+  assert.equal(pb.decidePlayback(item('mkv-h264-ac3-srt-force'), {}).subtitle.id, 10303);
+  assert.equal(pb.decidePlayback(item('mkv-h264-ac3-srt-force'), { subLang: '' }).subtitle.id, 10303);
+  assert.equal(pb.decidePlayback(item('mp4-h264-aac'), {}).subtitle, null);
+  assert.equal(pb.decidePlayback(item('mp4-h264-aac'), {}).subtitleMode, 'off');
+});
+
+test('pistes : audio de la langue demandée, repli sur la première piste si elle n’existe pas', () => {
+  assert.equal(pb.decidePlayback(item('mkv-h264-ac3-srt-force'), { audioLang: 'eng' }).audio.id, 10302);
+  assert.equal(pb.decidePlayback(item('mkv-h264-ac3-srt-force'), { audioLang: 'jpn' }).audio.id, 10301);
+});
+
+test('pistes : étiquettes du menu (langue, codec, forcés, incrustés)', () => {
+  const plan = pb.decidePlayback(item('mkv-h264-ac3-ass'), {});
+  const e = pb.trackEntries(plan);
+  const audio = e.filter((x) => x.kind === 'audio').map((x) => x.label);
+  assert.deepEqual(audio, ['Audio · Italien · AC3', 'Audio · Anglais · AC3']);
+  const subs = e.filter((x) => x.kind === 'subtitle').map((x) => x.label);
+  assert.equal(subs[0], 'Sous-titres · Désactivés');
+  assert.ok(subs.includes('Sous-titres · Italien · ASS · forcés · incrustés'), subs.join('|'));
+  assert.ok(subs.includes('Sous-titres · Anglais · SRT · externe'), subs.join('|'));
+  assert.equal(e.filter((x) => x.current).length, 2, 'audio courant + sous-titres courant');
+});

@@ -7,3 +7,4 @@ export * from './device';
 export * from './router';
 export * from './virtual';
 export * from './player';
+export * from './langprefs';

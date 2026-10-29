@@ -21,7 +21,7 @@ before(async () => {
 // Fausse API AVPlay : journalise les appels, réussit de façon synchrone.
 function fakeApi(over = {}) {
   const calls = [];
-  let time = 0;
+  let time = 0, silent = false;
   const api = {
     calls,
     open: (u) => calls.push('open:' + u),
@@ -42,7 +42,9 @@ function fakeApi(over = {}) {
       { index: 2, type: 'TEXT', extra_info: '{"track_lang":"eng"}' },
     ],
     setSelectTrack: (t, i) => calls.push('select:' + t + i),
-    setSilentSubtitle: (b) => calls.push('silent:' + b),
+    // Comme AVPlay : en mode silencieux, aucun onsubtitlechange n'est émis.
+    setSilentSubtitle: (b) => { silent = b; calls.push('silent:' + b); },
+    emitSubtitle: (d, t) => { if (!silent && api.listener) api.listener.onsubtitlechange(d, t); },
     setTime: (t) => { time = t; },
     ...over,
   };
@@ -279,4 +281,37 @@ test('docs/decisions.md documente webapis.js et les privilèges AVPlay', () => {
   assert.match(d, /\$WEBAPIS\/webapis\/webapis\.js/);
   assert.match(d, /http:\/\/developer\.samsung\.com\/privilege\/avplay/);
   assert.match(d, /http:\/\/tizen\.org\/privilege\/internet/);
+});
+
+test('sous-titre externe : chemin posé après open et avant prepareAsync ; un refus n’arrête pas la lecture', () => {
+  const api = fakeApi({ setExternalSubtitlePath: (u) => api.calls.push('ext:' + u) });
+  const p = core.createPlayer({ api, doc: fakeDoc() });
+  let err = 'pas rappelé';
+  p.open('http://v', { subtitleUrl: 'http://s.srt' }, (e) => { err = e; });
+  assert.equal(err, null);
+  const c = api.calls;
+  assert.ok(c.indexOf('open:http://v') < c.indexOf('ext:http://s.srt') && c.indexOf('ext:http://s.srt') < c.indexOf('prepareAsync'), c.join());
+  const ev = [];
+  const api2 = fakeApi({ setExternalSubtitlePath: () => { throw new Error('refusé'); } });
+  const p2 = core.createPlayer({ api: api2, doc: fakeDoc(), onSubtitleError: (e) => ev.push(e.message), onError: (e) => ev.push('FATAL ' + e.message) });
+  p2.open('http://v', { subtitleUrl: 'http://s.srt' }, (e) => { err = e; });
+  assert.equal(err, null);
+  assert.ok(api2.calls.includes('play'));
+  assert.deepEqual(ev, ['refusé']);
+});
+
+test('sous-titres : AVPlay n’est pas silencieux à l’ouverture, le texte arrive à la page', () => {
+  const api = fakeApi();
+  const got = [];
+  const p = core.createPlayer({ api, doc: fakeDoc(), onSubtitle: (t) => got.push(t) });
+  p.open('u', {}, () => {});
+  assert.ok(!api.calls.includes('silent:true'), 'jamais coupé à l’ouverture');
+  api.emitSubtitle(1000, 'Bonjour');
+  assert.deepEqual(got, ['Bonjour']);
+  p.setSubtitlesVisible(false);
+  api.emitSubtitle(1000, 'muet');
+  assert.deepEqual(got, ['Bonjour'], 'silencieux : aucun événement');
+  p.setSubtitlesVisible(true);
+  api.emitSubtitle(1000, 'revenu');
+  assert.deepEqual(got, ['Bonjour', 'revenu']);
 });

@@ -24,3 +24,5 @@ Hypothèses et points à vérifier (voir HANDOFF §11).
 - HTTPS auto-signé (phase 2)
 - Autorun après le mode Art et après coupure de courant
 - Persistance de l'app en arrière-plan
+
+- **Sous-titres et pistes (lecteur Plex)** : rendu maison des sous-titres, SRT externe par `setExternalSubtitlePath`, menu des pistes, relance du flux au changement de piste, langues par défaut : **non testé sur la TV**, uniquement avec faux AVPlay (voir `docs/decisions.md`, « Sous-titres et pistes audio »).
