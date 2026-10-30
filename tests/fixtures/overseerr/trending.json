@@ -1,0 +1,69 @@
+{
+  "page": 1,
+  "totalPages": 500,
+  "totalResults": 10000,
+  "results": [
+    {
+      "id": 1015,
+      "mediaType": "tv",
+      "name": "Série 13",
+      "firstAirDate": "2026-01-01",
+      "posterPath": "/affiche13.jpg",
+      "overview": "Résumé 13"
+    },
+    {
+      "id": 1016,
+      "mediaType": "movie",
+      "title": "Film 14",
+      "releaseDate": "2026-01-01",
+      "posterPath": "/affiche14.jpg",
+      "overview": "Résumé 14"
+    },
+    {
+      "id": 1017,
+      "mediaType": "tv",
+      "name": "Série 15",
+      "firstAirDate": "2025-01-01",
+      "posterPath": "/affiche15.jpg",
+      "overview": "Résumé 15"
+    },
+    {
+      "id": 1018,
+      "mediaType": "movie",
+      "title": "Film 16",
+      "releaseDate": "2026-01-01",
+      "posterPath": "/affiche16.jpg",
+      "overview": "Résumé 16"
+    },
+    {
+      "id": 1019,
+      "mediaType": "movie",
+      "title": "Film 17",
+      "releaseDate": "2026-01-01",
+      "posterPath": "/affiche17.jpg",
+      "overview": "Résumé 17",
+      "mediaInfo": {
+        "id": 1020,
+        "tmdbId": 1019,
+        "mediaType": "movie",
+        "status": 5,
+        "status4k": 1
+      }
+    },
+    {
+      "id": 1021,
+      "mediaType": "movie",
+      "title": "Film 18",
+      "releaseDate": "2026-01-01",
+      "posterPath": "/affiche18.jpg",
+      "overview": "Résumé 18",
+      "mediaInfo": {
+        "id": 1022,
+        "tmdbId": 1021,
+        "mediaType": "movie",
+        "status": 3,
+        "status4k": 1
+      }
+    }
+  ]
+}

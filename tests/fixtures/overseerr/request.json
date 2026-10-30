@@ -1,0 +1,14 @@
+{
+  "id": 1029,
+  "status": 2,
+  "type": "tv",
+  "is4k": false,
+  "media": {
+    "id": 1030,
+    "tmdbId": 1031,
+    "mediaType": "tv",
+    "status": 4,
+    "status4k": 1
+  },
+  "seasons": []
+}

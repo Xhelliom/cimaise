@@ -1,0 +1,53 @@
+{
+  "page": 1,
+  "totalPages": 42,
+  "totalResults": 834,
+  "results": [
+    {
+      "id": 1023,
+      "mediaType": "movie",
+      "title": "Film 19",
+      "releaseDate": "2017-01-01",
+      "posterPath": "/affiche19.jpg",
+      "overview": "Résumé 19"
+    },
+    {
+      "id": 1024,
+      "mediaType": "movie",
+      "title": "Film 20",
+      "releaseDate": "2001-01-01",
+      "posterPath": "/affiche20.jpg",
+      "overview": "Résumé 20"
+    },
+    {
+      "id": 1025,
+      "mediaType": "movie",
+      "title": "Film 21",
+      "releaseDate": "2005-01-01",
+      "posterPath": null,
+      "overview": ""
+    },
+    {
+      "id": 1026,
+      "mediaType": "person",
+      "name": "Personne 22",
+      "knownFor": []
+    },
+    {
+      "id": 1027,
+      "mediaType": "tv",
+      "name": "Série 23",
+      "firstAirDate": "2017-01-01",
+      "posterPath": "/affiche23.jpg",
+      "overview": ""
+    },
+    {
+      "id": 1028,
+      "mediaType": "tv",
+      "name": "Série 24",
+      "firstAirDate": "2019-01-01",
+      "posterPath": null,
+      "overview": ""
+    }
+  ]
+}
