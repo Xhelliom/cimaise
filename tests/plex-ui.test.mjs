@@ -473,6 +473,36 @@ test('retour de lecture : la fiche film affiche la nouvelle position (Reprendre,
   assert.equal(bar.style.transform, 'scaleX(0.5)');
 });
 
+test('retour de lecture : la position locale s’affiche tout de suite, et le serveur en retard ne l’écrase pas', async () => {
+  const d = deps();
+  const movie = { ratingKey: '100', type: 'movie', title: 'Titre de film 1', thumb: '/library/metadata/100/thumb/1700000000' };
+  const p = ui.createDetailPanel(d.arg, movie);
+  await flush();
+  p.suspend();
+  sharedData(d).progressed(movie, 600000, false);   // sortie à 10 min ; le serveur répond encore sans position
+  p.resume();
+  assert.equal(byClass(p.el, 'plex-play')[0].textContent, 'Reprendre · 10:00', 'sans attendre le serveur');
+  await flush();
+  assert.equal(byClass(p.el, 'plex-play')[0].textContent, 'Reprendre · 10:00', 'après la réponse du serveur en retard');
+  assert.ok(reqs(d.arg.http, /\/library\/metadata\/100(\?|$)/) >= 2, 'le serveur est tout de même interrogé');
+});
+
+test('retour de lecture : l’épisode quitté propose « Reprendre » sans attendre, même si le serveur est en retard', async () => {
+  const { d } = viewDeps({
+    ondeck: { ratingKey: '2', type: 'episode', index: 2, parentIndex: 1, parentRatingKey: '750', title: 'Ép 2', duration: 1200000 },
+    seasonsOf: [season('750', 1, 2, 1)],
+    eps: { 750: [episode('1', 1, '750', { viewCount: 1 }), episode('2', 2, '750', { duration: 1200000 })] },
+  });
+  const p = ui.createDetailPanel(d.arg, SHOW_DECK);
+  await flush();
+  p.suspend();
+  sharedData(d).progressed({ ratingKey: '2', type: 'episode', parentRatingKey: '750', grandparentRatingKey: '700' }, 600000, false);
+  p.resume();
+  assert.equal(playBtn(p), 'Reprendre S1 E2 · 10:00', 'tout de suite');
+  await flush();
+  assert.equal(playBtn(p), 'Reprendre S1 E2 · 10:00', 'après le serveur en retard');
+});
+
 test('retour de lecture : la fiche série recharge les épisodes de la saison courante', async () => {
   const d = deps();
   const show = { ratingKey: '200', type: 'show', title: 'Titre de série 1', thumb: '/library/metadata/200/thumb/1700000000' };
