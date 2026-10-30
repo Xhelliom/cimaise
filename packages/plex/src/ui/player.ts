@@ -1,5 +1,5 @@
 import { Abortable, Item } from '../api/types';
-import { bifFrameAt, findNextEpisode, inSpan, Markers, parseMarkers, Bif, decidePlayback, hasPreviewIndex, loadBif, directPlaybackUrl, newTranscodeSession, normalizeLang, PlaybackPlan, requestSubtitleSidecar, requestTranscode, stopTranscode, subtitleUrl, trackEntries, TrackEntry } from '../playback';
+import { bifFrameAt, findNextEpisode, inSpan, Markers, Span, parseMarkers, Bif, decidePlayback, hasPreviewIndex, loadBif, directPlaybackUrl, newTranscodeSession, normalizeLang, PlaybackPlan, requestSubtitleSidecar, requestTranscode, stopTranscode, subtitleUrl, trackEntries, TrackEntry } from '../playback';
 import { getMetadata } from '../api/library';
 import { xhrBinary, xhrHttp } from '../api/xhr';
 import { createProgress, Progress } from '../progress';
@@ -16,6 +16,7 @@ var SUB_MS = 3000; // durée d'affichage d'un sous-titre dont AVPlay ne donne pa
 var CARD_S = 10;   // compte à rebours avant l'épisode suivant
 var AUTO_MAX = 3;  // épisodes enchaînés d'affilée sans touche, avant « Vous regardez toujours ? »
 var END_SLACK = 2000; // un marqueur de générique qui finit à moins de 2 s de la fin du fichier vaut « fin de l'épisode »
+var TAIL_MS = 30000;  // sans marqueur de générique : la carte de l'épisode suivant s'affiche 30 s avant la fin
 
 // État partagé d'un enchaînement d'épisodes (passé de lecteur en lecteur) : épisodes lancés par le compte à rebours depuis la dernière touche.
 export interface Chain { auto: number; }
@@ -80,10 +81,10 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number, ch
   var menu = el(doc, 'plex-pl-menu');
   var dialog = el(doc, 'plex-pl-dialog');
   var skip = el(doc, 'plex-pl-skip', '');   // « Passer l'intro / le générique », seul en bas à droite pendant le marqueur
-  var card = el(doc, 'plex-pl-card');       // « Épisode suivant dans N s »
+  var card = el(doc, 'plex-pl-card');       // « Suivant : S01E02 — titre », « Dans N s »
   var cardTitle = el(doc, 'plex-pl-card-title', '');
   var cardSub = el(doc, 'plex-pl-card-sub', '');
-  var cardHint = el(doc, 'plex-pl-card-hint', 'Entrée : lancer maintenant · Retour : annuler');
+  var cardHint = el(doc, 'plex-pl-card-hint', 'OK : lancer maintenant · Retour : annuler');
   var text = el(doc, 'plex-pl-text', 'Chargement…');
   var btns = el(doc, 'plex-pl-btns');
   track.appendChild(bar);
@@ -554,17 +555,23 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number, ch
     if (kind) skip.textContent = kind === 'intro' ? 'Passer l’intro' : 'Passer le générique';
     setClass(skip, 'plex-pl-skip', kind !== null);
   }
-  // Position courante par rapport aux marqueurs : bouton de saut pendant l'intro ou le générique ; avec un épisode suivant, le générique lance la carte.
+  // Zone de la carte : le marqueur de générique, sinon les 30 dernières secondes (si l'épisode est assez long pour que ce ne soit pas tout l'épisode).
+  function cardSpan(): Span | null {
+    if (markers.credits) return markers.credits;
+    return durationMs > 2 * TAIL_MS ? { start: durationMs - TAIL_MS, end: durationMs } : null;
+  }
+  // Position courante par rapport aux marqueurs : bouton de saut pendant l'intro ou le générique ; avec un épisode suivant,
+  // le générique (sans marqueur : les 30 dernières secondes) lance la carte.
   function markersAt(ms: number): void {
     if (mode !== 'play') return;
-    var inCred = inSpan(markers.credits, ms);
-    if (inCred && nextItem && !cardCancelled) {
+    var inCred = inSpan(markers.credits, ms), inTail = inSpan(cardSpan(), ms);
+    if (inTail && nextItem && !cardCancelled) {
       if (!cardOn) showCard();
       paintSkip(null);
       return;
     }
     if (cardOn) hideCard(); // sorti du générique (retour en arrière)
-    if (!inCred) cardCancelled = false;
+    if (!inTail) cardCancelled = false;
     var want: 'intro' | 'credits' | null = inSpan(markers.intro, ms) ? 'intro' : inCred ? 'credits' : null;
     if (want !== skipKind) paintSkip(want);
   }
@@ -578,11 +585,12 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number, ch
   // Fin de l'épisode voulue par l'utilisateur : le suivant s'il existe (vu), sinon retour à la fiche.
   function finish(): void { if (nextItem) goNext(true); else leave(true); }
 
-  function paintCard(): void { cardTitle.textContent = 'Épisode suivant dans ' + cardLeft + ' s'; }
+  function paintCard(): void { cardSub.textContent = 'Dans ' + cardLeft + ' s'; }
   function showCard(): void {
     var n = nextItem!;
     cardOn = true; cardLeft = CARD_S;
-    cardSub.textContent = (n.parentIndex !== undefined ? 'S' + n.parentIndex + ' ' : '') + (n.index !== undefined ? 'E' + n.index + ' · ' : '') + n.title;
+    var code = (n.parentIndex !== undefined ? 'S' + two(n.parentIndex) : '') + (n.index !== undefined ? 'E' + two(n.index) : '');
+    cardTitle.textContent = 'Suivant : ' + (code ? code + ' — ' : '') + n.title;
     paintCard();
     setClass(card, 'plex-pl-card', true);
     tickCard();
