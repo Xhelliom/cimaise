@@ -195,3 +195,25 @@ Pistes de sous-titres de tout le catalogue, par format et présence de `key` :
 - `/video/:/transcode/universal/subtitles` (extraction par le transcodeur) répond `400 Bad Request` en GET, avec ou sans `X-Plex-Client-Profile-Name: Generic`.
   Il demande probablement une décision de transcodage préalable (`subtitles=sidecar`) : c'est une **écriture serveur** (session), hors de la vérification « en lecture seule ».
 - Conséquence : sans écriture serveur, **aucune version SRT d'un ASS ou d'un mov_text n'est obtenable**. Les chiffres « avant/après » du gain ne peuvent pas encore être mesurés.
+
+### Essai `subtitles=sidecar` autorisé par Stéphane (2026-10-30, `scripts/plex/probe-sidecar.mjs`, une décision, aucune session lancée)
+
+- **ASS : ça marche.** `GET /video/:/transcode/universal/decision` avec `subtitles=sidecar&subtitleStreamID=<piste ASS>` (mêmes paramètres que la décision de transcodage) → `1001`,
+  et la réponse contient une piste `srt` (`location: sidecar-subs`, `key: /library/streams/N`, `N` ≠ id de la piste ASS). `GET` de cette clé : `200`, corps **SRT**, encore lisible après l'arrêt (aucune session n'était ouverte : `stop` répond 404).
+- **mov_text : ça ne marche pas.** Même décision : la réponse ne contient aucune piste de sous-titres. mov_text (79 pistes) reste donc incrusté.
+- **Code.** `FRAME_2019_PROFILE.subtitles.converted = [ass, ssa]` ; `decidePlayback` rend alors la lecture directe avec `subtitleMode: 'converted'` (incrusté seulement si autre cause de transcodage) ;
+  `requestSubtitleSidecar` obtient l'URL du SRT, passée à `setExternalSubtitlePath` comme un SRT externe ; sans réponse du serveur, la vidéo se lit sans sous-titres (« Sous-titres indisponibles »).
+  **Non vu sur la Frame** (voir `docs/tv-status.md`).
+
+### Gain mesuré (`node scripts/plex/audit.mjs` avant/après, même serveur, même jour)
+
+| Sous-titres français activés | Avant | Après |
+|---|---|---|
+| Épisodes → transcodage | 380 (21,7 %) | **277 (15,8 %)** : −103 (les ASS) |
+| Films → transcodage | 46 (18,2 %) | 44 (17,4 %) : −2 |
+| Fiches directes sans sous-titres que les sous-titres font transcoder (épisodes / films) | 2 / 6 | 1 / 5 |
+| Lecture directe par défaut (épisodes / films) | 72,0 % / 85,4 % | 75,7 % / 85,9 % |
+
+Les chiffres « avant » diffèrent de ceux du premier audit (102 épisodes, 13 films) : le défaut de choix de piste a changé depuis (les sous-titres sont maintenant retenus d'après les préférences),
+donc l'indicateur « bascule » n'est plus le même ; la ligne « −103 épisodes » correspond exactement aux 103 épisodes dont le sous-titre français retenu est un ASS.
+Restent incrustés : PGS, VobSub, mov_text.
