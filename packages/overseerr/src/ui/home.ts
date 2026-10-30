@@ -5,7 +5,7 @@ import { Abortable, Callback, Http, OverseerrConfig, Title, TitlePage } from '..
 import { appendTitles, posterUrl } from '../api/media';
 import { discoverMovies, discoverTv } from '../api/client';
 import { createOverseerrSearchPanel, Timers } from './search';
-import { badgeFor } from './badge';
+import { badgeFor, currentAvailability } from './badge';
 
 // Accueil Overseerr (maquette validée, packages/overseerr/mockups/accueil.html) : « Films du moment » et « Séries du moment »,
 // deux rangées virtualisées de 240×360. Une page (20 titres) chacune à l'ouverture, la suivante quand le focus approche de la fin.
@@ -45,7 +45,7 @@ export interface OverseerrArg {
   config: () => OverseerrConfig | null;   // relue à chaque chargement de page (les Réglages peuvent l'avoir changée)
   imageBase?: string;
   doc?: Document;
-  onOpen?: (t: Title) => void;            // fiche (lot suivant) ; absente : Entrée ne fait rien
+  onOpen?: (t: Title) => void;            // fiche ; absente : Entrée ne fait rien
   push?: (p: Panel) => void;              // empile la recherche ; absente : pas de pastille « Rechercher »
   timers?: Timers;
 }
@@ -75,7 +75,7 @@ export function createOverseerrPanel(arg: OverseerrArg): Panel {
   var failed = '';
 
   function tile(t: Title): TileInfo {
-    return { title: t.posterPath ? '' : t.title, image: posterUrl(t.posterPath, 'w185', arg.imageBase), badge: badgeFor(t.availability) };
+    return { title: t.posterPath ? '' : t.title, image: posterUrl(t.posterPath, 'w185', arg.imageBase), badge: badgeFor(currentAvailability(t)) };
   }
 
   function addRow(title: string, cls: string, load: Load): Row {
@@ -147,7 +147,7 @@ export function createOverseerrPanel(arg: OverseerrArg): Panel {
       return false;
     },
     suspend: function () { for (var i = 0; i < rows.length; i++) rows[i].list.release(); },
-    resume: function () { for (var i = 0; i < rows.length; i++) rows[i].list.restore(); },
+    resume: function () { for (var i = 0; i < rows.length; i++) { rows[i].list.refresh(); rows[i].list.restore(); } },   // refresh : badge changé par la fiche
     destroy: function () {
       for (var i = 0; i < rows.length; i++) { if (rows[i].req) rows[i].req!.abort(); rows[i].list.release(); }
     }

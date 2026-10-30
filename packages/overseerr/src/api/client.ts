@@ -32,6 +32,8 @@ function call(http: Http, cfg: OverseerrConfig | null, method: string, path: str
     if (s === 401 || (s === 403 && method === 'GET')) return cb(fail('unauthorized', 'clé API refusée', s));
     if (s === 403) return cb(fail('forbidden', 'action refusée (droit ou quota)', s));
     if (s === 409) return cb(fail('exists', 'déjà demandé', s));
+    // 202 sur POST /request : aucune demande créée, toutes les saisons de la série le sont déjà (code d'Overseerr, non observé).
+    if (s === 202 && method === 'POST') return cb(fail('exists', 'déjà demandé', s));
     if (s === 400) return cb(fail('invalid', 'paramètre refusé', s));
     if (s < 200 || s >= 300) return cb(fail('http', 'HTTP ' + s, s));
     var data: any;

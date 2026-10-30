@@ -6,7 +6,7 @@ import { recordMeasure } from '../../../tv-core/src/diag';
 import { Abortable, Http, OverseerrConfig, Title } from '../api/types';
 import { appendTitles, posterUrl } from '../api/media';
 import { search } from '../api/client';
-import { badgeFor } from './badge';
+import { badgeFor, currentAvailability } from './badge';
 
 // Recherche Overseerr : le clavier à l'écran de tv-core (le même que la recherche Plex et les Réglages, CSS déjà dans app.css)
 // à gauche, les résultats films et séries mêlés à droite, en grille virtualisée de 2 colonnes. Affiches w185 à leur taille
@@ -43,7 +43,7 @@ export interface OverseerrSearchArg {
   imageBase?: string;
   doc?: Document;
   timers?: Timers;
-  onOpen?: (t: Title) => void;   // fiche (lot suivant) ; absente : Entrée ne fait rien
+  onOpen?: (t: Title) => void;   // fiche ; absente : Entrée ne fait rien
 }
 
 function trim(s: string): string { return s.replace(/^\s+|\s+$/g, ''); }
@@ -82,7 +82,7 @@ export function createOverseerrSearchPanel(arg: OverseerrSearchArg): Panel {
     container: box, doc: doc, count: 0, itemW: W, itemH: H, gap: GAP, cols: COLS, viewportW: 402, viewportH: 832,
     render: function (i): TileInfo | null {
       var t = items[i];
-      return t ? { title: searchLabel(t), image: posterUrl(t.posterPath, 'w185', arg.imageBase), badge: badgeFor(t.availability) } : null;
+      return t ? { title: searchLabel(t), image: posterUrl(t.posterPath, 'w185', arg.imageBase), badge: badgeFor(currentAvailability(t)) } : null;
     },
     onSelect: function (i) { if (arg.onOpen && items[i]) arg.onOpen(items[i]); }
   });
@@ -181,7 +181,7 @@ export function createOverseerrSearchPanel(arg: OverseerrSearchArg): Panel {
       return kb.handleKey(k);
     },
     suspend: function () { grid.release(); },
-    resume: function () { grid.restore(); },
+    resume: function () { grid.refresh(); grid.restore(); },   // refresh : badge changé par la fiche
     destroy: function () {
       if (timer !== null) timers.clearTimeout(timer);
       if (req) req.abort();
