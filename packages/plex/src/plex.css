@@ -1,5 +1,6 @@
-/* Module Plex (docs/plex-design.md) : scène 1920×1080, jetons du Dock v2. On n'anime que transform et opacity ;
-   l'anneau de focus est un box-shadow à rayon de flou 0, sur la seule affiche focalisée. */
+/* Module Plex (docs/plex-design.md) : scène 1920×1080, jetons du Dock v2. On n'anime que transform et opacity.
+   Focus homogène (maquette du 30/10) partout dans le module : anneau blanc net de 6 px (box-shadow à rayon de flou 0) + scale(1.06),
+   sur le seul élément focalisé ; seule la barre de progression du lecteur garde l'anneau sans scale (elle porte le curseur). */
 .plex-panel{position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;background:#0b0b0d;color:#fff;font:300 30px/1.2 Outfit,sans-serif}
 .plex-status{position:absolute;left:120px;top:480px;font-size:34px;color:rgba(255,255,255,.6)}
 .plex-hubs{position:absolute;left:0;top:0;width:1920px;height:1080px;transition:transform .2s ease}
@@ -11,21 +12,28 @@
 .plex-grid{left:96px;top:170px;width:1824px;height:910px}
 .plex-row .vlayer,.plex-grid .vlayer{margin:30px 0 0 24px}
 .vtile .vimg{display:block;width:240px;height:360px;border-radius:12px;background:#2b2b2e;transition:transform .2s ease}
+/* Indice de débordement : chevron sur un disque sombre au bord droit, tant que des éléments suivent hors de l'écran (aucun dégradé) */
+.plex-more{position:absolute;left:1852px;width:56px;height:56px;border-radius:28px;background:rgba(0,0,0,.6);opacity:0;transition:opacity .2s;pointer-events:none;z-index:3}
+.plex-more.shown{opacity:1}
+.plex-more:after{content:"";position:absolute;left:12px;top:18px;width:14px;height:14px;border:solid #fff;border-width:5px 5px 0 0;transform:rotate(45deg)}
+.plex-hub .plex-more{top:422px}
+.plex-seasons-more{top:646px}
+.plex-episodes-more{top:819px}
 .vtile .vlabel{position:absolute;left:0;top:392px;width:240px;font-size:28px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:rgba(255,255,255,.9)}
-.plex-row .vtile.focus .vimg,.plex-grid .vtile.focus .vimg,.plex-episodes.on .vtile.focus .vimg{transform:scale(1.1);box-shadow:0 0 0 6px rgba(255,255,255,.92);position:relative;z-index:1}
+.plex-row .vtile.focus .vimg,.plex-grid .vtile.focus .vimg,.plex-episodes.on .vtile.focus .vimg{transform:scale(1.06);box-shadow:0 0 0 6px #fff;position:relative;z-index:1}
 .plex-row:not(.on) .vtile.focus .vimg{transform:none;box-shadow:none}
 /* Rangée inactive : repère discret (sélection mémorisée), sans anneau */
 .plex-row .vtile.mark .vimg,.plex-episodes .vtile.mark .vimg{opacity:.9}
-.plex-seasons .vtile.mark{box-shadow:inset 0 0 0 2px rgba(255,255,255,.35)}
+.plex-seasons .vtile.mark .vlabel{box-shadow:inset 0 0 0 2px rgba(255,255,255,.35)}
 .plex-alpha{position:absolute;left:28px;top:170px;width:64px;height:910px}
-.plex-alpha-l{height:33px;line-height:33px;text-align:center;font-size:22px;color:rgba(255,255,255,.75)}
+.plex-alpha-l{height:33px;line-height:33px;text-align:center;font-size:22px;color:rgba(255,255,255,.75);border-radius:8px;transition:transform .2s ease}
 .plex-alpha-l.empty{color:rgba(255,255,255,.2)}
 .plex-alpha-l.cur{color:#fff;font-weight:700}
-.plex-alpha-l.focus{background:rgba(255,255,255,.92);color:#000;border-radius:8px}
+.plex-alpha-l.focus{box-shadow:0 0 0 6px #fff;transform:scale(1.06);color:#fff;font-weight:700;position:relative;z-index:1}
 .plex-lib-title{position:absolute;left:120px;top:72px;font-size:40px;font-weight:500}
 .plex-lib-count{position:absolute;left:120px;top:130px;font-size:28px;color:rgba(255,255,255,.6)}
 /* Fiche (maquette du 30/10) : fond = art flouté et assombri PAR LE TRANSCODEUR (480×270 mis à l'échelle), aucun flou CSS ;
-   Reprendre en indigo (▶), Depuis le début, Marquer vu (✓) en pastilles de 88 px ; focus = anneau blanc net + scale. */
+   Reprendre en jaune Plex (▶, texte noir), Depuis le début, Marquer vu (✓) en pastilles de 88 px ; focus = anneau blanc net + scale. */
 .plex-dbg{position:absolute;left:0;top:0;width:1920px;height:1080px;opacity:0;transition:opacity .4s}
 .plex-dbg.on{opacity:1}
 .plex-dposter{position:absolute;left:120px;top:140px;width:360px;height:540px;border-radius:12px;background:#2b2b2e}
@@ -33,10 +41,10 @@
 .plex-dtitle{top:140px;width:1280px;font-size:72px;font-weight:500;letter-spacing:-.02em;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .plex-dmeta{top:244px;font-size:28px;color:rgba(255,255,255,.75)}
 .plex-prog{top:296px;width:480px;height:8px;border-radius:4px;background:rgba(255,255,255,.2);overflow:hidden}
-.plex-prog-bar{width:480px;height:8px;background:#6366f1;transform-origin:0 0}
+.plex-prog-bar{width:480px;height:8px;background:#e5a00d;transform-origin:0 0}
 .plex-btns{top:328px;display:flex}
 .plex-play,.plex-restart,.plex-mark{height:88px;padding:0 44px;margin-right:24px;border-radius:44px;display:flex;align-items:center;font-size:32px;font-weight:500;background:rgba(255,255,255,.12);color:#fff;transition:transform .2s ease}
-.plex-play{background:#6366f1}
+.plex-play{background:#e5a00d;color:#111}
 .plex-play::before{content:"";margin-right:20px;border-style:solid;border-width:15px 0 15px 26px;border-color:transparent transparent transparent currentColor}
 .plex-mark::before{content:"";width:16px;height:28px;margin:-6px 24px 0 4px;border:solid currentColor;border-width:0 6px 6px 0;transform:rotate(45deg)}
 .plex-play.focus,.plex-restart.focus,.plex-mark.focus{box-shadow:0 0 0 6px #fff;transform:scale(1.06)}
@@ -45,11 +53,10 @@
 .plex-seasons{position:absolute;left:496px;top:620px;width:1424px;height:130px;overflow:hidden}
 .plex-seasons .vlayer{margin:12px 0 0 24px}
 .plex-seasons .vimg{display:none}
-.plex-seasons .vtile{height:84px;border-radius:42px;background:rgba(255,255,255,.08);box-shadow:inset 0 0 0 2px rgba(255,255,255,.14)}
-.plex-seasons .vlabel{left:0;top:0;width:240px;height:84px;line-height:84px;text-align:center;font-size:30px}
-.plex-seasons .vtile.sel{background:rgba(255,255,255,.28);box-shadow:inset 0 -6px 0 0 #fff}
-.plex-seasons.on .vtile.focus{background:rgba(255,255,255,.9);box-shadow:none}
-.plex-seasons.on .vtile.focus .vlabel{color:#111}
+/* Pastille portée par le libellé : la tuile a déjà son translate en style inline, le scale du focus va donc au libellé */
+.plex-seasons .vlabel{left:0;top:0;width:240px;height:84px;line-height:84px;text-align:center;font-size:30px;border-radius:42px;background:rgba(255,255,255,.08);box-shadow:inset 0 0 0 2px rgba(255,255,255,.14);transition:transform .2s ease}
+.plex-seasons .vtile.sel .vlabel{background:rgba(255,255,255,.28);box-shadow:inset 0 -6px 0 0 #fff}
+.plex-seasons.on .vtile.focus .vlabel{box-shadow:0 0 0 6px #fff;transform:scale(1.06)}
 .plex-ep-title{position:absolute;left:120px;top:700px;font-size:28px;color:rgba(255,255,255,.6)}
 .plex-episodes{position:absolute;left:96px;top:716px;width:1824px;height:364px;overflow:hidden}
 .plex-episodes .vlayer{margin:30px 0 0 24px}
@@ -65,8 +72,8 @@
 .plex-pin{position:absolute;left:0;top:420px;width:1920px;text-align:center;font-size:260px;line-height:1;font-weight:500;letter-spacing:.12em;text-indent:.12em;color:#e5a00d}
 .plex-hint{position:absolute;left:0;top:900px;width:1920px;text-align:center;font-size:28px;color:rgba(255,255,255,.6)}
 .plex-servers{position:absolute;left:560px;top:340px;width:800px}
-.plex-server{height:96px;margin-bottom:24px;border-radius:48px;padding:0 48px;line-height:96px;font-size:40px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:rgba(255,255,255,.08);box-shadow:inset 0 0 0 2px rgba(255,255,255,.14)}
-.plex-server.focus{background:rgba(255,255,255,.9);box-shadow:none;color:#111}
+.plex-server{transition:transform .2s ease;height:96px;margin-bottom:24px;border-radius:48px;padding:0 48px;line-height:96px;font-size:40px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:rgba(255,255,255,.08);box-shadow:inset 0 0 0 2px rgba(255,255,255,.14)}
+.plex-server.focus{box-shadow:0 0 0 6px #fff;transform:scale(1.06)}
 /* Lecteur : transform et opacity seulement ; le fond devient transparent en lecture pour laisser voir la couche vidéo AVPlay */
 .plex-player{position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;background:#000;color:#fff;font:300 30px/1.2 Outfit,sans-serif}
 .plex-player.live,html.plex-live,html.plex-live body,html.plex-live .plex-shell{background:transparent}
@@ -75,7 +82,7 @@
 .plex-pl-title{position:absolute;left:120px;top:812px;width:1240px;font-size:44px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .plex-pl-prog{position:absolute;left:120px;top:890px;width:1680px;height:8px}
 .plex-pl-track{position:absolute;left:0;top:0;width:1680px;height:8px;border-radius:4px;background:rgba(255,255,255,.25);overflow:hidden}
-.plex-pl-track.focus{box-shadow:0 0 0 4px rgba(255,255,255,.9)}
+.plex-pl-track.focus{box-shadow:0 0 0 6px #fff}
 .plex-pl-bar{width:1680px;height:8px;background:#e5a00d;transform-origin:0 0;transform:scaleX(0)}
 .plex-pl-cursor{position:absolute;left:0;top:-4px;width:0;height:16px;opacity:0}
 .plex-pl-cursor.on{opacity:1}
@@ -86,10 +93,10 @@
 .plex-pl-elapsed{position:absolute;left:120px;top:912px;font-size:28px;color:rgba(255,255,255,.85)}
 .plex-pl-remaining{position:absolute;left:1500px;top:912px;width:300px;text-align:right;font-size:28px;color:rgba(255,255,255,.85)}
 .plex-pl-end{position:absolute;left:1400px;top:824px;width:400px;text-align:right;font-size:30px;color:rgba(255,255,255,.85)}
-/* Rangée de boutons (maquette du 30/10) : ▶/❚❚ rond au centre, Audio, Sous-titres (et Épisode suivant) en pastilles à droite ; focus indigo + anneau blanc net */
+/* Rangée de boutons (maquette du 30/10) : ▶/❚❚ rond au centre, Audio, Sous-titres (et Épisode suivant) en pastilles à droite ; focus jaune Plex (texte noir) + anneau blanc net */
 .plex-pl-ctls{position:absolute;left:0;top:960px;width:1920px;height:96px;padding-right:120px;box-sizing:border-box;text-align:right;white-space:nowrap}
-.plex-pl-ctl{display:inline-block;vertical-align:top;margin:12px 0 0 20px;height:72px;padding:0 36px;border-radius:36px;line-height:72px;font-size:28px;font-weight:500;background:rgba(0,0,0,.5);box-shadow:inset 0 0 0 2px rgba(255,255,255,.25)}
-.plex-pl-ctl.focus{background:#6366f1;color:#fff;box-shadow:0 0 0 6px #fff;transform:scale(1.06)}
+.plex-pl-ctl{transition:transform .2s ease;display:inline-block;vertical-align:top;margin:12px 0 0 20px;height:72px;padding:0 36px;border-radius:36px;line-height:72px;font-size:28px;font-weight:500;background:rgba(0,0,0,.5);box-shadow:inset 0 0 0 2px rgba(255,255,255,.25)}
+.plex-pl-ctl.focus{background:#e5a00d;color:#111;box-shadow:0 0 0 6px #fff;transform:scale(1.06)}
 .plex-pl-pp{position:absolute;left:912px;top:0;margin:0;width:96px;height:96px;padding:0;border-radius:48px;display:flex;align-items:center;justify-content:center}
 .plex-ic{display:block;box-sizing:border-box;flex:none}
 .plex-ic-play{width:0;height:0;margin-left:6px;border-style:solid;border-width:15px 0 15px 26px;border-color:transparent transparent transparent currentColor}
@@ -108,8 +115,8 @@
 .plex-pl-card-hint{margin-top:16px;font-size:22px;color:rgba(255,255,255,.55)}
 .plex-pl-menu{position:absolute;left:120px;bottom:130px;width:620px;opacity:0;pointer-events:none;transition:opacity .2s}
 .plex-pl-menu.on{opacity:1}
-.plex-pl-opt{height:72px;margin-top:10px;border-radius:36px;padding:0 40px;line-height:72px;font-size:30px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:rgba(0,0,0,.75)}
-.plex-pl-opt.focus{background:rgba(255,255,255,.9);color:#111}
+.plex-pl-opt{transition:transform .2s ease;height:72px;margin-top:10px;border-radius:36px;padding:0 40px;line-height:72px;font-size:30px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:rgba(0,0,0,.75)}
+.plex-pl-opt.focus{box-shadow:0 0 0 6px #fff;transform:scale(1.06)}
 .plex-pl-jump{position:absolute;left:760px;top:900px;width:400px;padding:14px 0;border-radius:24px;text-align:center;background:rgba(0,0,0,.6);opacity:0;transition:opacity .15s}
 .plex-pl-jump.on{opacity:1}
 .plex-pl-jump-sum{font-size:56px;font-weight:500}
@@ -117,8 +124,8 @@
 .plex-pl-dialog{position:absolute;left:360px;top:380px;width:1200px;text-align:center;opacity:0}
 .plex-pl-dialog.on{opacity:1}
 .plex-pl-text{font-size:44px;line-height:1.3;margin-bottom:56px}
-.plex-pl-btn{display:inline-block;margin:0 16px;height:96px;padding:0 56px;border-radius:48px;line-height:96px;font-size:36px;font-weight:500;background:rgba(255,255,255,.1)}
-.plex-pl-btn.focus{background:rgba(255,255,255,.9);color:#111}
+.plex-pl-btn{transition:transform .2s ease;display:inline-block;margin:0 16px;height:96px;padding:0 56px;border-radius:48px;line-height:96px;font-size:36px;font-weight:500;background:rgba(255,255,255,.1)}
+.plex-pl-btn.focus{box-shadow:0 0 0 6px #fff;transform:scale(1.06)}
 /* Sonde formats (écran caché du diagnostic) */
 .plex-probe{position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;background:#0b0b0d;color:#fff;font:300 28px/1.2 Outfit,sans-serif}
 .plex-probe-title{position:absolute;left:80px;top:40px;font-size:44px;font-weight:500}
@@ -131,8 +138,8 @@
 .plex-probe-compact{position:absolute;left:80px;top:980px;width:1760px;font:20px/1.3 monospace;color:rgba(255,255,255,.85);word-break:break-all}
 .plex-pl-sub{position:absolute;left:260px;top:790px;width:1400px;text-align:center;white-space:pre-line;font-size:52px;line-height:1.25;font-weight:500;color:#fff;text-shadow:0 0 6px #000,0 3px 6px #000}
 .plex-set-title{position:absolute;left:120px;top:72px;font-size:56px;font-weight:300}
-.plex-set-row{position:absolute;left:120px;top:190px;width:1200px;height:96px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;padding:0 32px;border-radius:28px;font-size:34px;color:rgba(255,255,255,.7)}
-.plex-set-row.on{background:rgba(255,255,255,.1);color:#fff}
+.plex-set-row{transition:transform .2s ease;position:absolute;left:120px;width:1200px;height:96px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;padding:0 32px;border-radius:28px;font-size:34px;color:rgba(255,255,255,.7)}
+.plex-set-row.on{background:rgba(255,255,255,.1);color:#fff;box-shadow:0 0 0 6px #fff;transform:scale(1.06)}
 .plex-set-val{padding:10px 28px;border-radius:24px;font-size:28px;font-weight:500;background:rgba(255,255,255,.08)}
 .plex-set-row.on .plex-set-val{background:rgba(255,255,255,.9);color:#111}
 .plex-set-desc{position:absolute;left:152px;top:298px;width:1130px;font-size:24px;color:rgba(255,255,255,.5)}
@@ -158,7 +165,7 @@
 .plex-gear-h{position:absolute;left:16px;top:16px;width:16px;height:16px;border-radius:50%;background:#28282a}
 .plex-tabs{position:absolute;left:120px;top:192px;width:1680px;height:64px;white-space:nowrap}
 .plex-tab{display:inline-block;vertical-align:top;height:64px;line-height:64px;padding:0 36px;margin-right:16px;border-radius:32px;font-size:28px;font-weight:500;color:rgba(255,255,255,.6);background:rgba(255,255,255,.07);transition:transform .2s ease}
-.plex-tab.here{color:#fff;background:#6366f1}
+.plex-tab.here{color:#111;background:#e5a00d}
 /* Recherche : clavier à gauche (1188 px), résultats en rangées étroites à droite */
 .plex-search-kb{position:absolute;left:120px;top:200px}
 .plex-search-res{position:absolute;left:1340px;top:150px;width:580px;height:900px;overflow:hidden}
@@ -168,9 +175,11 @@
 .plex-search .plex-row .vlayer{margin:12px 0 0 12px}
 .plex-search .vtile .vimg{width:104px;height:156px;border-radius:8px}
 .plex-search .vtile .vlabel{top:164px;width:104px;font-size:20px;line-height:24px;white-space:normal;max-height:48px}
-.plex-search .plex-row .vtile.focus .vimg{transform:scale(1.08);box-shadow:0 0 0 4px rgba(255,255,255,.92)}
+.plex-search .plex-hub .plex-more{left:520px;top:110px}
 .plex-search-note{position:absolute;left:1340px;top:170px;font-size:30px;color:rgba(255,255,255,.6)}
 .plex-recents{position:absolute;left:1340px;top:150px;width:520px}
 .plex-recents .plex-hub-title{position:static;font-size:32px;margin-bottom:16px}
-.plex-recent-item{height:72px;line-height:72px;padding:0 24px;margin-bottom:8px;border-radius:12px;font-size:32px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:rgba(255,255,255,.06)}
-.plex-recent-item.focus{background:#fff;color:#111}
+.plex-recent-item{transition:transform .2s ease;height:72px;line-height:72px;padding:0 24px;margin-bottom:8px;border-radius:12px;font-size:32px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:rgba(255,255,255,.06)}
+.plex-recent-item.focus{box-shadow:0 0 0 6px #fff;transform:scale(1.06)}
+/* Clavier de la recherche : le repère de tv-core (aplat translucide) devient l'anneau net du module ; il glisse déjà par transform */
+.plex-search .kb-focus{background:none;opacity:1;box-shadow:0 0 0 6px #fff}

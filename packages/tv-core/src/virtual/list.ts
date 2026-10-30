@@ -19,6 +19,7 @@ export interface VirtualOptions {
   render: (index: number) => TileInfo | null; // null = pas encore chargé (gabarit vide)
   onPage?: (start: number, size: number) => void;
   onSelect?: (index: number) => void;
+  edge?: HTMLElement;        // indice de débordement : classe « shown » tant que des éléments suivent hors de la fenêtre
   doc?: Document;
 }
 
@@ -43,6 +44,7 @@ export class VirtualList {
   private requested: { [page: number]: boolean } = {};
   private on = true;       // liste active : seule sa tuile sélectionnée porte « focus » (sinon « mark », repère discret)
   private held = false;      // écran quitté : aucune image tant que restore() n'a pas été appelé
+  private more = false;      // état posé sur o.edge : sa classe n'est touchée que lorsqu'il change
 
   constructor(o: VirtualOptions) {
     this.o = o;
@@ -220,6 +222,8 @@ export class VirtualList {
       if (sel && this.on) t.el.classList.add('focus'); else t.el.classList.remove('focus');
       if (sel && !this.on) t.el.classList.add('mark'); else t.el.classList.remove('mark');
     }
+    var more = this.top + this.fullLines < total;
+    if (o.edge && more !== this.more) { this.more = more; if (more) o.edge.classList.add('shown'); else o.edge.classList.remove('shown'); }
     var off = this.top * this.lineSize;
     this.layer.style.transform = o.horizontal ? 'translate3d(' + -off + 'px,0,0)' : 'translate3d(0,' + -off + 'px,0)';
     this.requestPages(lo, Math.min(o.count - 1, (last + 1 + (o.prefetchLines === undefined ? 2 : o.prefetchLines)) * cross - 1));
