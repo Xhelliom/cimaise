@@ -5,7 +5,8 @@ import { createRow, VirtualList } from '../../../tv-core/src/virtual/list';
 import { Ctx, el, PlexArg, realTimers, RESUME, resolve } from './context';
 import { createPlayerPanel } from './player';
 import { recordMeasure } from '../../../tv-core/src/diag';
-import { detailPosterUrl, EPISODE, episodeThumbUrl } from './images';
+import { backdropUrl, detailPosterUrl, EPISODE, episodeThumbUrl } from './images';
+import { scrobble, unscrobble } from '../api/media';
 
 type Zone = 'play' | 'seasons' | 'episodes';
 
@@ -23,6 +24,17 @@ function progress(it: Item): number {
   return it.duration && it.viewOffset ? Math.min(1, it.viewOffset / it.duration) : 0;
 }
 
+// Vu : compté vu et pas entamé de nouveau (une reprise en cours propose encore « Marquer vu »).
+function seen(it: Item): boolean { return !!it.viewCount && !(it.viewOffset && it.viewOffset > 0); }
+
+// Copie après un marquage réussi : vu = compté vu sans reprise ; non vu = ni vue ni reprise.
+function markedCopy(it: Item, watched: boolean): Item {
+  var o: any = {};
+  for (var k in it) if (it.hasOwnProperty(k) && k !== 'viewOffset' && k !== 'viewCount') o[k] = (it as any)[k];
+  if (watched) o.viewCount = it.viewCount || 1;
+  return o;
+}
+
 // Saison dont tous les épisodes sont vus (info absente : non).
 function seasonSeen(s: Item): boolean { return !!s.leafCount && s.viewedLeafCount === s.leafCount; }
 
@@ -32,7 +44,7 @@ function clock(ms: number): string {
   return (h ? h + ':' + (m < 10 ? '0' : '') : '') + m + ':' + (ss < 10 ? '0' : '') + ss;
 }
 
-// Fiche film ou série : affiche, titre, méta, Lire ou Reprendre + Depuis le début, résumé ; pour une série, saisons puis épisodes.
+// Fiche film ou série : fond flou du transcodeur, affiche, titre, méta, Lire ou Reprendre + Depuis le début + Marquer vu, résumé ; pour une série, saisons puis épisodes.
 // `stub` (déjà connu par la liste) s'affiche tout de suite ; la fiche complète le remplace à son arrivée.
 // `focus` : épisode visé (ouvert depuis « En cours ») ; sinon, pour une série, Lire = l'épisode « à suivre » du serveur,
 // à défaut le premier. Le lecteur ne reçoit jamais une série ni une saison.
@@ -41,6 +53,10 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
   var doc = c.doc;
   var item = stub;
   var root = el(doc, 'plex-panel plex-detail');
+  // Fond flou précalculé par le serveur ; apparaît en fondu d'opacité une fois chargé.
+  var backdrop = doc.createElement('img');
+  backdrop.className = 'plex-dbg';
+  backdrop.onload = function () { backdrop.className = 'plex-dbg on'; };
   var poster = doc.createElement('img');
   poster.className = 'plex-dposter';
   var title = el(doc, 'plex-dtitle', stub.title);
@@ -51,13 +67,14 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
   var btns = el(doc, 'plex-btns');
   var play = el(doc, 'plex-play', 'Lire');
   var restart = el(doc, 'plex-restart', 'Depuis le début');
+  var mark = el(doc, 'plex-mark', 'Marquer vu');
   btns.appendChild(play);
   var summary = el(doc, 'plex-dsummary', '');
   var msg = el(doc, 'plex-msg', '');
   var seasonsBox = el(doc, 'plex-seasons');
   var epTitle = el(doc, 'plex-ep-title', '');
   var episodesBox = el(doc, 'plex-episodes');
-  var parts = [poster, title, meta, prog, btns, summary, seasonsBox, epTitle, episodesBox, msg];
+  var parts = [backdrop, poster, title, meta, prog, btns, summary, seasonsBox, epTitle, episodesBox, msg];
   for (var p = 0; p < parts.length; p++) root.appendChild(parts[p]);
 
   var seasons: Item[] = [], episodes: Item[] = [];
@@ -68,7 +85,8 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
   var cancels: Array<() => void> = [], epCancel: (() => void) | null = null;
   var zone: Zone = 'play';
   var held = false;
-  var onRestart = false;   // focus sur « Depuis le début » plutôt que sur Lire/Reprendre
+  var sel = play;   // bouton focalisé dans la zone des boutons : Lire/Reprendre, Depuis le début ou Marquer vu
+  var marking: { abort(): void } | null = null, dead = false;   // scrobble en cours (une seule demande à la fois) ; fiche détruite
   var t0 = Date.now(), measured = false;   // mesure (diagnostic) : ouverture → fiche complète affichée
 
   function paint(): void {
@@ -86,11 +104,50 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
     var ep = stub.type === 'show' ? target : null;
     var se = ep && ep.parentIndex !== undefined && ep.index !== undefined ? ' S' + ep.parentIndex + ' E' + ep.index : '';
     play.textContent = (off ? 'Reprendre' : 'Lire') + se + (off ? ' · ' + clock(off) : '');
-    if (off && !restart.parentNode) btns.appendChild(restart);
-    if (!off && restart.parentNode) { btns.removeChild(restart); onRestart = false; }
-    if (!held) { var u = detailPosterUrl(c.session, item); if (u) poster.setAttribute('src', u); }
-    play.className = zone === 'play' && !onRestart ? 'plex-play focus' : 'plex-play';
-    restart.className = zone === 'play' && onRestart ? 'plex-restart focus' : 'plex-restart';
+    // Ordre fixe Lire · Depuis le début · Marquer vu : on rajoute à la fin, Marquer vu est replacé derrière.
+    if (off && !restart.parentNode) { btns.appendChild(restart); if (mark.parentNode) btns.appendChild(mark); }
+    if (!off && restart.parentNode) { btns.removeChild(restart); if (sel === restart) sel = play; }
+    var it = playable();
+    if (it && !mark.parentNode) btns.appendChild(mark);
+    if (!it && mark.parentNode) { btns.removeChild(mark); if (sel === mark) sel = play; }
+    mark.textContent = it && seen(it) ? 'Marquer non vu' : 'Marquer vu';
+    if (!held) {
+      var u = detailPosterUrl(c.session, item); if (u) poster.setAttribute('src', u);
+      var b = backdropUrl(c.session, item);
+      if (b && backdrop.getAttribute('src') !== b) { backdrop.className = 'plex-dbg'; backdrop.setAttribute('src', b); }
+    }
+    play.className = zone === 'play' && sel === play ? 'plex-play focus' : 'plex-play';
+    restart.className = zone === 'play' && sel === restart ? 'plex-restart focus' : 'plex-restart';
+    mark.className = zone === 'play' && sel === mark ? 'plex-mark focus' : 'plex-mark';
+  }
+
+  function buttons(): HTMLElement[] {
+    var l = [play];
+    if (restart.parentNode) l.push(restart);
+    if (mark.parentNode) l.push(mark);
+    return l;
+  }
+
+  // Marquer vu / non vu ce que lit Lire (le film, ou l'épisode visé d'une série) : la fiche, la liste des épisodes
+  // et « En cours » sont corrigés dès la réponse du serveur, puis redemandés (même mécanisme que le retour de lecture).
+  function toggleSeen(): void {
+    var it = playable();
+    if (!it || marking) return;
+    var watched = !seen(it), key = it.ratingKey;
+    var ref: Item = { ratingKey: key, type: it.type, title: it.title, parentRatingKey: it.parentRatingKey,
+      grandparentRatingKey: it.grandparentRatingKey || (stub.type === 'show' ? stub.ratingKey : undefined) };
+    marking = (watched ? scrobble : unscrobble)(c.http, c.id, c.session, key, function (err) {
+      marking = null;
+      if (!err) c.data.marked(ref, watched);
+      if (dead) return;
+      if (err) { say(watched ? 'Impossible de marquer comme vu' : 'Impossible de marquer comme non vu'); return; }
+      if (stub.type === 'show') { if (target && target.ratingKey === key) target = markedCopy(target, watched); }
+      else item = markedCopy(item, watched);
+      paint();
+      loadMeta();
+      if (seasonList) loadSeasons();
+      if (curSeason) loadEpisodes(curSeason);
+    });
   }
 
   // Ce que lit Lire : l'épisode visé d'une série, sinon la fiche ; null tant que l'épisode n'est pas connu.
@@ -239,15 +296,17 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
       if (k === 'up') { if (at <= 0) return false; setZone(z[at - 1]); return true; }
       if (zone === 'play') {
         if (k === 'left' || k === 'right') {
-          if (!restart.parentNode || onRestart === (k === 'right')) return false;
-          onRestart = k === 'right';
+          var l = buttons(), to = l.indexOf(sel) + (k === 'right' ? 1 : -1);
+          if (to < 0 || to >= l.length) return false;
+          sel = l[to];
           paint();
           return true;
         }
         if (k !== 'enter') return false;
+        if (sel === mark) { toggleSeen(); return true; }
         var it = playable();
         if (!it) { say('Chargement de l’épisode…'); return true; }
-        startPlay(it, onRestart || !resumeAt() ? 0 : RESUME);
+        startPlay(it, sel === restart || !resumeAt() ? 0 : RESUME);
         return true;
       }
       if (zone === 'seasons') {
@@ -260,6 +319,7 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
     suspend: function () {
       held = true;
       poster.removeAttribute('src');
+      backdrop.removeAttribute('src');
       if (seasonList) { seasonList.release(); episodeList!.release(); }
     },
     resume: function () {
@@ -276,6 +336,7 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
       if (metaCancel) metaCancel();
       if (epCancel) epCancel();
       if (seasonsCancel) seasonsCancel();
+      dead = true;   // un marquage parti va au bout : le cache partagé reste juste pour « En cours »
       if (seasonList) { seasonList.release(); episodeList!.release(); }
     }
   };

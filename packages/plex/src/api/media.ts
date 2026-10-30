@@ -3,11 +3,10 @@ import { query, serverGet } from './request';
 
 // Les <img> et AVPlay ne peuvent pas poser d'en-tête : le jeton passe dans l'URL.
 // Toujours passer par le transcodeur photo, à la taille exacte d'affichage (HANDOFF §5.5).
-export function photoUrl(s: ServerRef, imagePath: string, width: number, height: number): string {
-  return s.uri + '/photo/:/transcode?' + query([
-    ['width', Math.round(width)], ['height', Math.round(height)], ['minSize', 1], ['upscale', 1],
-    ['url', imagePath], ['X-Plex-Token', s.token]
-  ]);
+// `extra` : retouches faites par le serveur (flou, assombrissement), jamais par le navigateur.
+export function photoUrl(s: ServerRef, imagePath: string, width: number, height: number, extra?: Array<[string, string | number]>): string {
+  var q: Array<[string, string | number]> = [['width', Math.round(width)], ['height', Math.round(height)], ['minSize', 1], ['upscale', 1]];
+  return s.uri + '/photo/:/transcode?' + query(q.concat(extra || [], [['url', imagePath], ['X-Plex-Token', s.token]]));
 }
 
 export function directPlayUrl(s: ServerRef, partKey: string): string {

@@ -869,9 +869,11 @@ test('fiche non entamée : un seul bouton Lire, pas de Depuis le début', async 
   const p = ui.createDetailPanel(d.arg, { ratingKey: '101', type: 'movie', title: 'Film', duration: 7200000 });
   assert.equal(playBtn(p), 'Lire');
   assert.equal(restartBtn(p).length, 0);
-  assert.equal(p.onKey('right'), false);
   p.onKey('enter');
   assert.deepEqual(played, [['101', 0]]);
+  assert.equal(p.onKey('right'), true, 'Lire → Marquer vu');
+  assert.equal(markBtn(p).className, 'plex-mark focus');
+  assert.equal(p.onKey('right'), false);
   p.destroy();
 });
 
@@ -1236,4 +1238,113 @@ test('accueil : « En cours » vise l’épisode transmis ; « Ajoutés récemme
   await flush();
   assert.equal(d.pushed.length, 2);
   assert.equal(playBtn(d.pushed[1]), 'Lire S1 E2', 'l’OnDeck de la série, pas l’épisode ajouté');
+});
+
+// ---- fiche : Marquer vu / non vu, fond flou du transcodeur -------------------------------------------------------
+const markBtn = (p) => byClass(p.el, 'plex-mark')[0];
+// Ajoute /:/scrobble et /:/unscrobble (corps vide, comme le vrai serveur) devant un transport factice ; `status` réglable.
+function withMarks(http, opts = { status: 200 }) {
+  const h = (req, cb) => {
+    if (!/\/:\/(un)?scrobble\?/.test(req.url)) return http(req, cb);
+    h.calls.push(req);
+    setImmediate(() => cb(null, { status: opts.status, body: '' }));
+    return { abort() {} };
+  };
+  h.calls = http.calls;
+  return h;
+}
+const marks = (http) => http.calls.filter((c) => /\/:\/(un)?scrobble\?/.test(c.url)).map((c) => c.url.replace(SERVER.uri, '').replace(/&identifier=.*/, ''));
+
+test('fiche film entamée : Marquer vu → scrobble, Reprendre disparaît, « En cours » à jour sans recharger ; puis Marquer non vu', async () => {
+  const film = { ratingKey: '105', type: 'movie', title: 'Film entamé', duration: 7200000, viewOffset: 600000, art: '/library/metadata/105/art/1' };
+  const deck = () => JSON.stringify({ MediaContainer: { size: 1, Metadata: [film] } });
+  const meta = () => JSON.stringify({ MediaContainer: { size: 1, Metadata: [film] } });
+  const base = fakeHttp([[/\/library\/onDeck/, deck], [/\/library\/metadata\/105(\?|$)/, meta], ...serverRoutes()]);
+  const d = deps({ http: withMarks(base) });
+  const home = ui.createHomePanel(d.arg);
+  await flush();
+  assert.ok(texts(home.el).includes('Film entamé'), 'dans En cours');
+  home.suspend();
+
+  const p = ui.createDetailPanel(d.arg, film);
+  await flush();
+  assert.equal(playBtn(p), 'Reprendre · 10:00');
+  assert.equal(markBtn(p).textContent, 'Marquer vu');
+  p.onKey('right'); p.onKey('right');
+  assert.equal(markBtn(p).className, 'plex-mark focus', 'Reprendre · Depuis le début · Marquer vu');
+  p.onKey('enter');
+  p.onKey('enter');   // une seule demande tant que la première n'a pas répondu
+  await tick();
+  assert.deepEqual(marks(d.arg.http), ['/:/scrobble?key=105']);
+  assert.equal(markBtn(p).textContent, 'Marquer non vu');
+  assert.equal(playBtn(p), 'Lire', 'vu : plus de reprise');
+  assert.equal(restartBtn(p).length, 0);
+  assert.equal(markBtn(p).className, 'plex-mark focus', 'le focus reste sur le bouton');
+  assert.equal(byClass(p.el, 'plex-prog-bar')[0].style.transform, 'scaleX(0)');
+  await flush();
+  assert.equal(markBtn(p).textContent, 'Marquer non vu', 'le serveur encore ancien ne l’écrase pas');
+
+  home.resume();
+  assert.ok(!texts(home.el).includes('Film entamé'), 'retiré de En cours tout de suite, depuis le cache');
+
+  p.onKey('enter');
+  await tick();
+  assert.deepEqual(marks(d.arg.http), ['/:/scrobble?key=105', '/:/unscrobble?key=105']);
+  assert.equal(markBtn(p).textContent, 'Marquer vu');
+  assert.equal(playBtn(p), 'Lire');
+  await flush();
+  assert.equal(markBtn(p).textContent, 'Marquer vu', 'le compteur de vues ancien du serveur est ignoré');
+  p.destroy(); home.destroy();
+});
+
+test('fiche film : échec du scrobble → message, rien ne change', async () => {
+  const d = deps();
+  d.arg.http = withMarks(d.arg.http, { status: 500 });
+  const p = ui.createDetailPanel(d.arg, { ratingKey: '106', type: 'movie', title: 'Film', duration: 7200000 });
+  p.onKey('right'); p.onKey('enter');
+  await tick();
+  assert.equal(markBtn(p).textContent, 'Marquer vu');
+  assert.equal(byClass(p.el, 'plex-msg')[0].textContent, 'Impossible de marquer comme vu');
+  p.destroy();
+});
+
+test('fiche série : Marquer vu agit sur l’épisode de Lire, sa tuile est cochée tout de suite, puis Marquer non vu', async () => {
+  const { d } = viewDeps({
+    ondeck: { ratingKey: '2', type: 'episode', index: 2, parentIndex: 1, parentRatingKey: '750', title: 'Ép 2', duration: 1200000 },
+    seasonsOf: [season('750', 1, 3, 1)],
+    eps: { 750: [episode('1', 1, '750', { viewCount: 1 }), episode('2', 2, '750'), episode('3', 3, '750')] },
+  });
+  d.arg.http = withMarks(d.arg.http);
+  const p = ui.createDetailPanel(d.arg, SHOW_DECK);
+  await flush();
+  assert.equal(playBtn(p), 'Lire S1 E2');
+  assert.ok(!tileByLabel(p, 'plex-episodes', /^2\./).classList.contains('done'));
+  p.onKey('right'); p.onKey('enter');
+  await tick();
+  assert.deepEqual(marks(d.arg.http), ['/:/scrobble?key=2']);
+  assert.ok(tileByLabel(p, 'plex-episodes', /^2\./).classList.contains('done'), 'coche sans recharger');
+  assert.equal(markBtn(p).textContent, 'Marquer non vu');
+  assert.ok(d.arg.http.calls.filter((c) => /\/library\/metadata\/700(\?|$)/.test(c.url)).length >= 2, 'la série (à suivre, compte de vus) est redemandée');
+  await flush();
+  p.onKey('enter');
+  await tick();
+  assert.deepEqual(marks(d.arg.http), ['/:/scrobble?key=2', '/:/unscrobble?key=2']);
+  assert.ok(!tileByLabel(p, 'plex-episodes', /^2\./).classList.contains('done'));
+  assert.equal(markBtn(p).textContent, 'Marquer vu');
+  p.destroy();
+});
+
+test('fiche : fond = art flouté et assombri par le transcodeur (480×270), libéré en quittant ; aucun flou CSS', async () => {
+  const d = deps();
+  const p = ui.createDetailPanel(d.arg, { ratingKey: '100', type: 'movie', title: 'Titre de film 1', thumb: '/t' });
+  await flush();
+  const bg = byClass(p.el, 'plex-dbg')[0];
+  assert.match(bg.getAttribute('src'), /\/photo\/:\/transcode\?width=480&height=270&minSize=1&upscale=1&blur=20&opacity=35&background=0b0b0d&url=%2Flibrary%2Fmetadata%2F100%2Fart%2F1700000000&X-Plex-Token=/);
+  assert.equal(p.el.children[0], bg, 'sous tout le reste');
+  p.suspend();
+  assert.equal(bg.getAttribute('src'), null);
+  p.resume();
+  assert.ok(bg.getAttribute('src'));
+  p.destroy();
+  assert.doesNotMatch(readFileSync('packages/plex/src/plex.css', 'utf8'), /backdrop-filter|filter\s*:|blur\(/i);
 });
