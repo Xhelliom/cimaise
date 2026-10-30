@@ -10,6 +10,7 @@ function tv(name: string, color: string): CatalogEntry {
 export function defaultCatalog(): CatalogEntry[] {
   return [
     { id: 'plex', name: 'Plex intégré', color: '#e5a00d', type: 'interne' },
+    { id: 'overseerr', name: 'Overseerr', color: '#6366f1', type: 'interne' },   // masquée tant qu'Overseerr n'est pas configuré
     tv('Plex officiel', '#3a3d42'),
     tv('Netflix', '#e50914'),
     tv('YouTube', '#c4302b'),

@@ -1,12 +1,12 @@
-// App cimaise : accueil Dock v2 alimenté par le catalogue persistant ; Plex et réglages sont des chunks
-// (plex.js, settings.js) injectés à la première ouverture. Démarrage en deux temps : horloge + tuiles d'abord,
+// App cimaise : accueil Dock v2 alimenté par le catalogue persistant ; Plex, Overseerr et réglages sont des chunks
+// (plex.js, overseerr.js, settings.js) injectés à la première ouverture. Démarrage en deux temps : horloge + tuiles d'abord,
 // puis, après la 1re peinture, police décorative, teinte, logos et touches média. Marques de diagnostic : storageRead, catalogLoaded,
 // homeBuilt, firstPaint (fin du script), interactive, painted (2 requestAnimationFrame plus tard), enriched.
 import { loadStored, mark, toggleDiag, keyLatency, normalizeKey, isDiagOpen, hasTizen, registerKeys, REGISTER_KEYS, listInstalledApps, launchApp, hideApp } from '../../../packages/tv-core/src/index';
 import { Router, lazy, chunkLoader, Panel } from '../../../packages/tv-core/src/index';
 import { createHome, loadHomeMode, saveHomeMode, loadHomeTiles, saveHomeTiles, loadSmartHubTarget } from '../../../packages/launcher/src/home';
 import { loadCatalog, saveCatalog, launchEntry } from '../../../packages/launcher/src/catalog';
-import { MODULES, moduleEnabled, setModuleEnabled, visibleCatalog, mergeHidden, removedModules, ensureTile } from '../../../packages/launcher/src/modules';
+import { MODULES, moduleEnabled, setModuleEnabled, visibleCatalog, mergeHidden, removedModules, ensureTile, addNewTiles } from '../../../packages/launcher/src/modules';
 import { xhrHttp, haConfigFromPrefs, listScenes, activateScene, quickScenes, normalizeChosen, saveHaConfig, saveHaScenes } from '../../../packages/widgets/src/index';
 
 interface Chunk { createPanel(arg?: any): Panel; createProbePanel?(arg?: any): Panel; createSettingsPanel?(arg?: any): Panel; createOverseerrProbe?(): Panel; }
@@ -14,6 +14,7 @@ interface Chunk { createPanel(arg?: any): Panel; createProbePanel?(arg?: any): P
 var router = new Router({ root: document.getElementById('root')! });
 var plex = lazy<Chunk>(chunkLoader('plex'));
 var settings = lazy<Chunk>(chunkLoader('settings'));
+var overseerr = lazy<Chunk>(chunkLoader('overseerr'));
 
 // Le stockage n'est lu qu'une fois (tv-core/storage) : la première lecture est la seule à payer l'accès disque.
 loadStored(undefined, true);
@@ -23,6 +24,15 @@ var mode = loadHomeMode(undefined, true);
 // Apps intégrées : le catalogue complet garde les tuiles des modules masqués (couleur ; remises en fin de catalogue) ; l'accueil ne reçoit que les visibles.
 var modulePrefs = loadStored(undefined, true).prefs;
 var tiles = loadHomeTiles(undefined, true);
+// Tuile d'un module arrivé après l'enregistrement du catalogue (Overseerr) : ajoutée si elle manque, dès que le module est activé.
+function syncNewTiles(prefs: { [k: string]: any }): boolean {
+  var next = addNewTiles(catalog, prefs);
+  if (!next) return false;
+  catalog = next;
+  try { saveCatalog(catalog); } catch (e) { /* stockage refusé : la tuile reste pour cette session */ }
+  return true;
+}
+syncNewTiles(modulePrefs); // préférences déjà lues : aucune lecture de plus au démarrage
 mark('catalogLoaded');
 
 // Pastille Smart Hub : l'app cible vient des préférences (jamais d'ID en dur) ; sans cible, ou si son lancement échoue,
@@ -49,6 +59,12 @@ var home = createHome({
   mode: mode,
   tiles: tiles,
   openInternal: function (id) {
+    if (id === 'overseerr') {
+      // Chunk overseerr.js : injecté à la première ouverture seulement, jamais s'il est masqué.
+      if (!moduleEnabled('overseerr', loadStored().prefs)) { home.notify('Overseerr est masqué (Réglages > Apps intégrées)'); return; }
+      router.pushLazy(overseerr, function (m) { return m.createPanel(); }, function () { home.notify('Overseerr : chargement impossible'); });
+      return;
+    }
     if (id !== 'plex') { home.notify('Module inconnu : ' + id); return; }
     if (!moduleEnabled('plex', loadStored().prefs)) { home.notify('Plex intégré est masqué (Réglages > Apps intégrées)'); return; }
     router.pushLazy(plex, function (m) {
@@ -135,6 +151,7 @@ var home = createHome({
         onClose: function () {
           router.pop();
           if (scenesDirty) { scenesDirty = false; refreshScenes(); } // la rangée suit les choix, sans minuterie
+          if (syncNewTiles(loadStored().prefs)) home.setCatalog(visibleCatalog(catalog, loadStored().prefs)); // Overseerr configuré à l'instant
         }
       });
     });

@@ -25,9 +25,8 @@ export var MODULES: ModuleDef[] = [
     id: 'scenes', name: 'Scènes Home Assistant', tileId: null, chunk: null, settings: 'scenes',
     configured: function (p) { return typeof p.haUrl === 'string' && !!p.haUrl && typeof p.haToken === 'string' && !!p.haToken; }
   },
-  // Pas encore de tuile ni de chunk câblé (écrans au lot suivant) : seuls l'interrupteur et les réglages (adresse, clé, test) existent.
   {
-    id: 'overseerr', name: 'Overseerr', tileId: null, chunk: 'overseerr', settings: 'overseerr',
+    id: 'overseerr', name: 'Overseerr', tileId: 'overseerr', chunk: 'overseerr', settings: 'overseerr',
     configured: function (p) { return typeof p.overseerrUrl === 'string' && !!p.overseerrUrl && typeof p.overseerrKey === 'string' && !!p.overseerrKey; }
   }
 ];
@@ -92,4 +91,20 @@ export function ensureTile(c: CatalogEntry[], moduleId: string): CatalogEntry[] 
   var d = defaultCatalog();
   for (var j = 0; j < d.length; j++) if (d[j].id === def.tileId) return [d[j]].concat(c);
   return c.slice(0);
+}
+
+// Catalogue enregistré avant l'arrivée d'une tuile de module (ex. Overseerr) : la tuile d'un module activé (configuré dans
+// les Réglages) est ajoutée si elle manque. Retirer une tuile masque son module (removedModules) : une tuile absente d'un
+// module activé n'a donc jamais été posée, et une tuile retirée ne revient pas d'elle-même. (Une tuile Plex retirée
+// avant cette règle a été migrée en « masqué » : migration v3 → v4.) null : rien à ajouter.
+export function addNewTiles(c: CatalogEntry[], prefs: { [k: string]: any }): CatalogEntry[] | null {
+  var out: CatalogEntry[] | null = null;
+  for (var i = 0; i < MODULES.length; i++) {
+    var m = MODULES[i], t = m.tileId;
+    if (t === null || !moduleEnabled(m.id, prefs)) continue;
+    var cur = out || c, has = false;
+    for (var j = 0; j < cur.length; j++) if (cur[j].id === t && cur[j].type === 'interne') has = true;
+    if (!has) out = ensureTile(cur, m.id);
+  }
+  return out;
 }

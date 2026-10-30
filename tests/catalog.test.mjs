@@ -22,11 +22,12 @@ const memStore = () => { const m = {}; return { getItem: (k) => (k in m ? m[k] :
 const withTizen = (tizen, fn) => { globalThis.window = { tizen }; try { return fn(); } finally { delete globalThis.window; } };
 const e = (name, id = '') => ({ id, name, color: '#111111', type: 'tv' });
 
-test('catalogue par défaut : 7 entrées, Plex intégré interne, IDs TV vides et marqués M0', () => {
+test('catalogue par défaut : Plex intégré et Overseerr internes, puis 6 apps TV aux IDs vides marqués M0', () => {
   const c = C.defaultCatalog();
-  assert.deepEqual(c.map((x) => x.name), ['Plex intégré', 'Plex officiel', 'Netflix', 'YouTube', 'Disney+', 'Canal+', 'Smart Hub']);
+  assert.deepEqual(c.map((x) => x.name), ['Plex intégré', 'Overseerr', 'Plex officiel', 'Netflix', 'YouTube', 'Disney+', 'Canal+', 'Smart Hub']);
   assert.equal(c[0].type, 'interne');
-  for (const x of c.slice(1)) {
+  assert.equal(c[1].type, 'interne');
+  for (const x of c.slice(2)) {
     assert.equal(x.type, 'tv');
     assert.equal(x.id, '', x.name + ' : aucun ID inventé');
     assert.match(x.todo, /M0/);

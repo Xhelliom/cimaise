@@ -36,6 +36,7 @@ test('registre : chaque module déclare id, nom, chunk, section de réglages et 
   }
   assert.equal(M.moduleById('plex').tileId, 'plex');
   assert.equal(M.moduleById('plex').chunk, 'plex');
+  assert.equal(M.moduleById('overseerr').tileId, 'overseerr');
   assert.equal(M.moduleById('scenes').tileId, null, 'les scènes sont une rangée, pas une tuile');
   assert.equal(M.moduleById('nope'), null);
 });
@@ -87,6 +88,16 @@ test('réactiver : la tuile absente du catalogue revient en tête, sans doublon'
   assert.deepEqual(M.ensureTile([NF], 'plex').map((e) => e.id), ['plex', 'nf']);
   assert.deepEqual(M.ensureTile([PLEX, NF], 'plex').map((e) => e.id), ['plex', 'nf']);
   assert.deepEqual(M.ensureTile([NF], 'scenes').map((e) => e.id), ['nf'], 'module sans tuile');
+});
+
+test('tuile d’un module arrivé après le catalogue : ajoutée si le module est activé et qu’elle manque, jamais retirée', () => {
+  const OV = { overseerrUrl: 'https://ov', overseerrKey: 'k' };
+  assert.deepEqual(M.addNewTiles([PLEX, NF], OV).map((e) => e.id), ['overseerr', 'plex', 'nf']);
+  assert.equal(M.addNewTiles([PLEX, NF], {}), null, 'Overseerr non configuré : rien');
+  assert.equal(M.addNewTiles([PLEX, NF], { ...OV, modules: { overseerr: false } }), null, 'masqué (tuile retirée) : ne revient pas');
+  const withOv = M.addNewTiles([PLEX, NF], OV);
+  assert.equal(M.addNewTiles(withOv, OV), null, 'déjà là : rien');
+  assert.equal(M.addNewTiles([NF], { modules: { plex: false } }), null, 'Plex masqué : pas de retour');
 });
 
 test('migration v3 → v4 : une tuile Plex déjà retirée du catalogue devient « masqué » ; sinon rien ne change', () => {

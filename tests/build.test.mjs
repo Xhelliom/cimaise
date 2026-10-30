@@ -15,7 +15,7 @@ before(() => {
 
 test('build produit un bundle initial, une seule feuille CSS et un chunk par module différé', () => {
   const files = readdirSync('apps/tv/dist').filter((f) => /\.(js|css)$/.test(f));
-  assert.deepEqual(files.sort(), ['app.css', 'app.js', 'plex.js', 'settings.js']);
+  assert.deepEqual(files.sort(), ['app.css', 'app.js', 'overseerr.js', 'plex.js', 'settings.js']);
   assert.deepEqual(readdirSync('apps/blank/dist').filter((f) => /\.(js|css)$/.test(f)).sort(), ['app.css', 'app.js']);
 });
 
