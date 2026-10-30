@@ -113,10 +113,10 @@
 .plex-pl-mode{position:absolute;left:120px;top:1048px;width:760px;font-size:22px;color:rgba(255,255,255,.55);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .plex-pl-skip{position:absolute;left:1380px;top:700px;width:420px;height:96px;border-radius:48px;line-height:96px;text-align:center;font-size:36px;font-weight:500;background:rgba(255,255,255,.9);color:#111;opacity:0;pointer-events:none;transition:opacity .2s}
 .plex-pl-skip.on{opacity:1}
-.plex-pl-card{position:absolute;left:1260px;top:680px;width:540px;padding:28px 36px;box-sizing:border-box;border-radius:28px;background:rgba(0,0,0,.75);opacity:0;pointer-events:none;transition:opacity .2s}
+.plex-pl-card{position:absolute;left:1080px;top:680px;width:720px;padding:28px 36px;box-sizing:border-box;border-radius:28px;background:rgba(0,0,0,.75);opacity:0;pointer-events:none;transition:opacity .2s}
 .plex-pl-card.on{opacity:1}
-.plex-pl-card-title{font-size:40px;font-weight:500}
-.plex-pl-card-sub{margin-top:8px;font-size:28px;color:rgba(255,255,255,.8);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.plex-pl-card-title{font-size:34px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.plex-pl-card-sub{margin-top:8px;font-size:28px;color:rgba(255,255,255,.8)}
 .plex-pl-card-hint{margin-top:16px;font-size:22px;color:rgba(255,255,255,.55)}
 .plex-pl-menu{position:absolute;left:120px;bottom:130px;width:620px;opacity:0;pointer-events:none;transition:opacity .2s}
 .plex-pl-menu.on{opacity:1}

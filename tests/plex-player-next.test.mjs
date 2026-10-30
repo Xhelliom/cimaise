@@ -233,16 +233,17 @@ test('sans marqueur (réponse sans « Marker ») : aucun bouton', async () => {
 
 // ----- Enchaînement automatique -----
 
-test('générique + suivant : carte « Épisode suivant dans 10 s » avec compte à rebours, enchaînement à zéro après le scrobble', async () => {
+test('générique + suivant : carte « Suivant : S01E02 — titre » avec compte à rebours, enchaînement à zéro après le scrobble', async () => {
   const s = await play('501', { marks: EARLY });
   at(s, 799000);
   assert.ok(!on(card(s)));
   at(s, 805000);
   assert.ok(on(card(s)));
-  assert.ok(has(card(s), /^Épisode suivant dans 10 s$/));
+  assert.ok(has(card(s), /^Suivant : S01E02 — Épisode 502$/));
+  assert.ok(has(card(s), /^Dans 10 s$/));
   assert.ok(!on(skip(s)), 'la carte remplace le bouton de générique');
   s.timers.advance(3000);
-  assert.ok(has(card(s), /^Épisode suivant dans 7 s$/));
+  assert.ok(has(card(s), /^Dans 7 s$/));
   s.timers.advance(6999);
   assert.equal(s.pushed.length, 0);
   s.timers.advance(1);
@@ -282,6 +283,50 @@ test('carte : sortir du générique (retour en arrière) la retire', async () =>
   assert.ok(!on(card(s)));
   s.timers.advance(20000);
   assert.equal(s.pushed.length, 0);
+});
+
+test('sans marqueur de générique : la carte s’affiche 30 s avant la fin et enchaîne après 10 s', async () => {
+  const s = await play('501');
+  at(s, DUR - 31000);
+  assert.ok(!on(card(s)));
+  at(s, DUR - 30000);
+  assert.ok(on(card(s)));
+  assert.ok(has(card(s), /^Suivant : S01E02 — Épisode 502$/));
+  assert.ok(!on(skip(s)), 'pas de bouton « Passer le générique » sans marqueur');
+  s.timers.advance(10000);
+  assert.equal(s.pushed.length, 1);
+  await flush();
+  assert.ok(s.http.index(/\/:\/scrobble\?.*key=501/) >= 0);
+});
+
+test('sans marqueur : Retour annule, l’épisode va jusqu’au bout puis revient à la fiche', async () => {
+  const s = await play('501');
+  at(s, DUR - 25000);
+  assert.equal(s.panel.onKey('back'), true);
+  assert.ok(!on(card(s)));
+  assert.equal(s.pops(), 0);
+  s.timers.advance(20000);
+  at(s, DUR - 5000);
+  assert.ok(!on(card(s)), 'la carte ne revient pas');
+  assert.equal(s.pushed.length, 0);
+  s.player.events.onEnd();
+  assert.equal(s.pushed.length, 0);
+  assert.equal(s.pops(), 1);
+});
+
+test('film ou dernier épisode : aucune carte, ni au générique ni dans les 30 dernières secondes', async () => {
+  for (const key of ['100', '602']) {
+    const s = await play(key, { marks: EARLY });
+    at(s, 805000);
+    assert.ok(!on(card(s)), key + ' générique');
+    at(s, DUR - 10000);
+    assert.ok(!on(card(s)), key + ' fin');
+    s.timers.advance(20000);
+    assert.equal(s.pushed.length, 0);
+  }
+  const s = await play('602');
+  at(s, DUR - 10000);
+  assert.ok(!on(card(s)));
 });
 
 test('fin du flux sans marqueur : la carte s’affiche puis enchaîne après 10 s', async () => {
