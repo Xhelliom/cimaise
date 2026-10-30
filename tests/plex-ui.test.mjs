@@ -164,7 +164,7 @@ test('images : toujours /photo/:/transcode, à la taille exacte d’affichage', 
 });
 
 // ---- accueil -------------------------------------------------------------------------------------------------
-test('accueil : quatre rangées (dont Réglages), affichage immédiat du cache (réseau muet), images en transcodeur', async () => {
+test('accueil : deux rangées et des onglets de bibliothèques, affichage immédiat du cache (réseau muet), images en transcodeur', async () => {
   const store = memStore();
   const warm = deps({ store });
   const p0 = ui.createHomePanel(warm.arg);
@@ -174,27 +174,72 @@ test('accueil : quatre rangées (dont Réglages), affichage immédiat du cache (
   const cold = deps({ store, http: fakeHttp([], { silent: true }) });
   const p = ui.createHomePanel(cold.arg);
   const titles = byClass(p.el, 'plex-hub-title').map((n) => n.textContent);
-  assert.deepEqual(titles, ['En cours', 'Ajoutés récemment', 'Bibliothèques', 'Réglages']);
+  assert.deepEqual(titles, ['En cours', 'Ajoutés récemment']);
+  assert.deepEqual(byClass(p.el, 'plex-tab').map((n) => n.textContent), ['Accueil', 'Films', 'Séries'], 'onglets depuis le cache (bibliothèques vidéo seulement)');
   assert.ok(texts(p.el).some((t) => /Titre de série 1/.test(t)), 'tuiles de la rangée En cours déjà là');
   const s = srcs(p.el);
   assert.ok(s.length > 0);
   for (const u of s) assert.ok(u.startsWith(SERVER.uri + '/photo/:/transcode?') && /width=240&height=360/.test(u), u);
 });
 
-test('accueil : télécommande — droite/bas déplacent le focus, Entrée sur une bibliothèque pousse la grille', async () => {
+test('accueil : télécommande — droite/bas déplacent le focus, Haut depuis la 1re rangée → onglets, Entrée ouvre la bibliothèque', async () => {
   const d = deps();
   const p = ui.createHomePanel(d.arg);
   await tick(); await tick();
   assert.equal(byClass(p.el, 'on').length, 1, 'une seule rangée active');
   assert.equal(byClass(byClass(p.el, 'on')[0], 'focus').length, 1);
   assert.equal(p.onKey('right'), true);
-  assert.equal(p.onKey('down'), true); assert.equal(p.onKey('down'), true); assert.equal(p.onKey('down'), true);
+  assert.equal(p.onKey('down'), true);
   assert.equal(p.onKey('down'), false, 'dernière rangée : la touche reste au routeur');
   assert.equal(p.onKey('back'), false, 'Retour est laissé au routeur (dépile)');
   p.onKey('up');
+  assert.equal(p.onKey('up'), true);
+  assert.deepEqual(byClass(p.el, 'focus').map((n) => n.textContent), ['Films'], '1er onglet focalisé, seul');
   p.onKey('enter');
   assert.equal(d.pushed.length, 1);
-  assert.ok(byClass(d.pushed[0].el, 'plex-library').length === 1);
+  assert.equal(byClass(d.pushed[0].el, 'plex-lib-title')[0].textContent, 'Films');
+  p.onKey('right');
+  p.onKey('enter');
+  assert.equal(byClass(d.pushed[1].el, 'plex-lib-title')[0].textContent, 'Séries');
+  assert.ok(d.arg.http.calls.some((c) => /\/library\/sections\/2\/all/.test(c.url)), 'la grille demande la section 2');
+});
+
+test('accueil, en-tête : Haut/Bas/Gauche/Droite cohérents entre Rechercher, la roue, les onglets et la 1re rangée', async () => {
+  const d = deps();
+  const p = ui.createHomePanel(d.arg);
+  await tick(); await tick();
+  const focused = () => byClass(p.el, 'focus').map((n) => n.className.split(' ')[0]);
+  p.onKey('up'); p.onKey('right'); p.onKey('right'); p.onKey('right');
+  assert.deepEqual(byClass(p.el, 'focus').map((n) => n.textContent), ['Séries'], 'Droite bornée au dernier onglet');
+  for (let i = 0; i < 5; i++) p.onKey('left');
+  assert.deepEqual(byClass(p.el, 'focus').map((n) => n.textContent), ['Films'], 'Gauche bornée : « Accueil » n’est pas focalisable');
+  assert.equal(p.onKey('up'), true);
+  assert.deepEqual(focused(), ['plex-search-btn'], 'onglets → Rechercher');
+  assert.equal(p.onKey('up'), true, 'rien au-dessus : la touche est retenue');
+  assert.equal(p.onKey('left'), true);
+  assert.deepEqual(focused(), ['plex-search-btn']);
+  assert.equal(p.onKey('right'), true);
+  assert.deepEqual(focused(), ['plex-gear-btn']);
+  assert.equal(p.onKey('right'), true);
+  assert.deepEqual(focused(), ['plex-gear-btn'], 'Droite bornée à la roue');
+  assert.equal(p.onKey('down'), true);
+  assert.deepEqual(byClass(p.el, 'focus').map((n) => n.textContent), ['Films'], 'en-tête → onglets (dernier choisi)');
+  assert.equal(p.onKey('down'), true);
+  assert.equal(byClass(p.el, 'focus').length, 1);
+  assert.equal(byClass(byClass(p.el, 'on')[0], 'focus').length, 1, 'onglets → 1re rangée');
+  assert.equal(byClass(p.el, 'plex-hubs')[0].style.transform, 'translate3d(0,0px,0)', 'l’en-tête reste à l’écran sur la 1re rangée');
+  p.onKey('down');
+  assert.ok(/-\d/.test(byClass(p.el, 'plex-hubs')[0].style.transform), 'sous la 1re rangée, l’en-tête défile hors de l’écran');
+});
+
+test('accueil : sans rangée ni bibliothèque (serveur muet), le focus est sur Rechercher', () => {
+  const d = deps({ http: fakeHttp([], { silent: true }) });
+  const p = ui.createHomePanel(d.arg);
+  assert.deepEqual(byClass(p.el, 'focus').map((n) => n.className), ['plex-search-btn focus']);
+  assert.equal(p.onKey('down'), true);
+  p.onKey('enter');
+  assert.equal(byClass(d.pushed[0].el, 'plex-search').length, 1);
+  d.pushed[0].destroy && d.pushed[0].destroy();
 });
 
 test('accueil : seules les rangées visibles et la suivante chargent leurs images', async () => {
@@ -202,22 +247,20 @@ test('accueil : seules les rangées visibles et la suivante chargent leurs image
   const p = ui.createHomePanel(d.arg);
   await tick(); await tick();
   const rows = byClass(p.el, 'plex-row');
-  assert.equal(rows.length, 4);
+  assert.equal(rows.length, 2);
   const loaded = (r) => srcs(r).length;
   assert.ok(loaded(rows[0]) > 0 && loaded(rows[1]) > 0);
-  // « Bibliothèques » n’a pas d’image du tout (aplat) : rien à précharger
-  assert.equal(loaded(rows[2]), 0);
 });
 
 // ---- Réglages du module : langues audio / sous-titres -----------------------------------------------------------
 const stored = (store) => JSON.parse(store.getItem('cimaise.v1')).prefs.plexLang;
 const rowsOf = (p) => byClass(p.el, 'plex-set-row').map((r) => byClass(r, 'plex-set-name')[0].textContent + ' = ' + byClass(r, 'plex-set-val')[0].textContent);
 
-test('Réglages Plex : une entrée de l’accueil ouvre les langues ; défaut « VO sous-titrée », rien n’est écrit tant qu’on ne change rien', async () => {
+test('Réglages Plex : la roue dentée de l’accueil ouvre les langues ; défaut « VO sous-titrée », rien n’est écrit tant qu’on ne change rien', async () => {
   const d = deps();
   const home = ui.createHomePanel(d.arg);
   await tick(); await tick();
-  home.onKey('down'); home.onKey('down'); home.onKey('down'); // En cours → Ajoutés → Bibliothèques → Réglages
+  home.onKey('up'); home.onKey('up'); home.onKey('right'); // En cours → onglets → Rechercher → roue dentée
   home.onKey('enter');
   assert.equal(d.pushed.length, 1);
   const p = d.pushed[0];
@@ -653,7 +696,7 @@ test('réouverture : token et session stockés → accueil Plex directement, auc
   const p = ui.createPlexPanel(d.arg);
   await tick(); await tick();
   assert.equal(byClass(p.el, 'plex-login').length, 0);
-  assert.deepEqual(byClass(p.el, 'plex-hub-title').map((n) => n.textContent), ['En cours', 'Ajoutés récemment', 'Bibliothèques', 'Réglages']);
+  assert.deepEqual(byClass(p.el, 'plex-hub-title').map((n) => n.textContent), ['En cours', 'Ajoutés récemment']);
   assert.ok(!d.arg.http.calls.some((c) => /plex\.tv/.test(c.url)));
 });
 
@@ -700,9 +743,7 @@ test('accueil : un seul élément focalisé à tout moment ; la sélection de ch
   assert.equal(byClass(rows[0], 'focus').length, 0);
   assert.equal(marked(rows[0]), 1, 'la rangée quittée garde un repère discret');
   assert.equal(labelOf(rows[0], 'mark'), before, 'position mémorisée');
-  p.onKey('down');
-  assert.equal(count(), 1);
-  p.onKey('up'); p.onKey('up');
+  p.onKey('up');
   assert.equal(count(), 1);
   assert.equal(labelOf(rows[0], 'focus'), before, 'retour à la même tuile');
 });
@@ -740,8 +781,8 @@ test('accueil : verticalement, la rangée active et son titre tiennent dans 0–
   const ty = (e) => { const m = /translate3d\(0,\s*(-?[\d.]+)px/.exec(e.style.transform || ''); return m ? +m[1] : 0; };
   const layer = byClass(p.el, 'plex-hubs')[0];
   const wraps = byClass(p.el, 'plex-hub');
-  assert.equal(wraps.length, 4);
-  for (let a = 0; a < 4; a++) {
+  assert.equal(wraps.length, 2);
+  for (let a = 0; a < 2; a++) {
     const y = (i) => ty(layer) + ty(wraps[i]);
     assert.ok(y(a) + titleTop >= 0 && y(a) + titleTop + titleH <= 1080, 'titre actif ' + a);
     assert.ok(y(a) + tileTop >= 0 && y(a) + tileBottom <= 1080, 'tuiles actives ' + a);

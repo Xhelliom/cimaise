@@ -14,14 +14,9 @@
 .vtile .vlabel{position:absolute;left:0;top:392px;width:240px;font-size:28px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:rgba(255,255,255,.9)}
 .plex-row .vtile.focus .vimg,.plex-grid .vtile.focus .vimg,.plex-episodes.on .vtile.focus .vimg{transform:scale(1.1);box-shadow:0 0 0 6px rgba(255,255,255,.92);position:relative;z-index:1}
 .plex-row:not(.on) .vtile.focus .vimg{transform:none;box-shadow:none}
-/* Bibliothèques : aplat avec le titre dans la tuile (aucune image) */
-.plex-hub:last-child .vimg{display:none}
-.plex-hub:last-child .vtile{height:360px;border-radius:12px;background:#2b2b2e}
-.plex-hub:last-child .vlabel{top:150px;left:16px;width:208px;font-size:34px;text-align:center}
-.plex-hub:last-child .vtile.focus{box-shadow:0 0 0 6px rgba(255,255,255,.92)}
 /* Rangée inactive : repère discret (sélection mémorisée), sans anneau */
 .plex-row .vtile.mark .vimg,.plex-episodes .vtile.mark .vimg{opacity:.9}
-.plex-hub:last-child .vtile.mark,.plex-seasons .vtile.mark{box-shadow:inset 0 0 0 2px rgba(255,255,255,.35)}
+.plex-seasons .vtile.mark{box-shadow:inset 0 0 0 2px rgba(255,255,255,.35)}
 .plex-alpha{position:absolute;left:28px;top:170px;width:64px;height:910px}
 .plex-alpha-l{height:33px;line-height:33px;text-align:center;font-size:22px;color:rgba(255,255,255,.75)}
 .plex-alpha-l.empty{color:rgba(255,255,255,.2)}
@@ -143,9 +138,23 @@
 .plex-episodes .vtile.done::before,.plex-seasons .vtile.done::before{content:"";position:absolute;z-index:3;border:solid #111;border-width:0 5px 5px 0;transform:rotate(45deg)}
 .plex-episodes .vtile.done::before{right:29px;top:20px;width:9px;height:18px}
 .plex-seasons .vtile.done::before{right:18px;top:13px;width:6px;height:11px;border-width:0 4px 4px 0}
-/* Recherche : clavier à gauche (1188 px), résultats en rangées étroites à droite ; bouton d'entrée en haut de l'accueil */
-.plex-search-btn{position:absolute;right:120px;top:64px;height:72px;padding:0 40px;border-radius:36px;background:rgba(255,255,255,.1);font-size:30px;font-weight:500;line-height:72px}
-.plex-search-btn.focus{background:#fff;color:#111}
+/* Accueil, en-tête (maquette du 30/10) : Rechercher (720 px) + roue dentée, puis onglets des bibliothèques. Fond opaque #28282a
+   (= blanc à 12 % sur le fond) : le trou de la roue reprend la même couleur. Focus : anneau blanc net + scale, comme les affiches. */
+.plex-head{position:absolute;left:120px;top:56px;width:832px;height:88px}
+.plex-search-btn,.plex-gear-btn{position:absolute;top:0;height:88px;border-radius:44px;background:#28282a;transition:transform .2s ease}
+.plex-search-btn{left:0;width:720px;padding-left:104px;box-sizing:border-box;font-size:32px;font-weight:500;line-height:88px;color:rgba(255,255,255,.8);white-space:nowrap}
+.plex-gear-btn{left:744px;width:88px}
+.plex-search-btn.focus,.plex-gear-btn.focus,.plex-tab.focus{box-shadow:0 0 0 6px #fff;transform:scale(1.06);color:#fff}
+.plex-ic-search{position:absolute;left:44px;top:24px;width:32px;height:32px;box-sizing:border-box;border:4px solid currentColor;border-radius:50%}
+.plex-ic-search:after{content:"";position:absolute;left:25px;top:25px;width:16px;height:5px;background:currentColor;transform:rotate(45deg);transform-origin:0 50%}
+.plex-gear{position:absolute;left:20px;top:20px;width:48px;height:48px}
+.plex-gear-t{position:absolute;left:19px;top:2px;width:10px;height:44px;background:#fff}
+.plex-gear-d{position:absolute;left:8px;top:8px;width:32px;height:32px;border-radius:50%;background:#fff}
+.plex-gear-h{position:absolute;left:16px;top:16px;width:16px;height:16px;border-radius:50%;background:#28282a}
+.plex-tabs{position:absolute;left:120px;top:192px;width:1680px;height:64px;white-space:nowrap}
+.plex-tab{display:inline-block;vertical-align:top;height:64px;line-height:64px;padding:0 36px;margin-right:16px;border-radius:32px;font-size:28px;font-weight:500;color:rgba(255,255,255,.6);background:rgba(255,255,255,.07);transition:transform .2s ease}
+.plex-tab.here{color:#fff;background:#6366f1}
+/* Recherche : clavier à gauche (1188 px), résultats en rangées étroites à droite */
 .plex-search-kb{position:absolute;left:120px;top:200px}
 .plex-search-res{position:absolute;left:1340px;top:150px;width:580px;height:900px;overflow:hidden}
 .plex-search .plex-hub{width:580px;height:300px}

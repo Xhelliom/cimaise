@@ -357,13 +357,14 @@ test('mesures : frappe → caractère, frappe → 1ers résultats, frappe → co
   p.destroy();
 });
 
-test('accueil : bouton « Rechercher » en haut, atteint par Haut depuis la 1re rangée ; Entrée ouvre la recherche', async () => {
+test('accueil : « Rechercher » en haut, atteint par Haut depuis la 1re rangée puis les onglets ; Entrée ouvre la recherche', async () => {
   reset();
   const d = setup({ http: fakeHttp([...routes(), [/\/library\/onDeck/, readFileSync('tests/fixtures/plex/ondeck.json', 'utf8')],
     [/\/library\/recentlyAdded/, readFileSync('tests/fixtures/plex/recently-added.json', 'utf8')]]) });
   const p = ui.createHomePanel(d.arg);
   await tick(); await tick();
-  assert.deepEqual(byClass(p.el, 'plex-search-btn').map((n) => n.textContent), ['Rechercher']);
+  assert.deepEqual(byClass(p.el, 'plex-search-txt').map((n) => n.textContent), ['Rechercher un film, une série…']);
+  assert.equal(p.onKey('up'), true);
   assert.equal(p.onKey('up'), true);
   assert.equal(byClass(p.el, 'focus').length, 1, 'un seul élément focalisé');
   assert.ok(byClass(p.el, 'plex-search-btn')[0].classList.contains('focus'), 'le bouton porte le focus');
