@@ -2,7 +2,7 @@
 // L'URL et le jeton viennent de cimaise.v1 (prefs.haUrl, prefs.haToken) ; ils ne passent jamais dans un message d'erreur.
 
 export interface HaConfig { url: string; token: string; }
-export interface Scene { id: string; name: string; area: string | null; }
+export interface Scene { id: string; name: string; area: string | null; state?: string; }
 export interface HaError extends Error { code: 'config' | 'invalid' | 'unreachable' | 'unauthorized' | 'http' | 'format'; status?: number; }
 export interface HttpRequest { method: string; url: string; headers: { [k: string]: string }; body?: string; timeoutMs?: number; }
 export interface HttpResponse { status: number; body: string; }
@@ -54,7 +54,7 @@ export function listScenes(http: Http, cfg: HaConfig | null, cb: Callback<Scene[
       var s = states[i], id = s && s.entity_id;
       if (typeof id !== 'string' || !SCENE_ID.test(id)) continue;
       var fn = s.attributes && s.attributes.friendly_name;
-      scenes.push({ id: id, name: typeof fn === 'string' && fn ? fn : id, area: null });
+      scenes.push({ id: id, name: typeof fn === 'string' && fn ? fn : id, area: null, state: typeof s.state === 'string' ? s.state : undefined });
     }
     if (!scenes.length) return cb(null, scenes);
     var calls: string[] = [];

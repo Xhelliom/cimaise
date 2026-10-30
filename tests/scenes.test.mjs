@@ -79,3 +79,21 @@ test('préférences : adresse, jeton et scènes dans cimaise.v1', () => {
   const p = JSON.parse(mem['cimaise.v1']).prefs;
   assert.deepEqual([p.haUrl, p.haToken, p.haScenes], ['http://ha:8123', 'tok', ['scene.film', 'scene.nuit']]);
 });
+
+test('countByArea et groupByArea : indisponibles ignorées, groupes par pièce, « sans pièce » en dernier', async () => {
+  const { build } = await import('esbuild');
+  const { mkdtempSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { createRequire } = await import('node:module');
+  const out = join(mkdtempSync(join(tmpdir(), 'scn-')), 's.cjs');
+  await build({ entryPoints: ['packages/widgets/src/scenes.ts'], bundle: true, format: 'cjs', outfile: out, logLevel: 'silent' });
+  const M = createRequire(import.meta.url)(out);
+  const L = [
+    { id: 'scene.a', name: 'A', area: 'Salon' }, { id: 'scene.b', name: 'B', area: 'Salon', state: 'unavailable' },
+    { id: 'scene.c', name: 'C', area: 'Cuisine' }, { id: 'scene.d', name: 'D', area: null },
+  ];
+  assert.deepEqual(M.countByArea(L), { total: 3, byArea: { Salon: 1, Cuisine: 1 } });
+  assert.deepEqual(M.groupByArea(L).map((g) => [g.area, g.scenes.length]), [['Cuisine', 1], ['Salon', 2], [null, 1]]);
+  assert.deepEqual(M.filterScenes(L, null, '').map((s) => s.id), ['scene.a', 'scene.c', 'scene.d']);
+});
