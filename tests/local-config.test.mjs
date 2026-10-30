@@ -86,3 +86,21 @@ test('package.sh stage la copie, ne la laisse pas dans dist/ et n’affiche pas 
 test('le compromis est documenté dans docs/decisions.md', () => {
   assert.match(readFileSync('docs/decisions.md', 'utf8'), /local-config\.js[\s\S]*jeton[\s\S]*paquet/i);
 });
+
+test('overseerr.env : URL et clé en mémoire (window), origine déclarée dans le config.xml de la copie seulement', () => {
+  const d = sandboxDir(), app = mkApp(d), stage = join(d, 'stage');
+  writeFileSync(join(app, 'config.xml'), '<widget>\n  <name>x</name>\n</widget>\n');
+  const KEY = 'FAKE-OVERSEERR-KEY-0123456789';
+  const env = join(d, 'overseerr.env'); writeFileSync(env, `OVERSEERR_URL=https://ov.example.test/\nOVERSEERR_API_KEY=${KEY}\n`);
+  const r = run(app, stage, join(d, 'absent.env'), env);
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(!(r.stdout + r.stderr).includes(KEY), 'clé dans la sortie du script');
+  const code = readFileSync(join(stage, 'local-config.js'), 'utf8');
+  const w = {}; const m = new Map();
+  vm.runInNewContext(code, { window: w, localStorage: { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => m.set(k, v) } });
+  assert.deepEqual(JSON.parse(JSON.stringify(w.__cimaiseOverseerr)), { url: 'https://ov.example.test/', key: KEY });
+  assert.equal(m.size, 0, 'Overseerr ne doit pas toucher localStorage');
+  assert.match(readFileSync(join(stage, 'config.xml'), 'utf8'), /<access origin="https:\/\/ov\.example\.test" subdomains="false"\/>\n<\/widget>/);
+  assert.ok(!readFileSync(join(app, 'config.xml'), 'utf8').includes('access'), 'source modifiée');
+  assert.ok(!readFileSync('apps/tv/config.xml', 'utf8').includes('overseerr'), 'domaine Overseerr commité');
+});
