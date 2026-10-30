@@ -459,3 +459,38 @@ Image OK + XHR à 0 aurait désigné CORS ; tout à 0, TLS ou réseau. Affiche c
 **Empaquetage depuis un worktree.** `.local` est un lien vers celui du dépôt principal ; le conteneur ne voit pas sa cible.
 On passe `DOCKER=<wrapper>` qui ajoute `-v <.local principal>:<même chemin>` à `docker run` (aucune copie des certificats).
 Retirer le lien après coup : `tests/structure.test.mjs` (`git check-ignore .local/x`) échoue tant qu'il existe.
+
+## Client API Overseerr (`packages/overseerr`) : films et séries du moment, recherche, demande (2026-10-30)
+
+**Forme.** Sur le modèle de `packages/plex/src/api` : transport `Http` injectable (XHR sur la TV, avec corps pour le POST),
+rappels à la Node, aucune dépendance, tsc ES5. Les résultats bruts (MovieResult/TvResult, ~25 champs de `mediaInfo`) sont
+ramenés à un `Title` léger : `{ id (TMDB), mediaType, title, year, posterPath, overview, availability }` ; `title`/`name` et
+`releaseDate`/`firstAirDate` unifiés ; les **personnes** (recherche, tendances) sont retirées.
+- **Routes** (vérifiées sur l'instance 1.33.2 par `scripts/overseerr/verify.mjs`, lecture seule) : `discoverMovies`,
+  `discoverTv`, `trending` (`/discover/movies|tv|trending?page=N[&language=fr]`), `search` (`/search?page=N&query=…`),
+  `requestMedia` (`POST /request`). Pagination TMDB : 20 par page, `page`, `totalPages`, `totalResults`.
+- **Encodage strict de la recherche.** Overseerr répond **400** (« must be url encoded… reserved characters ») si la requête
+  garde `! ' ( ) *`, qu'`encodeURIComponent` ne code pas : « l'été » et « star wars (1977)! » refusés, acceptés une fois
+  codés en `%27 %28 %29 %21 %2A` (`strictEncode`). Texte vide : page vide sans requête.
+- **Doublons entre pages.** TMDB répète des titres d'une page à la suivante (stable : 2 entre p1 et p2, 4 entre p2 et p3 de
+  `/discover/movies`). `appendTitles` fusionne sans doublon (clé type + id) : à utiliser par la future grille.
+- **Clé refusée = 403**, pas 401 (`{"error":"You do not have permission to access this endpoint"}`). En lecture, la clé API
+  (administrateur) ouvre toutes les routes : 403 en GET → `unauthorized` ; 403 en POST → `forbidden` (droit ou quota).
+  409 → `exists` (déjà demandé, d'après le code d'Overseerr, **non observé**). La clé n'apparaît dans aucun message.
+- **Badge** (`mediaInfo.status`, doc OpenAPI de l'instance) : 2 « En attente » (approbation), 3 « Demandé » (approuvé, en
+  cours), 4 « Partiellement disponible », 5 « Disponible » ; 1 (inconnu), absent ou code non listé → pas de badge.
+  Observés en réel : 1, 3, 4, 5 (aucun 2 : les demandes de la clé admin sont approuvées d'office).
+- **Demande** : `{ mediaType, mediaId: <id TMDB> }`, plus `seasons: "all"` pour une série. **Jamais envoyée** : forme
+  vérifiée contre la doc OpenAPI de l'instance (`/api-docs/swagger-ui-init.js` : mediaType et mediaId requis, seasons
+  accepte "all", réponse 201 MediaRequest) et contre des demandes existantes (`GET /request`, même schéma). Le transport des
+  scripts refuse tout autre verbe que GET/HEAD (testé). Une demande faite avec la clé API est attribuée à l'administrateur.
+- **Affiches** : `posterUrl(path, 'w185' | 'w300')` vers `image.tmdb.org`, jamais l'original (w185 10 Ko, w300 22 Ko,
+  original 570 Ko sur un même titre). Non essayé depuis la Frame ; repli : `/imageproxy/tmdb/t/p/` de l'instance.
+- **Configuration** : `overseerrConfigFrom(prefs)` lit `prefs.overseerrUrl` / `prefs.overseerrKey` (cimaise.v1, saisis dans
+  les Réglages au lot suivant), sinon `window.__cimaiseOverseerr` (copie empaquetée, sonde). Les scripts lisent
+  `.local/overseerr.env`.
+- **Fixtures** (`tests/fixtures/overseerr/`) : réponses réelles réduites par `scripts/overseerr/capture-fixtures.mjs`, liste
+  blanche de champs ; titres, résumés, affiches et identifiants remplacés (titre + statut révéleraient la bibliothèque).
+
+**Poids.** 5,2 Ko minifié (2,2 Ko gzip). Le module n'est importé par aucune entrée : `app.js` et les chunks sont inchangés ;
+il sera servi par un chunk chargé à la demande, hors JS initial.

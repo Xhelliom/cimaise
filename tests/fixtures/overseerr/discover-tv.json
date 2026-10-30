@@ -1,0 +1,62 @@
+{
+  "page": 1,
+  "totalPages": 492,
+  "totalResults": 9836,
+  "results": [
+    {
+      "id": 1008,
+      "mediaType": "tv",
+      "name": "Série 7",
+      "firstAirDate": "2008-01-01",
+      "posterPath": "/affiche7.jpg",
+      "overview": "Résumé 7"
+    },
+    {
+      "id": 1009,
+      "mediaType": "tv",
+      "name": "Série 8",
+      "firstAirDate": "1992-01-01",
+      "posterPath": "/affiche8.jpg",
+      "overview": "Résumé 8"
+    },
+    {
+      "id": 1010,
+      "mediaType": "tv",
+      "name": "Série 9",
+      "firstAirDate": "2017-01-01",
+      "posterPath": "/affiche9.jpg",
+      "overview": "Résumé 9"
+    },
+    {
+      "id": 1011,
+      "mediaType": "tv",
+      "name": "Série 10",
+      "firstAirDate": "2021-01-01",
+      "posterPath": "/affiche10.jpg",
+      "overview": "Résumé 10"
+    },
+    {
+      "id": 1012,
+      "mediaType": "tv",
+      "name": "Série 11",
+      "firstAirDate": "2020-01-01",
+      "posterPath": "/affiche11.jpg",
+      "overview": "Résumé 11"
+    },
+    {
+      "id": 1013,
+      "mediaType": "tv",
+      "name": "Série 12",
+      "firstAirDate": "2005-01-01",
+      "posterPath": "/affiche12.jpg",
+      "overview": "Résumé 12",
+      "mediaInfo": {
+        "id": 1014,
+        "tmdbId": 1013,
+        "mediaType": "tv",
+        "status": 4,
+        "status4k": 1
+      }
+    }
+  ]
+}

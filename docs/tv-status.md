@@ -30,6 +30,7 @@ Hypothèses et points à vérifier (voir HANDOFF §11).
 - Codecs, HDR, pistes et sous-titres sous AVPlay
 - HTTPS auto-signé (phase 2). HTTPS **Let's Encrypt** (Overseerr) : observé OK, voir plus haut.
 - Overseerr **sans** `<access origin>` dans `config.xml` (Plex fonctionne sans) ; temps de réponse d'Overseerr sur la TV ; routes d'écriture (POST /request), jamais appelées
+- Affiches TMDB (`image.tmdb.org`, w185/w300) chargées par la Frame : non essayé (seul l'hôte Overseerr est validé). Repli possible : `/imageproxy/tmdb/t/p/` de l'instance (200 depuis le PC), via le 3e argument de `posterUrl`.
 - Autorun après le mode Art et après coupure de courant
 - Persistance de l'app en arrière-plan
 
