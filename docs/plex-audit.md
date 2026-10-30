@@ -178,3 +178,20 @@ SDK : `install completed`, app présente, `launched` (ne prouve pas l'affichage)
 - La session de transcodage Cimaise (vidéo copiée, audio AAC) disparaît du serveur entre 115 s et 119 s, soit vers 15:21:55 ; les relevés suivants restent à « aucune session » (jusqu'à 242 s au moins). Une session en lecture directe (id 31356, autre appareil) apparaît ensuite : elle n'est pas Cimaise.
 - Lecture seule du serveur ensuite : Bohemian Rhapsody `viewOffset` = 1534,5 s (25:34), `lastViewedAt` 15:21:57. C'est cohérent avec le dernier `viewOffset` de la session (1529 s) : la progression a bien été remontée à la sortie.
 - Constat de Stéphane : « c'est tout bon je pense » (sans position notée ni lecture sur un autre appareil). **L'heure de sortie et la position affichée ne sont donc pas confirmées par lui ; la position vue sur un autre appareil Plex n'est pas observée.** La disparition de la session est établie par le serveur (script), pas par une observation de la TV.
+
+## Sous-titres sans incrustation : sonde du serveur (2026-10-30, `scripts/plex/probe-subs.mjs`, GET seulement)
+
+Pistes de sous-titres de tout le catalogue, par format et présence de `key` :
+
+| Format | Pistes | `key` |
+|---|---|---|
+| SRT externe | 3 035 | `/library/streams/N` (servi en SRT : 200, `?format=srt` et `.srt` identiques) |
+| SRT interne | 17 435 | **aucune** |
+| ASS/SSA | 346 | **aucune** (toutes internes) |
+| mov_text | 79 | **aucune** |
+| PGS / VobSub / autres | 408 / 122 / 36 | aucune |
+
+- Le point d'accès `/library/streams/{id}` ne sert **que** les pistes externes. Pour une piste interne (SRT, ASS, mov_text) : `501 Not Implemented`, avec ou sans `.srt` / `?format=srt`.
+- `/video/:/transcode/universal/subtitles` (extraction par le transcodeur) répond `400 Bad Request` en GET, avec ou sans `X-Plex-Client-Profile-Name: Generic`.
+  Il demande probablement une décision de transcodage préalable (`subtitles=sidecar`) : c'est une **écriture serveur** (session), hors de la vérification « en lecture seule ».
+- Conséquence : sans écriture serveur, **aucune version SRT d'un ASS ou d'un mov_text n'est obtenable**. Les chiffres « avant/après » du gain ne peuvent pas encore être mesurés.
