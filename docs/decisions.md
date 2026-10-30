@@ -407,9 +407,16 @@ filtre, texte en tracés). Les sources et explorations restent dans `packages/la
 dans le `.wgt` (testé : `tests/wgt.test.mjs`). Seule l'icône finale y entre.
 
 **Icône.** `apps/tv/icon.png` = `logo.svg` rendu en **117×117** (resvg) puis optimisé (oxipng `-o max --strip all`) :
-5 648 octets (l'ancien aplat : 230 octets). 117×117 est la taille documentée par Samsung pour l'icône
-`config.xml` d'une app TV (l'icône de store de 512 est téléversée à part au Seller Office, hors périmètre).
-Non confirmé sur la TV : si le Smart Hub l'affiche floue, régénérer en 512×512 (même commande, `-w 512 -h 512`).
+5 648 octets (l'ancien aplat : 230 octets).
+
+**Source de la taille (vérifiée le 2026-10-30).** Les modèles de projet Web TV du SDK Tizen, lus dans l'image
+`cimaise-tizen:5.6` (`/home/tizen/tizen-studio/platforms/tizen-5.0/tv-samsung/samples/Template/Web/Basic/Empty/project/icon.png`,
+idem Tizen_Blank, Caph/*, et en 5.5 et 8.0), ont tous un `icon.png` de **117×117** (en-tête PNG lu), référencé par
+`<icon src="icon.png"/>` : même taille et même déclaration que chez nous. Le guide Samsung « App Icons and Screenshots »
+(developer.samsung.com/smarttv/design/app-icons-and-screenshots.html) ne parle pas de l'icône de `config.xml` : il ne
+fixe que les icônes de store du Seller Office (1920×1080 logo + fond, 512×423), hors périmètre. Une page Samsung
+(Design Q&A) décrit 117×117 comme l'icône « de test » ; je n'ai pu la lire qu'en résumé de recherche : seule la source
+du modèle est établie. Non testé sur la TV : si le Smart Hub l'affiche flou, régénérer en 512×512 (`resvg -w 512 -h 512`).
 
 **Coût.** `.wgt` non signé : 141 648 → 147 150 octets (**+5 502 octets**, +5,4 Ko ; 143,7 Ko / budget 1,5 Mo).
 Aucun effet sur le JS initial ni sur le démarrage (image lue par le Smart Hub, jamais par l'app).
