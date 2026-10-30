@@ -554,3 +554,26 @@ aucun chunk ; une écriture du catalogue une seule fois, le jour où la tuile es
 
 **Non vérifié sur la Frame** : chargement des affiches `image.tmdb.org` (aucune `<access origin>` déclarée pour TMDB ; la sonde
 n'a testé que l'origine Overseerr), fluidité du défilement, latence du focus.
+
+## Overseerr : recherche au clavier à l'écran (2026-10-30)
+
+**Décision.** Pastille « Rechercher » en haut à droite de l'accueil Overseerr (Haut depuis « Films du moment »), qui empile un
+écran de recherche (`packages/overseerr/src/ui/search.ts`) dans le même chunk `overseerr.js`.
+
+- **Clavier** : celui de `tv-core` (`createKeyboard`), le même que la recherche Plex et les Réglages, **importé, pas recopié** ;
+  son CSS est déjà dans `app.css`. esbuild en embarque une copie dans chaque chunk qui l'utilise (≈ 3,7 Ko minifié), comme pour
+  `plex.js` et `settings.js` : le code source reste unique.
+- **Requête** : `GET /search` après **400 ms** de silence (comme la recherche Plex côté serveur), 2 caractères au moins. Un
+  déplacement sur le clavier relance aussi le silence : au D-pad, aller d'une lettre à l'autre dépasse souvent 400 ms et chaque
+  lettre partait en requête (vu dans l'aperçu : « al » puis « alien ») ; après correction, une seule requête pour « alien ».
+  « Valider » envoie sans attendre. Une réponse d'un texte dépassé est ignorée.
+- **Résultats** : films et séries mêlés dans l'ordre d'Overseerr, grille `createGrid` virtualisée 2 colonnes (≤ 10 tuiles dans
+  le DOM), affiches `w185` à leur taille native 185×278, badge de disponibilité (le même `badgeFor` que l'accueil, déplacé dans
+  `ui/badge.ts`), « Film · 2019 » / « Série · 2021 » sous l'affiche pour distinguer les deux. Page suivante à 6 titres de la fin.
+- **Retour** n'est jamais consommé par l'écran : le routeur dépile et l'accueil Overseerr reprend (sur la pastille).
+- Un seul repère de focus à l'écran : celui du clavier s'efface quand les résultats ont la main.
+
+**Poids.** `overseerr.js` 14,1 → **22,1 Ko minifié** (5,4 → **8,3 Ko gzip**), dont le clavier ≈ 3,7 Ko. `app.js` 39,10 → 39,13 Ko
+(passage de `nav` au chunk). `app.css` inchangé. Rien au démarrage : le chunk n'est chargé qu'à l'ouverture de la tuile.
+
+**Non vérifié sur la Frame** : latence de frappe et de la grille.
