@@ -44,6 +44,37 @@ const haSessionScript = async () => {
   }
 };
 
+// Overseerr dans l'aperçu : adresse et clé viennent de .local/overseerr.env (jamais de git ni du build). Overseerr n'envoie
+// pas d'en-tête CORS (la TV passe par <access origin>) : le script servi réécrit les XHR vers son origine en /__overseerr/…,
+// relayées ici. Lecture seule : le relais refuse tout sauf GET (pas de demande envoyée depuis l'aperçu). Les réglages saisis
+// dans l'aperçu priment : adresse et clé ne sont écrites dans cimaise.v1 que si elles y manquent.
+const OV_ENV = '/home/swetterwald/git/cimaise/.local/overseerr.env';
+const readOvEnv = () => {
+  const env = {};
+  for (const l of readFileSync(process.env.OVERSEERR_ENV_FILE || OV_ENV, 'utf8').split('\n')) { const i = l.indexOf('='); if (i > 0) env[l.slice(0, i).trim()] = l.slice(i + 1).trim(); }
+  if (!env.OVERSEERR_URL || !env.OVERSEERR_API_KEY) throw new Error('OVERSEERR_URL ou OVERSEERR_API_KEY absent');
+  return { url: env.OVERSEERR_URL.replace(/\/+$/, ''), key: env.OVERSEERR_API_KEY };
+};
+const overseerrSessionScript = async () => {
+  try {
+    const ov = readOvEnv(), origin = new URL(ov.url).origin;
+    return [`try{var k='cimaise.v1',d=JSON.parse(localStorage.getItem(k)||'null')||{version:1,prefs:{}};d.prefs=d.prefs||{};if(!d.prefs.overseerrUrl||!d.prefs.overseerrKey){d.prefs.overseerrUrl=${JSON.stringify(ov.url)};d.prefs.overseerrKey=${JSON.stringify(ov.key)};localStorage.setItem(k,JSON.stringify(d));}}catch(e){}
+(function(){var o=XMLHttpRequest.prototype.open,p=${JSON.stringify(origin)};XMLHttpRequest.prototype.open=function(m,u){if(typeof u==='string'&&u.indexOf(p+'/')===0)arguments[1]='/__overseerr'+u.slice(p.length);return o.apply(this,arguments);};})();`, 'text/javascript'];
+  } catch (e) {
+    return [`console.warn('[aperçu] pas d\\'Overseerr (overseerr.env illisible ou incomplet)');`, 'text/javascript'];
+  }
+};
+const overseerrProxy = (req, res) => {
+  if (req.method !== 'GET') { res.writeHead(405).end('aperçu : lecture seule'); return; }
+  let ov;
+  try { ov = readOvEnv(); } catch { res.writeHead(503).end('overseerr.env absent'); return; }
+  const headers = { accept: 'application/json' };
+  if (req.headers['x-api-key']) headers['x-api-key'] = req.headers['x-api-key'];
+  fetch(new URL(ov.url).origin + req.url.slice('/__overseerr'.length), { headers })
+    .then(async (r) => res.writeHead(r.status, { 'content-type': r.headers.get('content-type') || 'application/json', 'cache-control': 'no-store' }).end(Buffer.from(await r.arrayBuffer())))
+    .catch(() => res.writeHead(502).end('Overseerr injoignable depuis l\'aperçu'));
+};
+
 const SHELL = `<!doctype html>
 <html lang="fr"><head><meta charset="utf-8"><title>cimaise — aperçu</title>
 <style>
@@ -62,9 +93,10 @@ const routes = {
   '/__mocks/mocks.js': async () => [await bundle('mocks/src/index.ts'), 'text/javascript'],
   '/__mocks/plex-session.js': plexSessionScript,
   '/__mocks/ha-session.js': haSessionScript,
+  '/__mocks/overseerr-session.js': overseerrSessionScript,
   '/__mocks/preview.js': async () => [await bundle('mocks/src/preview.ts'), 'text/javascript'],
   '/app/index.html': async () => [
-    readFileSync(`${root}apps/tv/index.html`, 'utf8').replace('<head>', '<head>\n<script src="/__mocks/mocks.js"></script>\n<script src="/__mocks/plex-session.js"></script>\n<script src="/__mocks/ha-session.js"></script>'),
+    readFileSync(`${root}apps/tv/index.html`, 'utf8').replace('<head>', '<head>\n<script src="/__mocks/mocks.js"></script>\n<script src="/__mocks/plex-session.js"></script>\n<script src="/__mocks/ha-session.js"></script>\n<script src="/__mocks/overseerr-session.js"></script>'),
     'text/html',
   ],
   '/app/app.js': async () => [await bundle('apps/tv/src/index.ts'), 'text/javascript'],
@@ -77,6 +109,7 @@ const routes = {
   '/demo/fonts/outfit-latin.woff2': async () => [readFileSync(`${root}packages/launcher/src/home/fonts/outfit-latin.woff2`), 'font/woff2'],
   '/app/plex.js': async () => [await bundle('apps/tv/src/chunks/plex.ts'), 'text/javascript'],
   '/app/settings.js': async () => [await bundle('apps/tv/src/chunks/settings.ts'), 'text/javascript'],
+  '/app/overseerr.js': async () => [await bundle('apps/tv/src/chunks/overseerr.ts'), 'text/javascript'],
   '/app/fonts/outfit-latin.woff2': async () => [readFileSync(`${root}packages/launcher/src/home/fonts/outfit-latin.woff2`), 'font/woff2'],
   '/app/app.css': async () => [await bundle('apps/tv/src/style.css', { external: ['*.woff2'] }), 'text/css'],
 };
@@ -104,6 +137,7 @@ const logoRoute = (url) => {
 export function startDevServer({ port = 5173 } = {}) {
   const srv = createServer(async (req, res) => {
     const url = (req.url ?? '/').split('?')[0];
+    if (url.startsWith('/__overseerr/')) { overseerrProxy(req, res); return; }
     const route = routes[url] ?? mockupRoute(url) ?? logoRoute(url);
     if (!route) { res.writeHead(404).end('introuvable'); return; }
     try {

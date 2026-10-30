@@ -1,7 +1,7 @@
 import { Focus } from '../focus';
 import { Key } from '../keys';
 
-export interface TileInfo { title?: string; image?: string | null; selected?: boolean; done?: boolean; progress?: number; }  // selected : classe « sel », marque permanente distincte du focus ; done : classe « done » (coche « vu ») ; progress (0 à 1) : fine barre en bas de la tuile
+export interface TileInfo { title?: string; image?: string | null; selected?: boolean; done?: boolean; progress?: number; badge?: { text: string; cls: string } | null; }  // badge : pastille « vbadge » + cls posée sur la tuile, créée à la demande ; selected : classe « sel », marque permanente distincte du focus ; done : classe « done » (coche « vu ») ; progress (0 à 1) : fine barre en bas de la tuile
 
 export interface VirtualOptions {
   container: HTMLElement;
@@ -22,7 +22,7 @@ export interface VirtualOptions {
   doc?: Document;
 }
 
-interface Tile { el: HTMLElement; img: HTMLImageElement; label: HTMLElement; bar: HTMLElement | null; index: number; src: boolean; }
+interface Tile { el: HTMLElement; img: HTMLImageElement; label: HTMLElement; bar: HTMLElement | null; badge: HTMLElement | null; index: number; src: boolean; }
 
 // Liste/grille virtualisée : au plus (lignes visibles, partielles comprises, + 2 × marge) × colonnes nœuds, tous
 // préalloués et recyclés. Le défilement est un seul transform sur la couche ; chaque tuile
@@ -76,7 +76,7 @@ export class VirtualList {
     label.className = 'vlabel';
     el.appendChild(img);
     el.appendChild(label);
-    return { el: el, img: img, label: label, bar: null, index: -1, src: false };
+    return { el: el, img: img, label: label, bar: null, badge: null, index: -1, src: false };
   }
 
   get count(): number { return this.o.count; }
@@ -169,6 +169,12 @@ export class VirtualList {
       if (!t.bar) { t.bar = this.doc.createElement('span'); t.bar.className = 'vbar'; t.el.appendChild(t.bar); }
       t.bar.style.transform = 'scaleX(' + info.progress + ')';
     } else if (t.bar) { t.el.removeChild(t.bar); t.bar = null; }
+    var b = info && info.badge;
+    if (b) {
+      if (!t.badge) { t.badge = this.doc.createElement('span'); t.el.appendChild(t.badge); }
+      t.badge.className = 'vbadge ' + b.cls;
+      t.badge.textContent = b.text;
+    } else if (t.badge) { t.el.removeChild(t.badge); t.badge = null; }
   }
 
   private place(t: Tile, i: number): void {

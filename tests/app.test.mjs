@@ -14,7 +14,7 @@ before(async () => {
   const es5 = join(mkdtempSync(join(tmpdir(), 'app-')), 'es5');
   const t = spawnSync('node_modules/.bin/tsc', ['-p', 'apps/tv/tsconfig.json', '--outDir', es5], { encoding: 'utf8' });
   assert.equal(t.status, 0, t.stdout + t.stderr);
-  for (const [name, p] of [['app', 'index'], ['plex', 'chunks/plex'], ['settings', 'chunks/settings']]) {
+  for (const [name, p] of [['app', 'index'], ['plex', 'chunks/plex'], ['settings', 'chunks/settings'], ['overseerr', 'chunks/overseerr']]) {
     const r = await build({ entryPoints: [join(es5, `apps/tv/src/${p}.js`)], bundle: true, write: false, format: 'iife', target: 'es5', logLevel: 'silent' });
     code[name] = r.outputFiles[0].text;
   }
@@ -24,8 +24,14 @@ function el(tag) {
   const e = { tag, children: [], parentNode: null, style: {}, className: '', textContent: '', offsetWidth: 0 };
   e.appendChild = (c) => { if (c.parentNode) c.parentNode.removeChild(c); c.parentNode = e; e.children.push(c); if (e.onAppend) e.onAppend(c); return c; };
   e.removeChild = (c) => { e.children.splice(e.children.indexOf(c), 1); c.parentNode = null; return c; };
-  e.removeAttribute = () => {};
-  e.setAttribute = () => {};
+  e.attrs = {};
+  e.removeAttribute = (k) => { delete e.attrs[k]; };
+  e.setAttribute = (k, v) => { e.attrs[k] = String(v); };
+  e.getAttribute = (k) => (k in e.attrs ? e.attrs[k] : null);
+  e.classList = { // VirtualList (écran Overseerr)
+    add: (c) => { if (!e.className.split(' ').includes(c)) e.className = (e.className + ' ' + c).trim(); },
+    remove: (c) => { e.className = e.className.split(' ').filter((x) => x !== c).join(' '); },
+  };
   Object.defineProperty(e, 'firstChild', { get: () => e.children[0] || null });
   e.getElementsByTagName = () => [];
   return e;
@@ -122,6 +128,35 @@ test('Plex intégré : entrée interne ouverte par le routeur, chunk chargé à 
   assert.equal(find(a.root, 'plex-panel').length, 1);
 });
 
+test('Overseerr configuré : tuile ajoutée au catalogue enregistré, chunk et requêtes à la première ouverture seulement', async () => {
+  const a = boot({ stored: { version: 1, prefs: { overseerrUrl: 'https://ov.test', overseerrKey: 'k', catalog: { version: 1, entries: [
+    { id: 'plex', name: 'Plex intégré', color: '#e5a00d', type: 'interne' },
+    { id: '', name: 'Netflix', color: '#e50914', type: 'tv' },
+  ] } } } });
+  assert.equal(a.reads(), 2, 'lecture de démarrage + relecture avant l’unique écriture de la tuile (une seule fois)');
+  a.flush();
+  assert.equal(find(a.root, 'titre')[0].textContent, 'Overseerr', 'tuile ajoutée en tête');
+  assert.deepEqual(a.loaded, [], 'aucun chunk au démarrage');
+  assert.equal(a.xhr(), 0, 'aucune requête Overseerr au démarrage');
+  assert.deepEqual(JSON.parse(a.store['cimaise.v1']).prefs.catalog.entries.map((e) => e.id), ['overseerr', 'plex', '']);
+  a.key(OK);
+  assert.deepEqual(a.loaded, ['overseerr.js']);
+  await a.tick();
+  assert.equal(find(a.root, 'ov').length, 1, 'écran Overseerr sans recharger l’app');
+  assert.equal(find(a.root, 'ov-row').length, 2, 'Films du moment, Séries du moment');
+  assert.equal(a.xhr(), 2, 'une page de films, une page de séries');
+  a.key(BACK);
+  assert.equal(find(a.root, 'home').length, 1);
+  a.key(OK); await a.tick();
+  assert.deepEqual(a.loaded, ['overseerr.js'], 'chunk déjà enregistré');
+});
+
+test('Overseerr masqué : pas de tuile, même configuré', () => {
+  const a = boot({ stored: { version: 1, prefs: { overseerrUrl: 'https://ov.test', overseerrKey: 'k', modules: { overseerr: false } } } });
+  assert.ok(!find(a.root, 'tuile').some((t) => t.textContent === 'Overseerr'));
+  assert.equal(find(a.root, 'tuile').length, 7);
+});
+
 test('Entrée sur une tuile avec ID lance l’app via l’adaptateur TV (tizen.application.launch)', () => {
   const launched = [];
   const a = boot({ launched, stored: { version: 1, prefs: { catalog: { version: 1, entries: [
@@ -173,7 +208,7 @@ test('Réglages → accueil : retirer et réordonner changent les tuiles et le c
   a.key(RIGHT); a.key(RIGHT); a.key(OK); // puce « Retirer »
   a.key(BACK);
   assert.equal(find(a.root, 'tuile').length, 6);
-  assert.equal(JSON.parse(a.store['cimaise.v1']).prefs.catalog.entries.length, 6);
+  assert.equal(JSON.parse(a.store['cimaise.v1']).prefs.catalog.entries.length, 7, '6 visibles + la tuile Overseerr masquée (non configuré)');
   a.key(UP); a.key(OK); await a.tick(); // retour aux réglages
   a.key(DOWN); a.key(DOWN); a.key(RIGHT); a.key(OK); a.key(UP); a.key(OK); a.key(BACK); // « Déplacer » Netflix vers le haut
   const saved = JSON.parse(a.store['cimaise.v1']).prefs.catalog.entries.map((e) => e.name);

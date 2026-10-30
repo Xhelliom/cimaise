@@ -524,3 +524,33 @@ remplacé par un calque `radial-gradient` statique. Captures de comparaison avec
 **Poids.** `settings.js` +5,1 Ko minifié (+1,7 Ko gzip) : section, appel authentifié du client, test ; le transport XHR de la
 sonde est réutilisé. `app.js` +0,6 Ko (entrée du registre, disposition technique du clavier). Rien au démarrage : aucune
 requête Overseerr tant que l'utilisateur ne presse pas « Tester ».
+
+## Module Overseerr : tuile du Dock et rangées « du moment » (2026-10-30)
+
+- **Chunk `overseerr.js`**, injecté à la première ouverture de la tuile, jamais au démarrage ni si le module est masqué
+  (garde `moduleEnabled` avant `pushLazy`). Il apporte l'écran (`packages/overseerr/src/ui/home.ts`), le client (discover
+  movies/tv), son transport XHR et **son CSS**, injecté en `<style>` à la première ouverture (comme les Réglages) : `app.css`
+  ne bouge pas.
+- **Tuile** : entrée interne `overseerr` (indigo `#6366f1`) dans le catalogue par défaut, masquée tant qu'Overseerr n'est pas
+  configuré. Pour un catalogue déjà enregistré, `addNewTiles` la pose en tête dès que le module est activé (au démarrage, avec
+  les préférences déjà lues, ou en fermant les Réglages). Retirer une tuile masquant son module, une tuile absente d'un module
+  activé n'a jamais été posée : aucune trace à garder, et une tuile retirée ne revient pas.
+- **Écran** (maquette validée) : « Films du moment » et « Séries du moment », deux `VirtualList` horizontales 240×360 (≤ 9
+  tuiles dans le DOM par rangée). Une page TMDB (20 titres) par rangée à l'ouverture, la suivante quand le focus arrive à
+  8 titres de la fin (une requête en vol au plus) ; doublons d'une page à l'autre écartés (`appendTitles`). Titres en français
+  (`language=fr`).
+- **Affiches** : TMDB `w185` (≈ 10 Ko, 185×278 décodé ≈ 206 Ko) affichées en 240×360 ; `w342` serait plus grande que
+  l'affichage. Les images ne sont posées que sur les tuiles visibles + 1 de marge, retirées en quittant l'écran.
+- **Badges** : `vbadge` ajouté à `VirtualList` (pastille créée à la demande, comme la barre de progression) : Disponible et
+  Partiel (vert), Demandé (indigo), En attente (ambre), rien pour un titre jamais demandé. Le zoom du focus porte sur l'affiche
+  (la tuile est placée par un transform en ligne).
+- **Aperçu** : `scripts/dev/server.mjs` lit `.local/overseerr.env`, écrit adresse et clé dans `cimaise.v1` si elles y manquent,
+  et relaie les XHR vers l'origine Overseerr par `/__overseerr/…` (Overseerr n'envoie pas d'en-tête CORS). **GET seulement** :
+  aucune demande ne peut partir de l'aperçu.
+
+**Poids.** `overseerr.js` **14,1 Ko minifié (5,4 Ko gzip)**. `app.js` 38,22 → 39,10 Ko (**+0,88 Ko**, +0,2 Ko gzip : entrée du
+catalogue, branche d'ouverture, `addNewTiles`, badge de `VirtualList`). `app.css` inchangé. Démarrage : aucune requête Overseerr,
+aucun chunk ; une écriture du catalogue une seule fois, le jour où la tuile est posée.
+
+**Non vérifié sur la Frame** : chargement des affiches `image.tmdb.org` (aucune `<access origin>` déclarée pour TMDB ; la sonde
+n'a testé que l'origine Overseerr), fluidité du défilement, latence du focus.
