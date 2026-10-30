@@ -152,3 +152,16 @@ figée ; elle est repartie après un saut en arrière. Deux défauts :
    Correctif : la ligne de temps AVPlay est celle du film (`setTranscode(0, durée)`), la position de départ se rejoint par `seekTo` avant `play` (reprise, saut lointain,
    changement de piste). **À confirmer sur la Frame** (AVPlay honore-t-il déjà EXT-X-START ? sinon seekTo suffit ; dans les deux cas la position affichée doit être juste).
    Le journal d'état AVPlay pendant un gel n'a pas pu être relevé (TV injoignable).
+
+### Essai de recette sur le code 88f58c0 (2026-10-30, paquet `apps/tv/dist`, `dist/cimaise.wgt` 147 836 o)
+
+SDK : `install completed`, app présente, `launched` (ne prouve pas l'affichage). Surveillance : `node scripts/plex/watch-transcode.mjs 2400` démarrée avant le lancement.
+
+**Observé physiquement par Stéphane** (sur Bohemian Rhapsody, transcodage vidéo copiée + audio AAC) :
+- étape 0 : l'accueil de Cimaise s'affiche — OK ;
+- étape 1 : reprise depuis le point enregistré — OK ;
+- étape 2 : avance/recul ±10 s — OK.
+
+**Vu par le script** (lecture seule, extrait) : session Cimaise `copy transcode aac`, `viewOffset` ≈ 2037 s au démarrage (reprise), puis ≈ 1426 s et ≈ 1500 s après des sauts, états `playing`/`paused` alternés.
+
+**Pas encore observé** : choix d'une piste (rechargement sans gel, position juste), bandes du letterbox, sortie et disparition de la session côté serveur (critère 3).
