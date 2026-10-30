@@ -503,3 +503,24 @@ en pilule ; aucun flou ni filtre, une seule ombre (anneau de focus à rayon 0), 
 (1,0 Ko gzip)**, 0 image, 0 police ajoutée (fiche : `packages/overseerr/mockups/COUTS.md`). Le fond d'œuvre plein écran d'Overseerr est
 remplacé par un calque `radial-gradient` statique. Captures de comparaison avec l'instance : hors git (`.local/overseerr-captures/`).
 **En attente de la validation du style par Stéphane.**
+
+## Réglages Overseerr : adresse, clé API, bouton Tester (2026-10-30)
+
+- **Module déclaré** dans `packages/launcher/src/modules/registry.ts` : `overseerr`, `configured` = `prefs.overseerrUrl` et
+  `prefs.overseerrKey` non vides. Masqué tant que non configuré ; l'interrupteur Activé / Masqué de « Apps intégrées » vaut comme
+  pour Plex et Scènes. **Pas encore de tuile** (`tileId: null`) : les écrans Overseerr ne sont pas câblés, une tuile n'ouvrirait rien.
+- **Saisie** au clavier à l'écran de tv-core, avec une disposition `technique` ajoutée : touche **maj** (capitales), `. - / :` à la
+  place des accents, `=` et `_`. La clé de l'instance fait 68 caractères (capitales, minuscules, chiffres, `=`) : l'ancien
+  clavier ABC ne pouvait pas la taper. Disposition par défaut inchangée (recherche Plex, Scènes).
+- **Stockage** : `saveOverseerrConfig(url, key)` écrit les deux champs ensemble dans `cimaise.v1` (l'adresse par défaut
+  `https://overseerr.wetter.land` devient explicite dès la première saisie). La clé est masquée (`••••••••`) hors saisie,
+  jamais dans un message ni une trace, jamais dans le dépôt.
+- **Tester** : `GET /api/v1/status` **sans clé** (joignable, version), puis `GET /api/v1/settings/about` avec la clé
+  (route d'administration : 403 avec une mauvaise clé, 401 sans ; ne renvoie ni pseudo ni courriel, contrairement à
+  `/auth/me`). Vérifié le 30/10 contre l'instance (1.33.2). Affiche « Overseerr 1.33.2 joignable, clé acceptée (N médias). »
+- **Retour** de la section d'un module : l'interrupteur relit l'état enregistré (`moduleEnabled`), la saisie de la clé le fait
+  passer à Activé sans rouvrir les Réglages.
+
+**Poids.** `settings.js` +5,1 Ko minifié (+1,7 Ko gzip) : section, appel authentifié du client, test ; le transport XHR de la
+sonde est réutilisé. `app.js` +0,6 Ko (entrée du registre, disposition technique du clavier). Rien au démarrage : aucune
+requête Overseerr tant que l'utilisateur ne presse pas « Tester ».

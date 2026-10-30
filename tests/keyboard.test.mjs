@@ -171,3 +171,28 @@ test('canMove : faux au bord, pour que l’écran puisse passer la main aux rés
   assert.equal(k.canMove('right'), false);
   assert.equal(k.canMove('enter'), false);
 });
+
+test('disposition technique : maj met les lettres en capitales, . - / : = _ atteignables, accents absents', () => {
+  const { k, container } = kb({ layout: 'technique' });
+  const seen = {};
+  for (let r = 0; r < 6; r++) {
+    for (let c = 0; c < 12; c++) { seen[label(k)] = true; k.handleKey('right'); }
+    k.handleKey('down');
+    for (let c = 0; c < 12; c++) k.handleKey('left');
+  }
+  '.-/:=_'.split('').concat(['maj', 'effacer', 'tout effacer', 'valider']).forEach((l) => assert.ok(seen[l], 'touche ' + l));
+  assert.ok(!seen['é'] && !seen['espace'], 'ni accents ni espace : une clé ou une adresse n’en a pas');
+  // retour en haut à gauche, puis « a », maj, « a », « = »
+  press(k, 'up', 'up', 'up', 'up', 'up'); for (let c = 0; c < 12; c++) k.handleKey('left');
+  k.handleKey('enter');
+  press(k, 'down', 'down', 'down', 'down'); k.handleKey('enter');    // maj (bord gauche de la dernière rangée)
+  assert.ok(all(container).some((e) => e.textContent === 'A'), 'les touches affichent des capitales');
+  press(k, 'up', 'up', 'up', 'up'); k.handleKey('enter');
+  press(k, 'down', 'down', 'down', 'down', 'right'); k.handleKey('enter');
+  assert.equal(k.getValue(), 'aA=');
+});
+
+test('disposition par défaut inchangée : pas de touche maj', () => {
+  const { container } = kb();
+  assert.ok(!all(container).some((e) => e.textContent === 'maj'));
+});

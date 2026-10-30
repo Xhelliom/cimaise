@@ -203,3 +203,45 @@ test('scripts de vérification : le transport Node refuse tout POST (aucune vrai
   assert.equal(err.code, 'unreachable');
   assert.match(err.message, /lecture seule/);
 });
+
+test('Tester : /status sans clé, puis /settings/about avec la clé ; version et nombre de médias', async () => {
+  const http = fakeHttp([[/\/status$/, { body: '{"version":"1.33.2","commitTag":"x"}' }], [/\/settings\/about$/, { body: '{"version":"1.33.2","totalMediaItems":771}' }]]);
+  const [err, info] = await sync((cb) => api.testConnection(http, CFG, cb));
+  assert.equal(err, null);
+  assert.deepEqual(info, { version: '1.33.2', mediaItems: 771 });
+  assert.deepEqual(http.calls.map((c) => c.url), ['https://ov.example.test/api/v1/status', 'https://ov.example.test/api/v1/settings/about']);
+  assert.equal(http.calls[0].headers['X-Api-Key'], undefined, '/status part sans la clé');
+  assert.equal(http.calls[1].headers['X-Api-Key'], 'SECRET-KEY');
+});
+
+test('Tester : clé refusée, injoignable, autre serveur, non configuré ; la clé n\'apparaît jamais', async () => {
+  const st = { body: '{"version":"1.33.2"}' };
+  const cases = [
+    [[[/\/status$/, st], [/about/, { status: 403, body: '{}' }]], 'unauthorized', 2],
+    [[[/\/status$/, { error: 'réseau' }]], 'unreachable', 1],
+    [[[/\/status$/, { status: 0, body: '' }]], 'unreachable', 1],
+    [[[/\/status$/, { status: 404, body: '' }]], 'http', 1],
+    [[[/\/status$/, { body: '<html>' }]], 'format', 1],
+  ];
+  for (const [routes, code, n] of cases) {
+    const http = fakeHttp(routes);
+    const [err] = await sync((cb) => api.testConnection(http, CFG, cb));
+    assert.equal(err && err.code, code, JSON.stringify(routes[routes.length - 1][1]));
+    assert.equal(http.calls.length, n);
+    assert.ok(!err.message.includes('SECRET-KEY'));
+  }
+  const none = fakeHttp([]);
+  const [err] = await sync((cb) => api.testConnection(none, { url: 'https://a.test', key: '' }, cb));
+  assert.equal(err.code, 'config');
+  assert.equal(none.calls.length, 0);
+});
+
+test('Réglages : adresse et clé enregistrées dans cimaise.v1, relues après redémarrage (nouveau chargement du stockage)', () => {
+  const mem = {};
+  const store = { getItem: (k) => (k in mem ? mem[k] : null), setItem: (k, v) => { mem[k] = String(v); } };
+  api.saveOverseerrConfig('https://ov.example.test', 'SECRET-KEY', store);
+  assert.deepEqual(Object.keys(mem), ['cimaise.v1']);
+  const prefs = JSON.parse(mem['cimaise.v1']).prefs;
+  assert.deepEqual(api.overseerrConfigFrom(prefs, {}), { url: 'https://ov.example.test', key: 'SECRET-KEY' });
+  assert.equal(api.DEFAULT_OVERSEERR_URL, 'https://overseerr.wetter.land');
+});

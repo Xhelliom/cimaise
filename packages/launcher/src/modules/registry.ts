@@ -24,6 +24,11 @@ export var MODULES: ModuleDef[] = [
   {
     id: 'scenes', name: 'Scènes Home Assistant', tileId: null, chunk: null, settings: 'scenes',
     configured: function (p) { return typeof p.haUrl === 'string' && !!p.haUrl && typeof p.haToken === 'string' && !!p.haToken; }
+  },
+  // Pas encore de tuile ni de chunk câblé (écrans au lot suivant) : seuls l'interrupteur et les réglages (adresse, clé, test) existent.
+  {
+    id: 'overseerr', name: 'Overseerr', tileId: null, chunk: 'overseerr', settings: 'overseerr',
+    configured: function (p) { return typeof p.overseerrUrl === 'string' && !!p.overseerrUrl && typeof p.overseerrKey === 'string' && !!p.overseerrKey; }
   }
 ];
 

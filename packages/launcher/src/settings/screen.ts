@@ -6,6 +6,7 @@ import { HomeMode, normalizeMode, normalizeTiles, TILES_CHOICES } from '../home/
 import { fillIds } from '../catalog/model';
 import { knownApp } from '../catalog/known-apps';
 import { HaSettings, ScenesView, createScenesView } from './scenes';
+import { OverseerrSettings, createOverseerrView } from './overseerr';
 
 // Une ligne de la section « Apps intégrées » : l'état vient du registre (modules/), le propriétaire persiste.
 export interface ModuleRow { id: string; name: string; enabled: boolean; hasSettings: boolean; }
@@ -24,6 +25,8 @@ export interface SettingsOptions {
   onModule?: (id: string, enabled: boolean) => AppEntry[] | void;
   onModuleSettings?: (id: string) => void;   // réglages propres d'un module autre que Scènes (ex. Plex) : le propriétaire les ouvre
   ha?: HaSettings;                           // réglages du module Scènes (Home Assistant), ouverts depuis « Apps intégrées »
+  ov?: OverseerrSettings;                    // réglages du module Overseerr (adresse, clé, test), ouverts depuis « Apps intégrées »
+  moduleEnabled?: (id: string) => boolean;   // état relu en quittant les réglages d'un module (la saisie peut le rendre « configuré »)
   onClose: () => void;
   doc?: Document;
 }
@@ -52,6 +55,7 @@ var CSS =
   '.reglages .ligne.choisie{background:rgba(255,255,255,.06);box-shadow:inset 6px 0 0 rgba(255,255,255,.5);color:#fff}' +
   '.reglages .ligne.choisie.focus{background:rgba(255,255,255,.14)}' +
   '.reglages .deja{font-size:26px;color:rgba(255,255,255,.5)}' +
+  '.reglages .clavier-zone{position:absolute;left:120px;top:190px}' +   // clavier à l'écran (Scènes, Overseerr) sous le titre
   '.reglages .rang{width:48px;font-size:28px;font-weight:500;color:rgba(255,255,255,.5)}' +
   '.reglages .champ{flex:none;width:720px;height:64px;box-sizing:border-box;padding:0 24px;border:0;border-radius:20px;background:#fff;color:#111;font:500 30px Outfit,sans-serif}';
 
@@ -65,7 +69,8 @@ export function createSettings(opts: SettingsOptions): Panel {
   var found: DiscoveredApp[] = [];
   var mode: HomeMode = normalizeMode(opts.mode);
   var tiles = normalizeTiles(opts.tiles);
-  var view: ScenesView | null = null;   // réglages du module Scènes ouverts
+  var view: ScenesView | null = null;   // réglages d'un module (Scènes, Overseerr) ouverts
+  var viewTitle = '';
   var mods = (opts.modules || []).map(function (m) { return { id: m.id, name: m.name, enabled: m.enabled, hasSettings: m.hasSettings }; });
   var modView = false;                  // section « Apps intégrées » ouverte
   var modRow = 0, modChip = 0;          // module focalisé ; 0 = interrupteur, 1 = Réglages
@@ -118,7 +123,7 @@ export function createSettings(opts: SettingsOptions): Panel {
   function render(): void {
     while (el.firstChild) el.removeChild(el.firstChild);
     var h = doc.createElement('h1');
-    h.textContent = view ? 'Scènes' : modView ? 'Apps intégrées' : 'Réglages';
+    h.textContent = view ? viewTitle : modView ? 'Apps intégrées' : 'Réglages';
     el.appendChild(h);
     if (view) {
       el.appendChild(view.render());
@@ -207,6 +212,7 @@ export function createSettings(opts: SettingsOptions): Panel {
         if (next) catalog = next.slice(0);
       }
       else if (m.id === 'scenes' && opts.ha) openScenes();
+      else if (m.id === 'overseerr' && opts.ov) openOverseerr();
       else if (opts.onModuleSettings) opts.onModuleSettings(m.id);
     } else return false;
     render();
@@ -251,8 +257,22 @@ export function createSettings(opts: SettingsOptions): Panel {
   function openScenes(): void {
     if (!opts.ha) return;
     view = createScenesView(doc, opts.ha, render);
+    viewTitle = 'Scènes';
     view.open();
     render();
+  }
+
+  function openOverseerr(): void {
+    if (!opts.ov) return;
+    view = createOverseerrView(doc, opts.ov, render);
+    viewTitle = 'Overseerr';
+    render();
+  }
+
+  // Retour depuis les réglages d'un module : l'interrupteur reflète l'état enregistré (saisir la clé peut activer le module).
+  function closeView(): void {
+    view = null;
+    if (opts.moduleEnabled) for (var i = 0; i < mods.length; i++) mods[i].enabled = opts.moduleEnabled(mods[i].id);
   }
 
   function clampRow(): void {
@@ -265,7 +285,7 @@ export function createSettings(opts: SettingsOptions): Panel {
     var inCatalog = row >= 1 && row <= catalog.length;
     if (view) {
       // Retour : referme le champ de saisie, sinon la section ; le reste est géré par la section.
-      if (k === 'back' && !view.editing() && !view.menuOpen()) { view = null; render(); return true; }
+      if (k === 'back' && !view.editing() && !view.menuOpen()) { closeView(); render(); return true; }
       var wasEditing = view.editing();
       var handled = view.press(k);
       // Pendant la saisie, pas de reconstruction : le champ garderait son focus et le clavier à l'écran resterait ouvert.

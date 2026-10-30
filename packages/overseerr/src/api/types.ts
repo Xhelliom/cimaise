@@ -34,3 +34,6 @@ export interface TitlePage { items: Title[]; page: number; totalPages: number; t
 
 // Réponse 201 de POST /request (schéma MediaRequest) : status 1 en attente, 2 approuvée, 3 refusée.
 export interface RequestResult { id: number; status: number; availability: Availability; }
+
+// Résultat du bouton « Tester » : version lue sans clé, nombre de médias lu avec la clé (null si absent).
+export interface ConnectionInfo { version: string; mediaItems: number | null; }

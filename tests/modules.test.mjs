@@ -28,7 +28,7 @@ const NF = { id: 'nf', name: 'Netflix', color: '#e50914', type: 'tv' };
 
 test('registre : chaque module déclare id, nom, chunk, section de réglages et condition « configuré »', () => {
   const ids = M.MODULES.map((m) => m.id);
-  assert.deepEqual(ids, ['plex', 'scenes']);
+  assert.deepEqual(ids, ['plex', 'scenes', 'overseerr']);
   for (const m of M.MODULES) {
     assert.equal(typeof m.name, 'string');
     assert.equal(typeof m.configured, 'function');
@@ -47,6 +47,10 @@ test('défauts : Plex activé ; Scènes seulement si Home Assistant est configur
   assert.equal(M.moduleEnabled('scenes', { haUrl: 'http://ha', haToken: 't' }), true);
   assert.equal(M.moduleEnabled('scenes', { haUrl: 'http://ha', haToken: 't', modules: { scenes: false } }), false);
   assert.equal(M.moduleEnabled('scenes', { modules: { scenes: true } }), true);
+  assert.equal(M.moduleEnabled('overseerr', {}), false, 'Overseerr masqué tant que non configuré');
+  assert.equal(M.moduleEnabled('overseerr', { overseerrUrl: 'https://ov', overseerrKey: '' }), false);
+  assert.equal(M.moduleEnabled('overseerr', { overseerrUrl: 'https://ov', overseerrKey: 'k' }), true);
+  assert.equal(M.moduleEnabled('overseerr', { overseerrUrl: 'https://ov', overseerrKey: 'k', modules: { overseerr: false } }), false);
   assert.equal(M.moduleEnabled('plex', { modules: { plex: false } }), false);
   assert.equal(M.moduleEnabled('inconnu', {}), false);
 });
