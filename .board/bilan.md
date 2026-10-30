@@ -16,10 +16,15 @@
 - `package.sh apps/tv/dist` → `dist/cimaise.wgt` signé ; **installé sur la Frame** : « install completed » + app présente
   dans la liste (réponse du SDK). Captures avant/après publiées sur la carte (`focus-*.png`), recette écrite.
 
+## Vu sur la Frame par Stéphane (30/10, après installation)
+- **Focus** : « Oui, partout » : anneau blanc net + léger agrandissement sur accueil, bibliothèque, fiche et lecteur.
+- **Chevron ›** : « Oui, comme décrit » : visible tant que la rangée déborde, disparaît au bout.
+- **Latence (diagnostic, touche 0 après ~20 appuis dans l'accueil Plex)** : « max sous 100 ms » (budget §6 bis tenu).
+  Chiffres min / méd / max **non transmis** : comparaison chiffrée impossible. Il n'existe d'ailleurs **aucune mesure Frame
+  d'avant** pour l'accueil Plex (seule référence Frame : le Dock, méd 18 / max 298 ms le 29/10, autre écran) ; l'ancienne
+  version n'étant plus installée, la seule comparaison avant/après reste celle de l'aperçu (inchangée).
+
 ## Pas fait / pas vérifié
-- **Vu par Stéphane : en attente.** Le SDK dit installé ; rien n'est confirmé à l'écran.
-- **Latence sur la Frame : pas mesurée** (aperçu seulement, qui ne reproduit pas le coût de la TV). À relever : touche 0 après
-  ~20 appuis dans l'accueil Plex.
 - Lecteur en lecture réelle non capturé (pas d'AVPlay dans l'aperçu) : seul le dialogue d'échec a été vu.
 - Note : le worktree n'a pas de `.local` ; empaquetage et installation via un relais docker qui monte en lecture seule le
   `.local` du checkout principal (dossier `.local/` vide créé ici comme point de montage, ignoré par git).
