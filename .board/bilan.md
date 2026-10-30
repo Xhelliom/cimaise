@@ -19,8 +19,8 @@
 ## Vu sur la Frame par Stéphane (30/10, après installation)
 - **Focus** : « Oui, partout » : anneau blanc net + léger agrandissement sur accueil, bibliothèque, fiche et lecteur.
 - **Chevron ›** : « Oui, comme décrit » : visible tant que la rangée déborde, disparaît au bout.
-- **Latence (diagnostic, touche 0 après ~20 appuis dans l'accueil Plex)** : « max sous 100 ms » (budget §6 bis tenu).
-  Chiffres min / méd / max **non transmis** : comparaison chiffrée impossible. Il n'existe d'ailleurs **aucune mesure Frame
+- **Latence (diagnostic, touche 0 après ~20 appuis dans l'accueil Plex)** : « max sous 100 ms », puis précisé : **max ≈ 66 ms**
+  (de mémoire, « genre 66 ms ») ; budget §6 bis (< 100 ms) tenu. Min et médiane non relevés. Il n'existe d'ailleurs **aucune mesure Frame
   d'avant** pour l'accueil Plex (seule référence Frame : le Dock, méd 18 / max 298 ms le 29/10, autre écran) ; l'ancienne
   version n'étant plus installée, la seule comparaison avant/après reste celle de l'aperçu (inchangée).
 

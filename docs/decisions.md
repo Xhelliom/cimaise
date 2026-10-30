@@ -720,8 +720,8 @@ repli prévu par `COUTS.md`) et **pas de compteur « 7 sur 8 »** (texte réécr
 | Bibliothèque (grille) | 7 / 24 / 37 | 7 / 25 / 37 |
 | Fiche (boutons) | 2 / 13 / 31 | 7 / 14 / 29 |
 
-Écart dans le bruit : inchangée dans l'aperçu. **Sur la Frame (Stéphane, 30/10, après installation)** : max **sous 100 ms** dans
-l'accueil Plex (budget tenu), chiffres exacts non relevés ; aucune mesure Frame d'avant n'existe pour cet écran. Focus homogène et
+Écart dans le bruit : inchangée dans l'aperçu. **Sur la Frame (Stéphane, 30/10, après installation)** : max **≈ 66 ms** dans
+l'accueil Plex (« genre 66 ms », budget < 100 ms tenu ; min et médiane non relevés) ; aucune mesure Frame d'avant n'existe pour cet écran. Focus homogène et
 chevron vus à l'écran, conformes.
 
 **Poids.** `app.css` 22 653 → **23 387 o** minifié (+734 o, +104 o gzip) ; `plex.js` 93 609 → **93 933 o** (+324 o, chunk différé) ;
