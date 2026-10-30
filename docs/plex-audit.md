@@ -168,3 +168,13 @@ SDK : `install completed`, app présente, `launched` (ne prouve pas l'affichage)
 
 **Observé physiquement par Stéphane (suite, 88f58c0)** : choix d'un sous-titre réel (rechargement) — « all good » ; bandes du letterbox — « all good ». Son message ne détaille pas séparément le gel et la position après rechargement : je les retiens comme OK sur la foi de « all good », sans mesure.
 **Pas encore observé** : progression remontée sur un autre appareil, sortie et disparition de la session côté serveur.
+
+**Sortie (88f58c0), vue par le script `watch-transcode.mjs` + lecture serveur** (journal démarré à 15:19:56) :
+```
+ 115s T copy transcode aac prog=1.6 min=1484.3 max=1614.3 | S 744 playing viewOffset=1529266 ts=copy/transcode
+ 119s (aucune session)
+ 121s (aucune session)
+```
+- La session de transcodage Cimaise (vidéo copiée, audio AAC) disparaît du serveur entre 115 s et 119 s, soit vers 15:21:55 ; les relevés suivants restent à « aucune session » (jusqu'à 242 s au moins). Une session en lecture directe (id 31356, autre appareil) apparaît ensuite : elle n'est pas Cimaise.
+- Lecture seule du serveur ensuite : Bohemian Rhapsody `viewOffset` = 1534,5 s (25:34), `lastViewedAt` 15:21:57. C'est cohérent avec le dernier `viewOffset` de la session (1529 s) : la progression a bien été remontée à la sortie.
+- Constat de Stéphane : « c'est tout bon je pense » (sans position notée ni lecture sur un autre appareil). **L'heure de sortie et la position affichée ne sont donc pas confirmées par lui ; la position vue sur un autre appareil Plex n'est pas observée.** La disparition de la session est établie par le serveur (script), pas par une observation de la TV.
