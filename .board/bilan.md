@@ -1,22 +1,22 @@
-# Bilan : lecteur Plex, icônes ▶ / ❚❚, grand ❚❚ en pause, heure de fin (30/10)
+# Bilan : accueil Plex, roue dentée, Rechercher en tête, onglets Films · Séries (30/10)
 
 ## Fait
-- `packages/plex/src/ui/player.ts` : bouton lecture / pause en icône (▶ en pause, ❚❚ en lecture), plus aucun mot « Lecture » /
-  « Pause » ; grand ❚❚ semi-transparent au centre pendant la pause (classe `on`, fondu d'opacité), même barre fermée, retiré à la
-  reprise, à l'erreur, en fin de flux et à la relance ; libellé « Pause » ambre supprimé ; « Se termine à 21 h 17 » → « finit à 21:17 ».
-- **Heure de fin juste après un saut** : la position visée par la rafale est peinte (barre, temps, « finit à ») dès que le saut part,
-  y compris en pause où AVPlay n'émet plus de temps ; rafale annulée = rien ne change ; saut refusé = position réelle repeinte.
-  Wrapper AVPlay et logique de lecture non modifiés.
-- `packages/plex/src/plex.css` : disposition de la maquette (titre + « finit à » sur une ligne au-dessus de la barre, ▶/❚❚ rond au
-  centre, pastilles à droite, focus indigo + anneau blanc), icônes en bordures CSS (0 image).
-- Tests : `tests/plex-player.test.mjs` (2 nouveaux : grand ❚❚ ; « finit à » après saut barre fermée, après Entrée sur la barre, inchangé
-  si annulé) et `tests/plex-player-next.test.mjs` adaptés. `npm run check` : 701 tests OK, ES5 OK, CSS OK.
-- Captures 1920×1080 du vrai panneau (vrai CSS, faux AVPlay) publiées sur la carte : `lecteur-plex-lecture.png`,
-  `lecteur-plex-pause.png`, `lecteur-plex-saut.png`.
-- Coût dans `docs/decisions.md` : `app.css` +951 o minifié (+183 o gzip, plex.css est dans la feuille initiale), `plex.js` +318 o.
+- `packages/plex/src/ui/home.ts` : en-tête « Rechercher un film, une série… » + roue dentée (ouvre les Réglages Plex) ; onglets en
+  pilules « Accueil » (page courante) puis une par bibliothèque, Entrée ouvre la grille de cette bibliothèque ; rangées « Bibliothèques »
+  et « Réglages » retirées ; En cours et Ajoutés récemment restent les rangées principales.
+- D-pad : Haut depuis la 1re rangée → onglets → en-tête (Haut retenu tout en haut) ; Gauche/Droite bornés (Rechercher ↔ roue, onglets) ;
+  Bas redescend d'un niveau ; sans contenu, focus sur Rechercher.
+- `packages/plex/src/plex.css` : en-tête, loupe et roue dentée en CSS (0 image, 0 SVG), onglets, focus homogène ; règles des carrés
+  retirées. Pas de `gap` flex (refusé pour Tizen 5).
+- Tests : `tests/plex-ui.test.mjs` (onglets depuis le cache, Films puis Séries ouvrent la bonne section, nouveau test de navigation
+  de l'en-tête, focus sur Rechercher sans contenu, Réglages par la roue) et `tests/plex-search.test.mjs` adaptés.
+  `npm run check` : 703 tests OK, ES5 OK, CSS OK.
+- Captures 1920×1080 du vrai panneau (vrai CSS, fixtures, affiches factices) publiées sur la carte : `accueil-plex-rangee.png`,
+  `accueil-plex-onglet.png`, `accueil-plex-rechercher.png`, `accueil-plex-roue.png`, `accueil-plex-defile.png`.
+- Coût dans `docs/decisions.md` : `app.css` +1 055 o minifié (+192 o gzip), `plex.js` +1 147 o, `app.js` inchangé.
 
 ## Pas fait
-- **Rien essayé sur la Frame** : captures dans Chromium headless, pas sur la TV.
-- Boutons −10 / +10 de la maquette : non ajoutés (nouvelle navigation, hors demande).
-- Barre de progression laissée ambre (l'accent indigo partout reste « à confirmer »).
-- Icônes en bordures CSS comme la maquette validée, et non en SVG ni en glyphe : ni l'un ni l'autre n'est une image.
+- **Rien essayé sur la Frame** : captures dans Chromium headless.
+- Onglets sans défilement horizontal (au-delà d'environ 7 bibliothèques vidéo, débordement).
+- « Accueil » n'est pas focalisable (on y est déjà) : écart volontaire avec la maquette, où il l'était.
+- Indice de débordement et « 1 sur 8 » des rangées (autre finition de la maquette) : hors demande.

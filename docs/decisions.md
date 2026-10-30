@@ -637,3 +637,26 @@ reste ambre (bascule d'accent encore « à confirmer »).
 
 **Poids.** `plex.css` est importé dans `app.css` (feuille unique) : `app.css` 20 122 → **21 073 o** minifié (+951 o, +183 o gzip),
 chargé au démarrage ; `plex.js` 90 374 → **90 692 o** (+318 o, chunk différé). `app.js` inchangé. Aucune image.
+
+## Accueil Plex : en-tête Rechercher + roue dentée, onglets des bibliothèques (2026-10-30)
+
+Câblé dans `packages/plex/src/ui/home.ts` d'après la maquette validée : en tête, « Rechercher un film, une série… » (pastille de 720 px,
+loupe en CSS) et une roue dentée qui ouvre les Réglages Plex ; dessous, des onglets en pilules « Accueil » (page courante, indigo, non
+focalisable) puis une pilule par bibliothèque vidéo (Films · Séries · …) qui ouvre sa grille ; puis En cours et Ajoutés récemment.
+La rangée « Bibliothèques » (carrés gris) et la rangée « Réglages » disparaissent.
+
+**Navigation.** Haut depuis la 1re rangée → onglets (s'il y en a) → en-tête ; Haut dans l'en-tête est retenu. Gauche / Droite bornés dans
+l'en-tête (Rechercher ↔ roue) et dans les onglets ; Bas redescend d'un niveau. Sans rangée ni bibliothèque (chargement, serveur muet),
+le focus est sur Rechercher. L'en-tête est dans la couche qui défile : sous la 1re rangée, il sort de l'écran et les positions des
+rangées sont celles d'avant (décalage `HEAD` = 96 px seulement sur la 1re).
+
+**Roue dentée en CSS** (6 blocs : 4 barres = 8 dents, un disque, un trou), et non en SVG inline comme dans la maquette : pas de risque
+de rendu SVG sur Tizen 5, et testable dans le DOM factice. Focus homogène de la maquette sur l'en-tête et les onglets (anneau blanc net
++ `scale(1.06)`) ; le focus des affiches est inchangé.
+
+**Pas fait.** Pas de défilement horizontal des onglets : au-delà d'environ 7 bibliothèques vidéo, les dernières sortiraient de l'écran.
+Pas d'indice de débordement ni de « 1 sur 8 » sur les rangées (autre finition de la maquette, hors demande).
+
+**Poids.** `app.css` 21 073 → **22 128 o** minifié (+1 055 o, +192 o gzip ; les règles des carrés « Bibliothèques » sont retirées) ;
+`plex.js` 90 692 → **91 839 o** (+1 147 o, chunk différé). `app.js` inchangé. Aucune image. DOM de l'accueil : la rangée Réglages
+(1 tuile) et la rangée Bibliothèques (2 à 3 tuiles virtualisées) laissent place à 12 blocs d'en-tête et 1 + n pilules.
