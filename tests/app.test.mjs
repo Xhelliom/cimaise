@@ -333,7 +333,7 @@ test('Réglages > Apps intégrées : masquer Plex retire la tuile sans charger p
   const saved = JSON.parse(a.store['cimaise.v1']);
   assert.equal(saved.version, 4);
   assert.equal(saved.prefs.modules.plex, false);
-  assert.ok(saved.prefs.catalog.entries.some((e) => e.id === 'plex'), 'l’entrée reste au catalogue : couleur et rang conservés');
+  assert.ok(saved.prefs.catalog.entries.some((e) => e.id === 'plex'), 'l’entrée reste au catalogue : couleur conservée');
   a.key(UP); a.key(OK); await a.tick();                 // retour aux Réglages
   a.key(UP); a.key(UP); a.key(UP); a.key(OK); a.key(OK); // Plex intégré : Activé
   a.key(BACK); a.key(BACK);
@@ -359,10 +359,11 @@ test('Réglages > Apps intégrées : les réglages de Plex (langues) restent acc
   a.key(UP); a.key(UP); a.key(UP); a.key(OK);
   assert.ok(texts(find(a.root, 'reglages')[0]).includes('Masqué'));
   a.key(RIGHT); a.key(OK);                              // chip « Réglages » : ouverture explicite
-  assert.deepEqual(a.loaded, ['settings.js', 'plex.js'], 'chargé seulement sur demande explicite');
+  assert.deepEqual(a.loaded, ['settings.js'], 'les réglages de Plex masqué ne chargent jamais plex.js');
   await a.tick();
   assert.equal(find(a.root, 'plex-settings').length, 1);
   a.key(BACK);
   assert.equal(find(a.root, 'reglages').length, 1, 'retour aux Réglages');
   assert.equal(find(a.root, 'tuile').length, 0);
+  assert.deepEqual(a.loaded, ['settings.js'], 'plex.js jamais chargé, même après le retour');
 });

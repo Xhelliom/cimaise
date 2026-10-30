@@ -9,6 +9,7 @@ import { createData, Data } from './data';
 import { posterUrl } from './images';
 import { Player, PlayerOptions } from '../../../tv-core/src/player';
 import { SearchIndex } from './search-index';
+import { el } from './dom';
 
 // Pile d'écrans : celle du routeur de l'app (Retour dépile).
 export interface Nav { push(p: Panel): void; pop(): void; }
@@ -73,12 +74,7 @@ export function resolve(arg: PlexArg): Ctx | null {
   return { doc: doc, data: data, session: session, nav: arg.nav, play: arg.onPlay || function () { /* message de la fiche */ }, http: http, id: id, cache: cache };
 }
 
-export function el(doc: Document, cls: string, text?: string): HTMLElement {
-  var e = doc.createElement('div');
-  e.className = cls;
-  if (text !== undefined) e.textContent = text;
-  return e;
-}
+export { el };
 
 // Libellé d'une tuile : « Série · S1 E8 » pour un épisode, « Série · Saison 2 » pour une saison.
 export function tileTitle(it: Item): string {

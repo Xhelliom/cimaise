@@ -4,6 +4,7 @@ import { AppEntry, DiscoveredApp } from '../../../../packages/launcher/src/setti
 import { HomeMode } from '../../../../packages/launcher/src/home/model';
 import { CatalogEntry } from '../../../../packages/launcher/src/catalog/model';
 import { defaultCatalog } from '../../../../packages/launcher/src/catalog/defaults';
+import { createSettingsPanel } from '../../../../packages/plex/src/ui/settings';
 import { HaSettings } from '../../../../packages/launcher/src/settings/scenes';
 
 // Les Réglages travaillent sur AppEntry (teinte) ; le catalogue persisté est un CatalogEntry (couleur, type, rappel).
@@ -76,5 +77,5 @@ function createPanel(arg: SettingsArg): Panel {
 }
 
 (function (w: any) {
-  (w.__cimaiseChunks || (w.__cimaiseChunks = {})).settings = { createPanel: createPanel };
+  (w.__cimaiseChunks || (w.__cimaiseChunks = {})).settings = { createPanel: createPanel, createSettingsPanel: createSettingsPanel };
 })(window);

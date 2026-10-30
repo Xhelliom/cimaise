@@ -20,7 +20,7 @@ loadStored(undefined, true);
 mark('storageRead');
 var catalog = loadCatalog(undefined, true);
 var mode = loadHomeMode(undefined, true);
-// Apps intégrées : le catalogue complet garde les tuiles des modules masqués (couleur, rang) ; l'accueil ne reçoit que les visibles.
+// Apps intégrées : le catalogue complet garde les tuiles des modules masqués (couleur ; remises en fin de catalogue) ; l'accueil ne reçoit que les visibles.
 var modulePrefs = loadStored(undefined, true).prefs;
 var tiles = loadHomeTiles(undefined, true);
 mark('catalogLoaded');
@@ -88,11 +88,11 @@ var home = createHome({
           if (id === 'scenes') scenesDirty = true; // la rangée suit l'interrupteur à la fermeture, sans minuterie
           return vis;
         },
-        // Réglages propres d'un module : Scènes s'ouvre dans les Réglages ; ceux de Plex vivent dans son chunk, chargé sur demande explicite.
+        // Réglages propres d'un module : Scènes s'ouvre dans les Réglages ; ceux de Plex (langues) sont servis par le chunk settings.js : plex.js n'est jamais chargé s'il est masqué.
         onModuleSettings: function (id: string) {
           if (id !== 'plex') return;
-          router.pushLazy(plex, function (pm) {
-            return pm.createSettingsPanel!({ nav: { push: function (p: Panel) { router.push(p); }, pop: function () { router.pop(); } } });
+          router.pushLazy(settings, function (m) {
+            return m.createSettingsPanel!({});
           });
         },
         ha: {
