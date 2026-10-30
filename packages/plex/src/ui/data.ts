@@ -1,5 +1,5 @@
-import { Callback, Http, Identity, Item, Page, Section, ServerRef } from '../api/types';
-import { getChildren, getMetadata, getOnDeck, getRecentlyAdded, getSectionItems, getSections } from '../api/library';
+import { Callback, Http, Identity, Item, Letter, Page, Section, ServerRef } from '../api/types';
+import { getChildren, getFirstCharacter, getMetadata, getOnDeck, getRecentlyAdded, getSectionItems, getSections } from '../api/library';
 import { Cache } from './cache';
 
 export type Cancel = () => void;
@@ -29,6 +29,7 @@ export interface Data {
   onDeck(on: On<Item[]>, err?: Err): Cancel;
   recent(on: On<Item[]>, err?: Err): Cancel;
   page(sectionKey: string, start: number, size: number, on: On<Page>, err?: Err): Cancel;
+  letters(sectionKey: string, on: On<Letter[]>, err?: Err): Cancel;
   metadata(ratingKey: string, on: On<Item>, err?: Err, withOnDeck?: boolean): Cancel;
   children(ratingKey: string, on: On<Item[]>, err?: Err): Cancel;
   // Retour de lecture : la fiche est corrigée sur place, « En cours » et les parents (saison, série) sont rechargés.
@@ -67,6 +68,9 @@ export function createData(http: Http, id: Identity, s: ServerRef, cache: Cache)
     page: function (key, start, size, on, err) {
       return load<Page>('p:' + key + ':' + start + ':' + size, TTL_PAGE, function (cb) { return getSectionItems(http, id, s, key, start, size, cb); },
         function (p) { return { items: slimAll(p.items), total: p.total, offset: p.offset }; }, on, err);
+    },
+    letters: function (key, on, err) {
+      return load<Letter[]>('l:' + key, TTL_PAGE, function (cb) { return getFirstCharacter(http, id, s, key, cb); }, same, on, err);
     },
     metadata: function (rk, on, err, withOnDeck) {
       return load<Item>('m:' + rk, TTL_META, function (cb) { return getMetadata(http, id, s, rk, cb, withOnDeck); }, same, on, err);

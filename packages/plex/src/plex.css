@@ -22,6 +22,11 @@
 /* Rangée inactive : repère discret (sélection mémorisée), sans anneau */
 .plex-row .vtile.mark .vimg,.plex-episodes .vtile.mark .vimg{opacity:.9}
 .plex-hub:last-child .vtile.mark,.plex-seasons .vtile.mark{box-shadow:inset 0 0 0 2px rgba(255,255,255,.35)}
+.plex-alpha{position:absolute;left:28px;top:170px;width:64px;height:910px}
+.plex-alpha-l{height:33px;line-height:33px;text-align:center;font-size:22px;color:rgba(255,255,255,.75)}
+.plex-alpha-l.empty{color:rgba(255,255,255,.2)}
+.plex-alpha-l.cur{color:#fff;font-weight:700}
+.plex-alpha-l.focus{background:rgba(255,255,255,.92);color:#000;border-radius:8px}
 .plex-lib-title{position:absolute;left:120px;top:72px;font-size:40px;font-weight:500}
 .plex-lib-count{position:absolute;left:120px;top:130px;font-size:28px;color:rgba(255,255,255,.6)}
 /* Fiche */

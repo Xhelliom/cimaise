@@ -86,6 +86,10 @@ const movieKey = sec.find((d) => d.type === 'movie').key;
 const all = (await get(ref.token, ref.uri, '/library/sections/' + movieKey + '/all', { 'X-Plex-Container-Start': '20', 'X-Plex-Container-Size': '2' })).MediaContainer;
 write('section-all', wrap({ totalSize: all.totalSize, offset: all.offset }, { Metadata: all.Metadata.map((m) => anonItem(m, { base: 100 })) }));
 
+// Index alphabétique : forme réelle de /firstCharacter (Directory[{ size, key, title }], dans l'ordre du tri par titre).
+const fc = (await get(ref.token, ref.uri, '/library/sections/' + movieKey + '/firstCharacter')).MediaContainer.Directory;
+write('first-character', wrap({}, { Directory: fc.map((d) => ({ size: d.size, key: d.key, title: d.title })) }));
+
 const first = all.Metadata[0];
 const meta = (await get(ref.token, ref.uri, '/library/metadata/' + first.ratingKey)).MediaContainer.Metadata[0];
 const metaItem = anonItem(meta, { base: 100 });

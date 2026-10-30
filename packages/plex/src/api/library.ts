@@ -1,4 +1,4 @@
-import { Callback, Hub, Http, Identity, Item, Page, Section, ServerRef } from './types';
+import { Callback, Hub, Http, Identity, Item, Letter, Page, Section, ServerRef } from './types';
 import { serverGet } from './request';
 
 function container(j: any): any { return (j && j.MediaContainer) || {}; }
@@ -11,10 +11,20 @@ export function getSections(http: Http, id: Identity, s: ServerRef, cb: Callback
 // Pagination par en-têtes X-Plex-Container-Start / -Size.
 export function getSectionItems(http: Http, id: Identity, s: ServerRef, sectionKey: string, start: number, size: number, cb: Callback<Page>) {
   var extra = { 'X-Plex-Container-Start': String(start), 'X-Plex-Container-Size': String(size) };
-  return serverGet(http, id, s, '/library/sections/' + encodeURIComponent(sectionKey) + '/all', extra, function (err, j) {
+  return serverGet(http, id, s, '/library/sections/' + encodeURIComponent(sectionKey) + '/all?sort=titleSort', extra, function (err, j) {
     if (err) return cb(err);
     var c = container(j), list = items(j);
     cb(null, { items: list, total: typeof c.totalSize === 'number' ? c.totalSize : start + list.length, offset: typeof c.offset === 'number' ? c.offset : start });
+  });
+}
+
+// Index alphabétique : nombre de titres par première lettre, dans l'ordre du tri par titre (# d'abord).
+export function getFirstCharacter(http: Http, id: Identity, s: ServerRef, sectionKey: string, cb: Callback<Letter[]>) {
+  return serverGet(http, id, s, '/library/sections/' + encodeURIComponent(sectionKey) + '/firstCharacter', null, function (err, j) {
+    if (err) return cb(err);
+    var d = container(j).Directory || [], out: Letter[] = [];
+    for (var i = 0; i < d.length; i++) out.push({ title: String(d[i].title), size: Number(d[i].size) || 0 });
+    cb(null, out);
   });
 }
 

@@ -130,6 +130,13 @@ export class VirtualList {
     this.update();
   }
 
+  // Saut (barre alphabétique) : la ligne de l'élément passe en haut de la fenêtre, les pages voisines sont demandées.
+  jumpTo(index: number): void {
+    this.focus.index = Math.max(0, Math.min(index, this.o.count - 1));
+    this.top = Math.max(0, Math.min(Math.floor(this.focus.index / this.cross), this.totalLines() - this.fullLines));
+    this.update();
+  }
+
   // false : le focus n'a pas bougé (bord) ; l'appelant peut passer la main à la rangée voisine.
   handleKey(key: Key): boolean {
     if (key === 'enter') { if (this.o.onSelect && this.o.count > 0) this.o.onSelect(this.focus.index); return true; }
