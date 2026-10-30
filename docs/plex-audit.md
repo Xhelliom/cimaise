@@ -100,3 +100,81 @@ sur une piste non française.
   ou des fiches réelles choisies par l'audit (par identifiant, jamais par titre dans le dépôt) ?
 - Acceptes-tu de retravailler les fichiers (DTS → AC3, AVI, AV1) côté homelab (option 4), ou l'app doit-elle tout absorber ?
 - Le serveur Plex a-t-il un transcodage matériel ? Il décide si l'AV1 4K (4 films) est tenable ou doit rester sur l'app officielle.
+
+## Premier transcodage réel, audio seul (2026-10-29, `scripts/plex/capture-transcode.mjs`)
+
+Écriture serveur assumée : une session de transcodage, arrêtée aussitôt (`/video/:/transcode/universal/stop` → 200).
+Film MKV H.264 + DTS (dca) à 8,8 Mb/s.
+
+- **Décision.** Sans `X-Plex-Client-Profile-Name`, le serveur répond `400 Bad Request` (HTML) à toute requête, quels que soient les autres paramètres.
+  Avec `Generic` seul : `generalDecisionCode 2000`, `transcodeDecisionCode 4005` « No conversion profile found for protocol hls ».
+  Il faut en plus `X-Plex-Client-Profile-Extra=add-transcode-target(type=videoProfile&context=streaming&protocol=hls&container=mpegts&videoCodec=h264,hevc&audioCodec=aac,ac3)` :
+  réponse `200`, `generalDecisionCode 1001` « Direct play not available; Conversion OK. » (pas 1000), avec `Metadata[0].Media[0].Part[0].Stream`.
+- **Vidéo copiée.** Un `maxVideoBitrate` (même 20 000 kb/s pour une source à 8,8 Mb/s) ou une `videoResolution` fait ré-encoder la vidéo (`videoDecision=transcode`,
+  vitesse 2,5×). Sans eux : `videoDecision=copy`, `audioDecision=transcode`, DTS → AAC 5.1, vitesse 4–9×. Le client les omet donc pour un transcodage audio seul.
+- **Flux.** `start.m3u8` : liste de variantes (`application/vnd.apple.mpegurl`) pointant `session/<id>/base/index.m3u8`, segments MPEG-TS de 1 s.
+- **À observer sur la Frame** : lecture, avance/recul, reprise, progression et arrêt de la session à la sortie.
+
+### Essai sur la Frame (2026-10-29) : Bohemian Rhapsody (MKV H.264 + DTS, transcodé audio seul)
+
+**Observé physiquement par Stéphane :**
+- le film se lance et se lit, le son est bon (DTS → AAC, vidéo copiée) ;
+- avancer et reculer de 10 s fonctionnent ;
+- **progression : la position quittée sur la Frame apparaît sur un autre appareil Plex** ;
+- quitter puis rouvrir le film : la reprise fonctionne ;
+- **défaut : l'image est étirée sur tout l'écran** au lieu d'avoir des bandes noires en haut et en bas.
+
+**Non testé :** l'arrêt de la session à la sortie (le relevé `watch-transcode.mjs` n'a montré aucune
+session Cimaise : il tournait sur un cycle expiré ou n'a pas capté l'essai, à refaire) ; le saut long ; la lecture directe d'un film 2.39.
+
+**Correctif (non encore revu sur la TV) :** AVPlay étire l'image au rectangle de `setDisplayRect`. Le lecteur appelle maintenant
+`setDisplayMethod('PLAYER_DISPLAY_MODE_LETTER_BOX')` après `setDisplayRect` et avant `prepareAsync`, pour la lecture directe comme pour le HLS
+(non fatal si absent). Le nom de la constante vient de la doc Samsung, de mémoire : à confirmer par l'effet à l'écran.
+Rapport d'aspect du flux : la liste de variantes du transcodeur annonce `RESOLUTION=1920x808`, identique au fichier source (pas de SAR/DAR modifié
+côté serveur). Paquet refait depuis `apps/tv/dist` (148 Ko, contenu vérifié) et réinstallé ; à revoir : Bohemian Rhapsody et un film 2.39 en lecture directe.
+
+**Défaut observé par Stéphane : image figée autour du menu Sous-titres** (Bohemian Rhapsody, HLS). Elle est repartie après un saut en arrière.
+Cause NON établie (on ne sait pas si le menu a seulement été ouvert ou si une piste a été choisie). Lecture du code, sans correction :
+- ouvrir le menu ne touche pas à AVPlay (`openMenu` peint seulement la liste du plan) ; choisir une piste relance le flux (`relaunch` : « Chargement… », arrêt de l'ancienne session, nouvelle décision) ;
+- en revanche Entrée (ou Pause) met la lecture en **pause** et ouvre la barre (`playKey`) : si Stéphane a atteint le bouton Sous-titres ainsi, l'image figée est la pause, et le saut arrière l'a peut-être relancée.
+À départager avec Stéphane : touche utilisée pour ouvrir la barre (Entrée ou Haut/Bas), présence du mot « Pause » à l'écran, piste choisie ou non. Le relevé serveur n'a rien capté à ce moment.
+
+**Précision de Stéphane sur le gel (observée physiquement) :** menu Sous-titres ouvert, aucune piste, choix de « Aucun » → le lecteur a **rechargé**, puis l'image s'est
+figée ; elle est repartie après un saut en arrière. Deux défauts :
+1. **Corrigé (test : « choisir la piste déjà active … »).** Choisir la piste déjà active (« Aucun » sans sous-titre actif) relançait une décision et un rechargement
+   pour rien : `choose()` ne fait plus rien si l'entrée est déjà courante.
+2. **Gel après rechargement d'une session transcodée : cause établie côté serveur (relevé du 2026-10-29, TV injoignable pendant la mesure), correctif non encore vu sur la TV.**
+   Une session à un offset renvoie une liste de lecture **sur toute la durée du film** : 523 segments de 10 s numérotés depuis 0, `#EXT-X-START:TIME-OFFSET=<offset>`.
+   Les segments avant l'offset sont des **stubs vides de 188 octets** (premier segment resté à 188 o pendant 25 s pour un offset de 1234 s, contre 8,4 Mo en 1,8 s
+   à l'offset 0 ; contenu réel vers le segment 123, ex. 17 Mo pour le 300ᵉ). Le lecteur supposait un flux commençant à l'offset (temps AVPlay + offset, aucun seekTo) :
+   si AVPlay démarre en début de liste, il lit des segments vides, d'où l'image figée ; un saut arrière tombe sur de vrais segments. Le test serveur « session réutilisée
+   vs nouvelle session » est identique : l'identifiant de session n'est pas en cause.
+   Correctif : la ligne de temps AVPlay est celle du film (`setTranscode(0, durée)`), la position de départ se rejoint par `seekTo` avant `play` (reprise, saut lointain,
+   changement de piste). **À confirmer sur la Frame** (AVPlay honore-t-il déjà EXT-X-START ? sinon seekTo suffit ; dans les deux cas la position affichée doit être juste).
+   Le journal d'état AVPlay pendant un gel n'a pas pu être relevé (TV injoignable).
+
+### Essai de recette sur le code 88f58c0 (2026-10-30, paquet `apps/tv/dist`, `dist/cimaise.wgt` 147 836 o)
+
+SDK : `install completed`, app présente, `launched` (ne prouve pas l'affichage). Surveillance : `node scripts/plex/watch-transcode.mjs 2400` démarrée avant le lancement.
+
+**Observé physiquement par Stéphane** (sur Bohemian Rhapsody, transcodage vidéo copiée + audio AAC) :
+- étape 0 : l'accueil de Cimaise s'affiche — OK ;
+- étape 1 : reprise depuis le point enregistré — OK ;
+- étape 2 : avance/recul ±10 s — OK.
+
+**Vu par le script** (lecture seule, extrait) : session Cimaise `copy transcode aac`, `viewOffset` ≈ 2037 s au démarrage (reprise), puis ≈ 1426 s et ≈ 1500 s après des sauts, états `playing`/`paused` alternés.
+
+**Pas encore observé** : choix d'une piste (rechargement sans gel, position juste), bandes du letterbox, sortie et disparition de la session côté serveur (critère 3).
+
+**Observé physiquement par Stéphane (suite, 88f58c0)** : choix d'un sous-titre réel (rechargement) — « all good » ; bandes du letterbox — « all good ». Son message ne détaille pas séparément le gel et la position après rechargement : je les retiens comme OK sur la foi de « all good », sans mesure.
+**Pas encore observé** : progression remontée sur un autre appareil, sortie et disparition de la session côté serveur.
+
+**Sortie (88f58c0), vue par le script `watch-transcode.mjs` + lecture serveur** (journal démarré à 15:19:56) :
+```
+ 115s T copy transcode aac prog=1.6 min=1484.3 max=1614.3 | S 744 playing viewOffset=1529266 ts=copy/transcode
+ 119s (aucune session)
+ 121s (aucune session)
+```
+- La session de transcodage Cimaise (vidéo copiée, audio AAC) disparaît du serveur entre 115 s et 119 s, soit vers 15:21:55 ; les relevés suivants restent à « aucune session » (jusqu'à 242 s au moins). Une session en lecture directe (id 31356, autre appareil) apparaît ensuite : elle n'est pas Cimaise.
+- Lecture seule du serveur ensuite : Bohemian Rhapsody `viewOffset` = 1534,5 s (25:34), `lastViewedAt` 15:21:57. C'est cohérent avec le dernier `viewOffset` de la session (1529 s) : la progression a bien été remontée à la sortie.
+- Constat de Stéphane : « c'est tout bon je pense » (sans position notée ni lecture sur un autre appareil). **L'heure de sortie et la position affichée ne sont donc pas confirmées par lui ; la position vue sur un autre appareil Plex n'est pas observée.** La disparition de la session est établie par le serveur (script), pas par une observation de la TV.

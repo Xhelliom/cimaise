@@ -244,6 +244,9 @@ export function createPlayer(opts?: PlayerOptions): Player {
         a.setListener(listener());
         var r = oo.rect || { x: 0, y: 0, w: 1920, h: 1080 };
         a.setDisplayRect(r.x, r.y, r.w, r.h);
+        // Sans cela AVPlay étire l'image au rectangle (un 2.39 remplit l'écran, observé sur la Frame) : letterbox = rapport d'aspect gardé, bandes noires.
+        // Non fatal : une TV sans cette méthode lit quand même (étirée).
+        try { a.setDisplayMethod('PLAYER_DISPLAY_MODE_LETTER_BOX'); } catch (e) { /* méthode absente */ }
         // AVPlay ne dessine jamais les sous-titres : il envoie le texte par onsubtitlechange, que la page affiche. Pas de setSilentSubtitle(true) ici
         // (il couperait ces événements) ; l'appelant l'active/coupe avec setSubtitlesVisible selon la piste choisie.
         if (oo.subtitleUrl) {

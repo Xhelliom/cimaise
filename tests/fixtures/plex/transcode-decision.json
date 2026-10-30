@@ -1,0 +1,40 @@
+{
+  "_note": "Réponses RÉELLES de /video/:/transcode/universal/decision (2026-10-29), film MKV H.264 + DTS, réduites et anonymisées à la main : titres, identifiants et jetons factices, champs inutiles retirés.",
+  "ok": {
+    "MediaContainer": {
+      "size": 1, "allowSync": "1",
+      "directPlayDecisionCode": 3000, "directPlayDecisionText": "App cannot direct play this item. Direct play is disabled.",
+      "generalDecisionCode": 1001, "generalDecisionText": "Direct play not available; Conversion OK.",
+      "identifier": "com.plexapp.plugins.library", "resourceSession": "{00000000-0000-0000-0000-000000000000}",
+      "transcodeDecisionCode": 1001, "transcodeDecisionText": "Direct play not available; Conversion OK.",
+      "Metadata": [{
+        "ratingKey": "100", "key": "/library/metadata/100", "type": "movie", "title": "Film", "duration": 5221667,
+        "Media": [{
+          "id": "1", "container": "mpegts", "protocol": "hls", "videoCodec": "h264", "audioCodec": "aac", "audioChannels": 6, "bitrate": 8647,
+          "width": 1920, "height": 808, "selected": true,
+          "Part": [{
+            "id": "1", "container": "mpegts", "protocol": "hls", "decision": "transcode", "selected": true,
+            "Stream": [
+              { "streamType": 1, "codec": "h264", "decision": "transcode", "location": "segments-av" },
+              { "streamType": 2, "codec": "aac", "decision": "transcode", "location": "segments-av", "channels": 6, "selected": true }
+            ]
+          }]
+        }]
+      }]
+    }
+  },
+  "noProfile": "<html><head><title>Bad Request</title></head><body><h1>400 Bad Request</h1></body></html>",
+  "noHlsTarget": {
+    "MediaContainer": {
+      "size": 0, "allowSync": "1",
+      "directPlayDecisionCode": 3000, "directPlayDecisionText": "App cannot direct play this item. Direct play is disabled.",
+      "generalDecisionCode": 2000, "generalDecisionText": "Neither direct play nor conversion is available.",
+      "transcodeDecisionCode": 4005, "transcodeDecisionText": "Cannot convert this item. No conversion profile found for protocol hls."
+    }
+  },
+  "session": {
+    "videoDecision": "copy", "audioDecision": "transcode", "sourceVideoCodec": "h264", "sourceAudioCodec": "dca",
+    "videoCodec": "h264", "audioCodec": "aac", "audioChannels": 6, "container": "mpegts", "protocol": "hls", "context": "streaming"
+  },
+  "master": "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=8647000,RESOLUTION=1920x808,FRAME-RATE=24.000000\nsession/SESSION/base/index.m3u8\n"
+}

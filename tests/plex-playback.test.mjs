@@ -373,6 +373,7 @@ function fakeHttp(res) {
   return http;
 }
 const sync = (fn) => new Promise((resolve) => fn((err, v) => resolve([err, v])));
+const REAL = JSON.parse(readFileSync('tests/fixtures/plex/transcode-decision.json', 'utf8'));
 const OK_DECISION = { status: 200, body: JSON.stringify({ MediaContainer: { generalDecisionCode: 1000, generalDecisionText: 'ok' } }) };
 
 test('transcodage : GET decision puis URL start.m3u8 avec les mêmes paramètres', async () => {
@@ -538,17 +539,65 @@ test('pistes : étiquettes du menu (langue, codec, forcés, incrustés)', () => 
 
 // --- Transcodage fiable : session, reprise, qualité, erreurs (carte « transcodage HLS fiable ») -----------------
 
-test('transcodage : audio seul (DTS) → vidéo copiée (directStream), pas d’incrustation, débit LAN et définition d’origine', async () => {
+test('transcodage : audio seul (DTS) → vidéo copiée (directStream), pas d’incrustation, aucun plafond de débit ni de définition', async () => {
   const plan = pb.decidePlayback(item('mkv-h264-dts'), LEGACY);
   assert.deepEqual(codes(plan), ['audio-codec']);
   const [, r] = await sync((cb) => pb.requestTranscode(fakeHttp(OK_DECISION), ID, SERVER, plan, 's', cb));
   const q = new URL(r.url).searchParams;
   assert.equal(q.get('directStream'), '1');
   assert.equal(q.get('subtitles'), 'none');
-  assert.equal(q.get('maxVideoBitrate'), '20000');
-  assert.equal(q.get('videoResolution'), '1920x808');
+  // Vérifié sur le serveur : un maxVideoBitrate ou une videoResolution, même larges, font ré-encoder la vidéo (videoDecision=transcode).
+  assert.equal(q.get('maxVideoBitrate'), null);
+  assert.equal(q.get('videoResolution'), null);
   assert.equal(q.get('offset'), '0');
   assert.equal(r.audioOnly, true);
+});
+
+test('transcodage : plan avec vidéo à ré-encoder → débit LAN et définition d’origine plafonnés', async () => {
+  const plan = pb.decidePlayback(item('mkv-av1-opus'), LEGACY);
+  assert.ok(codes(plan).includes('video-codec'));
+  const [, r] = await sync((cb) => pb.requestTranscode(fakeHttp(OK_DECISION), ID, SERVER, plan, 's', cb));
+  const q = new URL(r.url).searchParams;
+  assert.equal(q.get('maxVideoBitrate'), '20000');
+  assert.ok(/^\d+x\d+$/.test(q.get('videoResolution')));
+  assert.equal(r.audioOnly, false);
+});
+
+// Réponses réelles du serveur (tests/fixtures/plex/transcode-decision.json).
+test('transcodage : profil client Generic + cible HLS déclarée (sans eux le serveur répond 400 puis 4005)', async () => {
+  const plan = pb.decidePlayback(item('mkv-h264-dts'), LEGACY);
+  const [, r] = await sync((cb) => pb.requestTranscode(fakeHttp(OK_DECISION), ID, SERVER, plan, 's', cb));
+  const q = new URL(r.url).searchParams;
+  assert.equal(q.get('X-Plex-Client-Profile-Name'), 'Generic');
+  const extra = q.get('X-Plex-Client-Profile-Extra');
+  assert.match(extra, /add-transcode-target\(.*protocol=hls.*container=mpegts.*videoCodec=h264,hevc.*audioCodec=aac,ac3.*\)/);
+});
+
+test('transcodage : décision réelle 1001 « Conversion OK » acceptée, URL start.m3u8 du même flux', async () => {
+  const plan = pb.decidePlayback(item('mkv-h264-dts'), LEGACY);
+  assert.equal(REAL.ok.MediaContainer.generalDecisionCode, 1001);
+  const http = fakeHttp({ status: 200, body: JSON.stringify(REAL.ok) });
+  const [err, r] = await sync((cb) => pb.requestTranscode(http, ID, SERVER, plan, 'sess-9', cb));
+  assert.equal(err, null);
+  assert.equal(r.audioOnly, true);
+  assert.equal(new URL(r.url).searchParams.get('session'), 'sess-9');
+  // Le flux principal est une liste de variantes : AVPlay suit l'URL relative session/<id>/base/index.m3u8.
+  assert.match(REAL.master, /^#EXTM3U\n#EXT-X-STREAM-INF:.*\nsession\/SESSION\/base\/index\.m3u8\n$/);
+});
+
+test('transcodage : la session réelle copie la vidéo et ne transcode que l’audio (DTS → AAC)', () => {
+  const s = REAL.session;
+  assert.deepEqual([s.videoDecision, s.audioDecision, s.sourceAudioCodec, s.audioCodec, s.container, s.protocol], ['copy', 'transcode', 'dca', 'aac', 'mpegts', 'hls']);
+  const st = REAL.ok.MediaContainer.Metadata[0].Media[0].Part[0].Stream;
+  assert.equal(st.filter((x) => x.streamType === 2)[0].codec, 'aac');
+});
+
+test('transcodage : refus réel 4005 (aucun profil HLS) → erreur lisible avec le texte du serveur', async () => {
+  const plan = pb.decidePlayback(item('mkv-h264-dts'), LEGACY);
+  const [err] = await sync((cb) => pb.requestTranscode(fakeHttp({ status: 200, body: JSON.stringify(REAL.noHlsTarget) }), ID, SERVER, plan, 's', cb));
+  assert.match(err.message, /refusé.*Neither direct play nor conversion/);
+  const [err2] = await sync((cb) => pb.requestTranscode(fakeHttp({ status: 400, body: REAL.noProfile }), ID, SERVER, plan, 's', cb));
+  assert.equal(err2.status, 400);
 });
 
 test('transcodage : reprise à une position (offset en secondes) dans la décision et le flux', async () => {
