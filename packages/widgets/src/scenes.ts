@@ -34,12 +34,39 @@ export function filterScenes(scenes: Scene[], area: string | null, query: string
   var words = fold(query).split(/\s+/), out: Scene[] = [];
   for (var i = 0; i < scenes.length; i++) {
     var s = scenes[i];
+    if (s.state === 'unavailable') continue;   // scène hors ligne : inutilisable, on ne la propose pas
     if (area !== null && s.area !== area) continue;
     var n = fold(s.name), ok = true;
     for (var w = 0; w < words.length; w++) if (words[w] && n.indexOf(words[w]) < 0) ok = false;
     if (ok) out.push(s);
   }
   return out.sort(function (a, b) { return fold(a.name) < fold(b.name) ? -1 : fold(a.name) > fold(b.name) ? 1 : 0; });
+}
+
+// Nombre de scènes disponibles : au total et par pièce, pour les compteurs de la liste déroulante.
+export function countByArea(scenes: Scene[]): { total: number; byArea: { [area: string]: number } } {
+  var byArea: { [area: string]: number } = {}, total = 0;
+  for (var i = 0; i < scenes.length; i++) {
+    var s = scenes[i];
+    if (s.state === 'unavailable') continue;
+    total++;
+    if (s.area) byArea[s.area] = (byArea[s.area] || 0) + 1;
+  }
+  return { total: total, byArea: byArea };
+}
+
+// Regroupe par pièce (ordre alphabétique, « sans pièce » en dernier) en gardant l'ordre reçu dans chaque groupe.
+export function groupByArea(scenes: Scene[]): Array<{ area: string | null; scenes: Scene[] }> {
+  var out: Array<{ area: string | null; scenes: Scene[] }> = [], none: Scene[] = [];
+  var names = areasOf(scenes);
+  for (var a = 0; a < names.length; a++) {
+    var g: Scene[] = [];
+    for (var i = 0; i < scenes.length; i++) if (scenes[i].area === names[a]) g.push(scenes[i]);
+    out.push({ area: names[a], scenes: g });
+  }
+  for (var j = 0; j < scenes.length; j++) if (!scenes[j].area) none.push(scenes[j]);
+  if (none.length) out.push({ area: null, scenes: none });
+  return out;
 }
 
 export function addChosen(chosen: string[], id: string): string[] {

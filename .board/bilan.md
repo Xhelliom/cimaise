@@ -1,8 +1,4 @@
-# Bilan — actualiser la fiche Plex en sortant du lecteur
 
-Fait :
-- `data.progressed` corrige sur place la fiche, la liste d'épisodes du parent et « En cours » avec la position quittée, puis les marque périmés (`cache.set(..., stale)`) : affichage immédiat, puis relecture serveur.
-- La position locale est gardée 60 s (clé `o:` du cache, partagée entre écrans) et réappliquée aux réponses serveur (fiche, épisodes, « En cours ») : un serveur en retard ne l'écrase pas.
-- Tests : plex-ui (film et épisode, serveur en retard), plex-progress adapté. `npm run check` vert (602 tests).
-
-Non fait : rien de bloquant. Non vérifié sur la TV (recette ci-dessous).
+## Reprise : styles des titres de pièce et scènes choisies
+- Fait : règles CSS `.reglages .ligne.titre` (discret, 64 px, non sélectionnable via pointer-events:none, puce de compteur atténuée) et `.reglages .ligne.choisie` (aplat + liseré gauche, en plus du ✓) dans packages/launcher/src/settings/screen.ts ; test de la feuille de style dans tests/scenes-settings.test.mjs. `npm run check` vert (613 tests).
+- Non fait : aucun rendu sur la TV réelle (non vérifié physiquement).

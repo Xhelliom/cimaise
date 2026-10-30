@@ -128,29 +128,108 @@ function ready(extra = {}) {
 }
 // Positions : 0 Adresse, 1 Jeton, 2 Charger, 3 Pièce, 4 Recherche, puis choisies, puis candidates.
 
-test('choix par pièce : le filtre Pièce restreint la liste ; Entrée ajoute la scène', () => {
+test('choix par pièce : Entrée sur Pièce ouvre une liste déroulante avec compteurs ; choisir une pièce restreint la liste', () => {
   const { panel, press, log } = ready();
-  press('down', 'down', 'down');           // Pièce
-  press('right');                          // 1re pièce triée : Bureau
+  press('down', 'down', 'down', 'enter');  // Pièce : le menu s'ouvre
+  const t = texts(panel.el);
+  assert.deepEqual(['Toutes', 'Bureau', 'Cuisine', 'Salon'].every((n) => t.includes(n)), true);
+  assert.ok(t.includes('8') && t.includes('3') && t.includes('2'), 'compteurs : 8 au total, 3 Bureau, 2 Cuisine/Salon');
+  assert.ok(!t.includes('Alpha'), 'la liste des scènes est masquée sous le menu');
+  press('down', 'enter');                  // Bureau
   assert.ok(texts(panel.el).includes('Bureau'));
   assert.ok(texts(panel.el).includes('Alpha') && !texts(panel.el).includes('Film'));
-  press('right');                          // Cuisine
-  assert.deepEqual(['Dîner', 'Été'].every((n) => texts(panel.el).includes(n)), true);
-  press('right');                          // Salon
+  press('enter', 'down', 'down', 'enter'); // menu : Bureau → Salon
   press('down', 'down');                   // Recherche, puis la 1re candidate (Film)
   press('enter');
   assert.deepEqual(log.chosen.at(-1), ['scene.film']);
 });
 
-test('recherche par lettres : filtre la liste (sans casse ni accents)', () => {
+test('liste déroulante : Retour la ferme sans changer la pièce, sans fermer la section', () => {
+  const { panel, press, log } = ready();
+  press('down', 'down', 'down', 'enter', 'down', 'back');
+  assert.ok(!texts(panel.el).includes('Toutes') || texts(panel.el).includes('Pièce'), 'menu fermé');
+  assert.ok(texts(panel.el).includes('Recherche'));
+  assert.ok(!log.closed);
+  assert.ok(texts(panel.el).includes('Alpha') && texts(panel.el).includes('Bureau'), 'toujours « Toutes » : titres de section');
+});
+
+function typeWord(panel, word) {
+  // clavier ABC : on déplace le focus lettre par lettre avec le D-pad, puis Entrée
+  const rows = ['abcdefghij', 'klmnopqrst', 'uvwxyz'];
+  let r = 0, c = 0;
+  for (const ch of word) {
+    const tr = rows.findIndex((x) => x.includes(ch)), tc = rows[tr].indexOf(ch);
+    while (r < tr) { panel.onKey('down'); r++; }
+    while (r > tr) { panel.onKey('up'); r--; }
+    while (c < tc) { panel.onKey('right'); c++; }
+    while (c > tc) { panel.onKey('left'); c--; }
+    panel.onKey('enter');
+  }
+}
+
+test('recherche : Entrée ouvre le clavier à l’écran (pas d’<input>), le filtre suit la saisie, valider revient à la liste', () => {
   const { panel, press, field } = ready();
   press('down', 'down', 'down', 'down');   // Recherche
   press('enter');
-  field().value = 'DINER';
-  press('enter');
+  assert.ok(!field(), 'aucun <input> : il n’ouvrirait pas le clavier Samsung');
+  assert.ok(texts(panel.el).includes('valider') && texts(panel.el).includes('effacer'), 'clavier à l’écran affiché');
+  typeWord(panel, 'di');
+  assert.ok(texts(panel.el).includes('di'));
+  assert.ok(texts(panel.el).some((t) => t === '1 scène'), 'compteur mis à jour en direct');
+  panel.onKey('down'); panel.onKey('down'); panel.onKey('down'); panel.onKey('down'); // rangée d'actions
+  for (let i = 0; i < 8; i++) panel.onKey('right');                                  // « valider »
+  panel.onKey('enter');
   assert.ok(texts(panel.el).includes('Dîner'));
   assert.ok(!texts(panel.el).includes('Film'));
-  assert.ok(texts(panel.el).includes('DINER') || texts(panel.el).some((t) => t.includes('DINER')), 'la recherche reste visible');
+  assert.ok(texts(panel.el).includes('di'), 'la recherche reste visible dans la ligne');
+});
+
+test('recherche : Retour referme le clavier en gardant la saisie, sans fermer la section', () => {
+  const { panel, press, log } = ready();
+  press('down', 'down', 'down', 'down', 'enter');
+  typeWord(panel, 'n');
+  press('back');
+  assert.ok(!log.closed);
+  assert.ok(texts(panel.el).includes('Dîner') && !texts(panel.el).includes('Alpha'));
+});
+
+test('« Toutes » : scènes groupées par pièce avec titres de section ; les titres ne prennent pas le focus', () => {
+  const { panel, press } = ready();
+  const t = texts(panel.el);
+  assert.ok(t.indexOf('Bureau') >= 0 && t.indexOf('Bureau') < t.indexOf('Alpha'));
+  press('down', 'down', 'down', 'down', 'down'); // 5e ligne : 1re candidate (le titre « Bureau » est sauté)
+  assert.ok(focused(panel.el).some((f) => f.includes('Alpha')));
+});
+
+test('scènes choisies en tête et marquées ; indisponibles masquées', () => {
+  const list = [...SCENES, { ...SC('hs', 'Hors ligne', 'Salon'), state: 'unavailable' }, { ...SC('hs2', 'Hors ligne 2', 'Salon'), state: 'unavailable' }];
+  const { panel, press } = ready({ chosen: ['scene.film'], listScenes: (cb) => cb(null, list) });
+  const t = texts(panel.el);
+  assert.ok(!t.some((x) => x.includes('Hors ligne')), 'indisponibles masquées');
+  assert.ok(t.indexOf('Film') < t.indexOf('Alpha') && t.includes('✓ 1'), 'choisie en tête, marquée');
+  assert.equal(t.filter((x) => x === 'Film').length, 1, 'pas en double dans les candidates');
+  press('down', 'down', 'down', 'enter');
+  assert.ok(texts(panel.el).includes('8') && !texts(panel.el).includes('10'), 'le compteur Toutes ignore les indisponibles');
+});
+
+test('100 scènes, 12 pièces : menu avec compteurs, une seule pièce affichée, DOM fenêtré, recherche au clavier', () => {
+  const rooms = Array.from({ length: 12 }, (_, i) => 'Pièce ' + String.fromCharCode(65 + i));
+  const many = Array.from({ length: 100 }, (_, i) => SC('s' + i, 'Scène ' + String(i).padStart(3, '0'), rooms[i % 12]));
+  many.push({ ...SC('off', 'Panne', 'Pièce A'), state: 'unavailable' });
+  const { panel, press } = ready({ listScenes: (cb) => cb(null, many) });
+  assert.ok(all(panel.el, (e) => e.className === 'ligne' || e.className.startsWith('ligne ')).length < 20, 'seules les lignes visibles existent');
+  press('down', 'down', 'down', 'enter');
+  assert.ok(texts(panel.el).includes('100'), 'Toutes : 100 disponibles');
+  assert.ok(!texts(panel.el).includes('101'));
+  press('down', 'down', 'down', 'down', 'down', 'down', 'down', 'down', 'down'); // 9e pièce : défilement du menu
+  press('enter');                                                                 // Pièce I (i%12 == 8)
+  const t = texts(panel.el);
+  assert.ok(t.includes('Pièce I') && t.includes('Scène 008') && !t.includes('Scène 000'));
+  assert.ok(!t.some((x) => /^Pièce [A-H]$/.test(x)), 'pas de titres de section quand une pièce est choisie');
+  press('down', 'enter');                  // Recherche
+  typeWord(panel, 'n');
+  panel.onKey('back');
+  assert.ok(texts(panel.el).includes('Scène 008'));
 });
 
 test('ordre réglable : Monter / Descendre / Retirer sur les scènes choisies', () => {
@@ -189,4 +268,48 @@ test('saisie : une flèche pendant la saisie laisse le champ attaché et focalis
   assert.equal(input.focused, false, 'aucun re-rendu pendant la saisie');
   panel.onKey('back');
   assert.ok(!field());
+});
+
+test('« Toutes » : ajouter une scène garde le focus sur une candidate, jamais sur un titre de section', () => {
+  const { panel, press, log } = ready();
+  press('down', 'down', 'down', 'down', 'down');   // Alpha (1re du groupe Bureau)
+  press('enter');
+  assert.deepEqual(log.chosen.at(-1), ['scene.a']);
+  assert.deepEqual(focused(panel.el).filter((f) => f.includes('Bravo')).length, 1, 'focus sur la candidate suivante');
+  assert.ok(!focused(panel.el).some((f) => f === 'Bureau'), 'pas sur le titre');
+  press('down', 'down');                           // Charlie, puis saute le titre « Cuisine » vers Dîner
+  press('enter');                                  // ajoute Dîner
+  assert.deepEqual(log.chosen.at(-1), ['scene.a', 'scene.diner']);
+  assert.ok(focused(panel.el).some((f) => f.includes('Été')), 'focus sur la candidate suivante');
+  press('enter');                                  // Entrée agit bien sur une scène
+  assert.equal(log.chosen.at(-1).length, 3);
+});
+
+test('« Toutes » : retirer une choisie ou fermer le clavier ne laisse pas le focus sur un titre', () => {
+  const { panel, press } = ready({ chosen: ['scene.film'] });
+  press('down', 'down', 'down', 'down', 'down');   // Film (choisie)
+  press('right', 'right', 'enter');                // Retirer
+  assert.ok(focused(panel.el).length >= 1 && !focused(panel.el).some((f) => /^(Bureau|Cuisine|Salon|Sans pièce)$/.test(f)));
+  press('up', 'enter');                            // Recherche → clavier
+  typeWord(panel, 'z');
+  panel.onKey('back');                             // filtre : aucune ligne ; rien ne casse
+  assert.ok(!focused(panel.el).some((f) => /^(Bureau|Cuisine|Salon|Sans pièce)$/.test(f)));
+});
+
+test('menu des pièces : une pièce dont toutes les scènes sont indisponibles est omise', () => {
+  const list = [...SCENES, { ...SC('x', 'Veilleuse', 'Cave'), state: 'unavailable' }];
+  const { panel, press } = ready({ listScenes: (cb) => cb(null, list) });
+  press('down', 'down', 'down', 'enter');
+  const t = texts(panel.el);
+  assert.ok(t.includes('Bureau') && !t.includes('Cave'));
+  assert.ok(!t.includes('0'));
+});
+
+test('la feuille de style des Réglages cible titres de pièce et scènes choisies', () => {
+  const doc = fakeDoc();
+  S.createSettings({ doc, catalog: [], listInstalledApps: (ok) => ok([]), onChange: () => {}, onClose: () => {} });
+  const css = all(doc.head, (e) => e.tag === 'style').map((e) => e.textContent).join('');
+  assert.match(css, /\.reglages \.ligne\.titre\{[^}]*pointer-events:none/);
+  assert.match(css, /\.reglages \.ligne\.titre\{[^}]*font-weight:500/);
+  assert.match(css, /\.reglages \.ligne\.choisie\{[^}]*(background|box-shadow)/);
 });
