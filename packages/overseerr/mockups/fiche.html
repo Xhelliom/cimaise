@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><title>cimaise — maquette Overseerr, fiche</title><link rel="stylesheet" href="overseerr.css"></head>
+<body class="fiche">
+<div class="teinte" style="background:radial-gradient(ellipse 70% 80% at 18% 45%,rgba(30,58,138,.55),rgba(15,23,42,0) 70%)"></div>
+<header><div class="sur">Overseerr</div></header>
+<a class="af" style="--a:#1e3a8a;--b:#0f172a">Orbite basse</a>
+<main class="col">
+<div class="sur">Film · 2026</div>
+<h1 class="titre">Orbite basse</h1>
+<div class="meta"><span class="b"></span><span>1 h 58</span><span>Science-fiction, Drame</span></div>
+<p class="resume">Une ingénieure de maintenance reste seule à bord d’une station en fin de vie quand la dernière navette repart sans elle. Il lui reste onze jours d’oxygène et un émetteur qui ne capte que des voix du passé.</p>
+<div class="actions"><a class="btn prim focus">Demander</a><span class="note"></span></div>
+</main>
+<script>
+(function(){
+// Données figées : un titre par état du badge (#demander, #demande, #attente, #disponible) ; Entrée sur « Demander » → « Demandé ».
+var E={
+ demander:{t:"Orbite basse",s:"Film · 2026",d:"1 h 58",g:"Science-fiction, Drame",a:"#1e3a8a",z:"#0f172a",rgb:"30,58,138",b:"",bc:"",btn:"Demander",n:"",r:"Une ingénieure de maintenance reste seule à bord d’une station en fin de vie quand la dernière navette repart sans elle. Il lui reste onze jours d’oxygène et un émetteur qui ne capte que des voix du passé."},
+ demande:{t:"Marée noire",s:"Film · 2026",d:"2 h 11",g:"Thriller",a:"#6b21a8",z:"#1e1b4b",rgb:"107,33,168",b:"Demandé",bc:"dem",btn:"",n:"Demandé le 28 octobre, en cours de téléchargement",r:"Sur une côte bretonne souillée par un naufrage, une experte en assurances découvre que la cargaison déclarée n’a jamais existé. Chaque témoin qu’elle interroge disparaît le lendemain."},
+ attente:{t:"Le Bureau des rêves",s:"Série · 2026 · 1 saison",d:"8 épisodes",g:"Comédie",a:"#86198f",z:"#2e1065",rgb:"134,25,143",b:"En attente",bc:"att",btn:"",n:"Demande en attente de validation",r:"Dans une administration oubliée, une poignée de fonctionnaires est chargée d’archiver les rêves des habitants de la ville. Le jour où un dossier disparaît, plus personne ne dort."},
+ disponible:{t:"Le Dernier Phare",s:"Film · 2025",d:"1 h 46",g:"Aventure",a:"#9a3412",z:"#431407",rgb:"154,52,18",b:"Disponible",bc:"ok",btn:"Lire dans Plex",n:"",r:"Le dernier gardien de phare d’Europe reçoit l’ordre d’automatiser sa tour. Avant de partir, il décide de rallumer une dernière fois toutes les lanternes de la côte, une nuit de tempête."}
+},q=function(s){return document.querySelector(s)};
+function show(k){var e=E[k]||E.demander,af=q(".af"),b=q(".meta .b"),btn=q(".btn");
+ q(".teinte").style.background="radial-gradient(ellipse 70% 80% at 18% 45%,rgba("+e.rgb+",.55),rgba(15,23,42,0) 70%)";
+ af.textContent=e.t;af.style.cssText="--a:"+e.a+";--b:"+e.z;
+ q(".col .sur").textContent=e.s;q(".titre").textContent=e.t;b.textContent=e.b;b.className="b "+e.bc;b.style.display=e.b?"":"none";
+ q(".meta span:nth-child(2)").textContent=e.d;q(".meta span:nth-child(3)").textContent=e.g;q(".resume").textContent=e.r;
+ btn.textContent=e.btn;btn.style.display=e.btn?"":"none";btn.className="btn prim"+(e.btn?" focus":"");q(".note").textContent=e.n;
+}
+document.addEventListener("keydown",function(e){if(e.keyCode===13&&q(".btn").textContent==="Demander"){var b=q(".meta .b");b.textContent="Demandé";b.className="b dem";b.style.display="";q(".btn").style.display="none";q(".note").textContent="Demande envoyée (maquette : rien n’est envoyé)";}
+ else if(e.keyCode===27||e.keyCode===8)location.href="accueil.html";});
+show(location.hash.slice(1));
+})();
+</script>
+</body></html>

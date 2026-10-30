@@ -81,13 +81,14 @@ const routes = {
   '/app/app.css': async () => [await bundle('apps/tv/src/style.css', { external: ['*.woff2'] }), 'text/css'],
 };
 
-// Maquettes statiques de packages/launcher/mockups (aperçu seulement, jamais dans le .wgt).
+// Maquettes statiques de packages/launcher/mockups et, sous /mockups/overseerr/, de packages/overseerr/mockups
+// (aperçu seulement, jamais dans le .wgt).
 const MIME = { html: 'text/html', css: 'text/css', woff2: 'font/woff2' };
 const mockupRoute = (url) => {
-  const m = /^\/mockups\/([\w-]*(?:\.(html|css|woff2))?)$/.exec(url);
+  const m = /^\/mockups\/(overseerr\/)?([\w-]*(?:\.(html|css|woff2))?)$/.exec(url);
   if (!m) return null;
-  const name = m[1] || 'index.html';
-  const file = `${root}packages/launcher/mockups/${name}`;
+  const name = m[2] || (m[1] ? 'accueil.html' : 'index.html');
+  const file = `${root}packages/${m[1] ? 'overseerr' : 'launcher'}/mockups/${name}`;
   if (!existsSync(file)) return null;
   const ext = name.split('.').pop();
   return async () => [readFileSync(file, ext === 'woff2' ? undefined : 'utf8'), MIME[ext]];

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><title>cimaise — maquette Overseerr, accueil</title><link rel="stylesheet" href="overseerr.css"></head>
+<body>
+<header><div class="sur">Overseerr</div><h1 class="h">À découvrir</h1></header>
+<nav class="pastilles"><a class="pastille on">Du moment</a><a class="pastille">Rechercher</a><a class="pastille">Mes demandes</a></nav>
+<section class="rangee r1"><h2>Films du moment</h2><div class="piste">
+<a class="af focus" data-e="demander" style="--a:#1e3a8a;--b:#0f172a">Orbite basse</a>
+<a class="af" data-e="disponible" style="--a:#9a3412;--b:#431407"><span class="b ok">Disponible</span>Le Dernier Phare</a>
+<a class="af" data-e="demander" style="--a:#0f766e;--b:#042f2e">Les Heures claires</a>
+<a class="af" data-e="demande" style="--a:#6b21a8;--b:#1e1b4b"><span class="b dem">Demandé</span>Marée noire</a>
+<a class="af" data-e="demander" style="--a:#a16207;--b:#422006">Kilomètre zéro</a>
+<a class="af" data-e="demander" style="--a:#be123c;--b:#4c0519">La Cité des vents</a>
+<a class="af" data-e="disponible" style="--a:#334155;--b:#020617"><span class="b ok">Disponible</span>Nuit blanche à Lisbonne</a>
+</div></section>
+<section class="rangee r2"><h2>Séries du moment</h2><div class="piste">
+<a class="af" data-e="demande" style="--a:#155e75;--b:#082f49"><span class="b dem">Demandé</span>Station Boréale</a>
+<a class="af" data-e="demander" style="--a:#713f12;--b:#1c1917">Les Héritiers</a>
+<a class="af" data-e="disponible" style="--a:#4338ca;--b:#1e1b4b"><span class="b ok">Disponible</span>Code Ardoise</a>
+<a class="af" data-e="demander" style="--a:#3f6212;--b:#1a2e05">Vallée perdue</a>
+<a class="af" data-e="attente" style="--a:#86198f;--b:#2e1065"><span class="b att">En attente</span>Le Bureau des rêves</a>
+<a class="af" data-e="demander" style="--a:#475569;--b:#0f172a">Quai 9</a>
+<a class="af" data-e="demander" style="--a:#b45309;--b:#451a03">Saison sèche</a>
+</div></section>
+<script>
+(function(){
+var p=document.querySelectorAll(".piste"),r=0,c=[0,0],h=/^#(\d)(\d)$/.exec(location.hash);
+function af(i){return p[i].children}
+function go(nr,nc){
+ if(nr<0||nr>1||nc<0||nc>=af(nr).length)return;
+ af(r)[c[r]].className="af";r=nr;c[r]=nc;af(r)[nc].className="af focus";
+ p[r].style.transform="translateX("+(-288*Math.max(0,nc-4))+"px)";
+}
+document.addEventListener("keydown",function(e){var k=e.keyCode;
+ if(k===37)go(r,c[r]-1);else if(k===39)go(r,c[r]+1);else if(k===38)go(r-1,c[r-1]||0);else if(k===40)go(r+1,c[r+1]||0);
+ else if(k===13)location.href="fiche.html#"+af(r)[c[r]].getAttribute("data-e");});
+if(h)go(+h[1],+h[2]);
+})();
+</script>
+</body></html>
