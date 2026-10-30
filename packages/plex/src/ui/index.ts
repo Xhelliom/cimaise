@@ -8,3 +8,5 @@ export * from './detail';
 export * from './login';
 export * from './player';
 export * from './settings';
+export * from './search-index';
+export * from './search';

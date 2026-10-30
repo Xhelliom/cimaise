@@ -2,10 +2,11 @@ import { Item, Section } from '../api/types';
 import { Panel } from '../../../tv-core/src/router/router';
 import { Key } from '../../../tv-core/src/keys';
 import { createRow, VirtualList } from '../../../tv-core/src/virtual/list';
-import { Ctx, el, openable, PlexArg, resolve, tileInfo } from './context';
+import { Ctx, el, openable, PlexArg, realTimers, resolve, tileInfo } from './context';
 import { createLibraryPanel } from './library';
 import { createDetailPanel } from './detail';
 import { createSettingsPanel } from './settings';
+import { createSearchPanel, ensureSearch } from './search';
 import { POSTER } from './images';
 
 var PITCH = 560;   // distance entre deux rangées (titre à y = 200, puis 760, comme le Dock)
@@ -13,10 +14,12 @@ var GAP = 48;
 // Sous la première rangée, la couche remonte de LIFT en plus : les tuiles de la rangée précédente (jusqu'à y = 702 dans
 // leur cadre, étiquettes comprises) finissent au-dessus de 0 au lieu d'être coupées ; le titre actif reste à y = 200 - LIFT.
 var LIFT = 160;
+// L'index des titres (recherche) se construit en arrière-plan une fois l'accueil posé : il ne dispute rien au premier affichage.
+var INDEX_DELAY = 1500;
 
 interface Hub { title: string; box: HTMLElement; list: VirtualList; items: any[]; }
 
-// Accueil : En cours, Ajoutés récemment, Bibliothèques, Réglages (langues du lecteur). Les rangées vides disparaissent ; les rangées à plus d'une rangée
+// Accueil : bouton Rechercher (en haut, atteint par Haut depuis la 1re rangée), En cours, Ajoutés récemment, Bibliothèques, Réglages (langues du lecteur). Les rangées vides disparaissent ; les rangées à plus d'une rangée
 // du visible (au-dessus comme en dessous) sont libérées ; une rangée partiellement visible garde ses images.
 export function createHomePanel(arg: PlexArg): Panel {
   var c = resolve(arg) as Ctx;
@@ -24,7 +27,10 @@ export function createHomePanel(arg: PlexArg): Panel {
   var root = el(doc, 'plex-panel plex-home');
   var layer = el(doc, 'plex-hubs');
   var status = el(doc, 'plex-status', 'Chargement…');
+  var searchBtn = el(doc, 'plex-search-btn', 'Rechercher');
+  var onSearch = false;   // le bouton a le focus (sinon c'est la rangée active)
   root.appendChild(layer);
+  root.appendChild(searchBtn);
   root.appendChild(status);
   var hubs: Hub[] = [];
   var active = 0;
@@ -75,11 +81,12 @@ export function createHomePanel(arg: PlexArg): Panel {
     if (active > v.length - 1) active = Math.max(0, v.length - 1);
     layer.style.transform = 'translate3d(0,' + -(PITCH * active + (active > 0 ? LIFT : 0)) + 'px,0)';
     for (var j = 0; j < hubs.length; j++) {
-      var on = v[active] === hubs[j];
+      var on = !onSearch && v[active] === hubs[j];
       hubs[j].box.className = on ? 'plex-row on' : 'plex-row';
       hubs[j].list.setActive(on);
       hubs[j].list.refresh();
     }
+    searchBtn.className = onSearch ? 'plex-search-btn focus' : 'plex-search-btn';
     status.textContent = loaded() ? '' : status.textContent;
   }
 
@@ -106,12 +113,21 @@ export function createHomePanel(arg: PlexArg): Panel {
     deckCancel = c.data.onDeck(function (l) { setItems(onDeck, l); }, fail);
   }
   loadDeck();
+  // Sans minuteries (hors navigateur, sans injection) : pas d'index ; la recherche le lance elle-même à son ouverture.
+  var timers = arg.timers || (typeof window !== 'undefined' ? realTimers() : null);
+  var indexT: any = timers ? timers.setTimeout(function () { indexT = null; ensureSearch(arg, c).start(); }, INDEX_DELAY) : null;
   cancels.push(c.data.recent(function (l) { setItems(recent, l); }, fail));
   cancels.push(c.data.sections(function (l) { setItems(libs, l); }, fail));
 
   return {
     el: root,
     onKey: function (k: Key): boolean {
+      if (onSearch) {
+        if (k === 'enter') { c.nav.push(createSearchPanel(arg)); return true; }
+        if (k === 'down') { onSearch = false; relayout(); return true; }
+        return k === 'left' || k === 'right' || k === 'up';
+      }
+      if (k === 'up' && active === 0) { onSearch = true; relayout(); return true; }
       var v = visible();
       if (!v.length) return false;
       if (k === 'down') { if (active >= v.length - 1) return false; active++; relayout(); return true; }
@@ -121,6 +137,6 @@ export function createHomePanel(arg: PlexArg): Panel {
     },
     suspend: function () { held = true; for (var i = 0; i < hubs.length; i++) hubs[i].list.release(); },
     resume: function () { held = false; for (var i = 0; i < hubs.length; i++) hubs[i].list.restore(); relayout(); loadDeck(); },
-    destroy: function () { if (deckCancel) deckCancel(); for (var i = 0; i < cancels.length; i++) cancels[i](); for (var j = 0; j < hubs.length; j++) hubs[j].list.release(); }
+    destroy: function () { if (indexT !== null && timers) timers.clearTimeout(indexT); if (deckCancel) deckCancel(); for (var i = 0; i < cancels.length; i++) cancels[i](); for (var j = 0; j < hubs.length; j++) hubs[j].list.release(); }
   };
 }

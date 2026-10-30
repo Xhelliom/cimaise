@@ -1,0 +1,8 @@
+/* Clavier à l'écran (tv-core) : à importer par l'écran qui l'emploie. Seuls transform et opacity bougent. */
+.kb{position:relative;width:1188px;height:600px}
+.kb-field{background:rgba(255,255,255,.1);border-radius:16px;color:#fff;font:400 44px/96px sans-serif;padding:0 32px;box-sizing:border-box;overflow:hidden;white-space:nowrap}
+.kb-empty{opacity:.45}
+.kb-caret{display:inline-block;width:3px;height:48px;margin-left:4px;vertical-align:middle;background:#fff}
+.kb-key{box-sizing:border-box;border-radius:14px;background:rgba(255,255,255,.1);color:#fff;font:400 40px/84px sans-serif;text-align:center}
+.kb-space,.kb-delete,.kb-clear,.kb-submit{font-size:32px}
+.kb-focus{border-radius:14px;background:rgba(255,255,255,.9);opacity:.35}
