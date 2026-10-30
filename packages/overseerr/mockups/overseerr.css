@@ -1,0 +1,45 @@
+/* Maquette Overseerr léger : ardoise sombre, accent indigo, affiches arrondies, badges en pilule.
+   Aucun flou, aucun filtre, aucune ombre floue ; on n'anime que transform. Affiches factices en dégradé (0 image). */
+@font-face{font-family:OF;src:url(../outfit-latin.woff2) format("woff2");font-weight:300 500}
+:root{--bg:#0f172a;--s:#1e293b;--l:#334155;--t:#f1f5f9;--tv:#94a3b8;--i:#6366f1;--il:#a5b4fc;--ok:#22c55e;--wait:#f59e0b}
+*{box-sizing:border-box}
+html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:var(--bg);color:var(--t);font:300 32px/1.25 OF,sans-serif}
+a{color:inherit;text-decoration:none}
+
+/* En-tête commun : surtitre, titre, pastilles à droite (comme le Dock v2) */
+header{position:absolute;left:120px;top:48px}
+.sur{font-size:24px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:var(--il)}
+.h{margin:4px 0 0;font-size:56px;font-weight:500;letter-spacing:-.02em;line-height:1}
+.pastilles{position:absolute;right:120px;top:68px;display:flex;gap:20px}
+.pastille{height:72px;padding:0 36px;border-radius:36px;display:flex;align-items:center;font-size:28px;font-weight:500;background:var(--s);color:var(--tv)}
+.pastille.on{background:var(--i);color:#fff}
+
+/* Accueil : deux rangées d'affiches 240×360, pas de 288, défilées par translateX */
+.rangee{position:absolute;left:0;width:1920px;height:470px;overflow:hidden}
+.r1{top:160px}.r2{top:610px}
+.rangee h2{margin:0 0 0 120px;height:52px;font-size:36px;font-weight:500;color:var(--t)}
+.piste{display:flex;gap:48px;padding-left:120px;padding-top:24px;transition:transform .25s ease}
+.af{position:relative;flex:0 0 240px;height:360px;border-radius:16px;background:linear-gradient(160deg,var(--a),var(--b));display:flex;align-items:flex-end;padding:20px;font-size:30px;font-weight:500;line-height:1.1;color:rgba(255,255,255,.92);transition:transform .2s ease}
+.af.focus{transform:scale(1.08);box-shadow:0 0 0 6px rgba(255,255,255,.92);z-index:1}
+
+/* Badges en pilule (Disponible / Demandé / En attente) */
+.b{display:inline-flex;align-items:center;height:40px;padding:0 18px;border-radius:20px;font-size:24px;font-weight:500;line-height:1}
+.af .b{position:absolute;left:14px;top:14px}
+.b.ok{background:var(--ok);color:#052e16}
+.b.dem{background:var(--i);color:#fff}
+.b.att{background:var(--wait);color:#1c1917}
+
+/* Fiche : un seul calque de teinte statique (dégradé, 0 octet), affiche 400×600, colonne texte */
+.teinte{position:absolute;left:0;top:0;width:1920px;height:1080px}
+.fiche .af{position:absolute;left:120px;top:240px;width:400px;height:600px;font-size:44px;padding:32px;border-radius:20px}
+.col{position:absolute;left:600px;top:252px;width:1160px}
+.col .sur{color:var(--tv)}
+.titre{margin:12px 0 24px;font-size:88px;font-weight:500;letter-spacing:-.02em;line-height:1}
+.meta{display:flex;align-items:center;gap:24px;color:var(--tv);font-size:30px}
+.meta .b{font-size:26px;height:48px;padding:0 22px;border-radius:24px}
+.resume{margin:36px 0 0;max-width:1060px;font-size:32px;line-height:1.4;color:#cbd5e1}
+.actions{display:flex;gap:24px;margin-top:56px;align-items:center}
+.btn{height:80px;padding:0 48px;border-radius:40px;display:flex;align-items:center;font-size:32px;font-weight:500;background:var(--s);color:var(--t);transition:transform .2s ease}
+.btn.prim{background:var(--i);color:#fff}
+.btn.focus{box-shadow:0 0 0 6px rgba(255,255,255,.92);transform:scale(1.05)}
+.note{font-size:28px;color:var(--tv)}

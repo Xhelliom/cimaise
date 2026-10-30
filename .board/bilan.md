@@ -1,24 +1,21 @@
-# Bilan : client API Overseerr (`packages/overseerr`)
+# Bilan : maquette Overseerr léger à valider (accueil + fiche)
 
 ## Fait
-- Paquet `packages/overseerr` (TypeScript → ES5, sans dépendance, transport XHR injectable, rappels), sur le modèle du client Plex :
-  `discoverMovies`, `discoverTv`, `trending`, `search`, `requestMedia`, `availability` / `availabilityLabel` (badge),
-  `posterUrl` (w185/w300 seulement), `appendTitles` (fusion de pages sans doublon), `overseerrConfigFrom` (Réglages puis copie empaquetée).
-- Vérifié en lecture seule contre la vraie instance (1.33.2) : `node scripts/overseerr/verify.mjs` → « Tout est conforme ».
-  Trois constats réels intégrés au client :
-  - recherche : `! ' ( ) *` non encodés → 400 ; encodage strict ajouté (`strictEncode`) ;
-  - clé refusée → **403** et non 401 : mappé sur `unauthorized` en lecture ;
-  - TMDB répète 2 à 4 titres d'une page à l'autre : `appendTitles` les retire.
-- **Aucune vraie demande envoyée.** POST /request vérifié contre la doc OpenAPI de l'instance et des demandes existantes (GET) ;
-  le transport des scripts refuse tout verbe autre que GET/HEAD (testé).
-- Fixtures anonymisées (`scripts/overseerr/capture-fixtures.mjs`, liste blanche, titres/ids/affiches remplacés, contrôle hôte/clé),
-  17 tests unitaires (dont bundle ES5 par es-check) ; `npm run check` vert (654 tests).
-- Poids : **5,2 Ko minifié (2,2 Ko gzip)**, importé par aucune entrée : `app.js` et les chunks inchangés.
-- docs/decisions.md (entrée du 30/10), docs/tv-status.md (affiches TMDB sur la Frame : non testé).
+- Maquette statique dans `packages/overseerr/mockups/` (aperçu seulement, jamais dans le .wgt), servie par `npm run dev` sous
+  `/mockups/overseerr/` (route ajoutée à `scripts/dev/server.mjs`, lien dans l'index des maquettes) :
+  - `accueil.html` : « Films du moment » / « Séries du moment », 2 rangées de 7 affiches, badges en pilule, focus aux flèches ;
+  - `fiche.html` : 4 états par `#demander`, `#demande`, `#attente`, `#disponible` ; Entrée sur « Demander » → badge « Demandé » (rien n'est envoyé).
+- Style : ardoise `#0f172a`, accent indigo `#6366f1`, affiches arrondies, badges pilule (vert / indigo / ambre), Outfit déjà livrée.
+  **Aucun `backdrop-filter`, `filter` ni `blur()`**, aucune image, une seule ombre (anneau de focus à rayon 0), animations `transform` seules (testé).
+- **Coût CSS : 3 439 o brut, 2 813 o minifié, 1 029 o gzip** (+14,6 % de `app.css` minifié si repris tel quel ; chargé avec le chunk Overseerr). Détail : `packages/overseerr/mockups/COUTS.md`.
+- Captures 1920×1080 : 6 de la maquette (dans git, `captures/`), 4 de la vraie instance Overseerr 1.33.2 et 3 planches côte à côte
+  (Overseerr à gauche, maquette à droite) dans `.local/overseerr-captures/` (hors git : montrent l'instance du homelab). Tout est publié sur la carte.
+- Tests : `tests/overseerr-mockups.test.mjs` (6) ; `npm run check` vert (660 tests).
 
-## Pas fait
-- Aucun écran ni chunk : le module n'est branché nulle part (lots suivants : Réglages pour la clé, écran Overseerr).
-- Saisie de la clé dans les Réglages : hors carte (lot suivant) ; le client lit déjà `prefs.overseerrUrl` / `prefs.overseerrKey`.
-- Affiches `image.tmdb.org` depuis la Frame : non essayé (repli `/imageproxy/` de l'instance prévu par `posterUrl`).
-- Réponses 409 (déjà demandé) et 403 sur POST : mappées d'après le code d'Overseerr, jamais observées (écriture interdite).
-- Statut 2 (« En attente ») jamais observé en réel : les demandes de la clé admin sont approuvées d'office ; couvert par test.
+## Pas fait / à noter
+- Captures Overseerr : prises en Chromium headless après une **connexion par token Plex** (`POST /api/v1/auth/plex`, ouverture de session,
+  seule écriture) ; aucune demande envoyée. `overseerr-accueil.png` montre les pseudos d'autres utilisateurs (Demandes récentes) : publiée sur la carte
+  locale seulement, les planches utilisent la page Films à la place.
+- Affiches factices (dégradés) : coût des vraies affiches TMDB estimé, pas mesuré à l'écran (≈ 4,8 Mo décodés pour 14 affiches w185).
+- Non tranché, à décider au câblage : couleur de teinte de la fiche (Overseerr ne la fournit pas), choix des saisons pour une série, place de « Lire dans Plex ».
+- Rien n'est câblé (lot suivant, après validation du style par Stéphane).

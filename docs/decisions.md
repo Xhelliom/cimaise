@@ -494,3 +494,12 @@ ramenés à un `Title` léger : `{ id (TMDB), mediaType, title, year, posterPath
 
 **Poids.** 5,2 Ko minifié (2,2 Ko gzip). Le module n'est importé par aucune entrée : `app.js` et les chunks sont inchangés ;
 il sera servi par un chunk chargé à la demande, hors JS initial.
+
+## Maquette Overseerr léger, à valider avant câblage (2026-10-30)
+
+Maquette statique `packages/overseerr/mockups/` (accueil Films / Séries du moment, fiche avec badges Disponible / Demandé / En attente et
+bouton Demander), servie sous `/mockups/overseerr/`. Style proposé : ardoise `#0f172a`, accent indigo `#6366f1`, affiches arrondies, badges
+en pilule ; aucun flou ni filtre, une seule ombre (anneau de focus à rayon 0), `transform` seul animé. Coût : **2,8 Ko de CSS minifié
+(1,0 Ko gzip)**, 0 image, 0 police ajoutée (fiche : `packages/overseerr/mockups/COUTS.md`). Le fond d'œuvre plein écran d'Overseerr est
+remplacé par un calque `radial-gradient` statique. Captures de comparaison avec l'instance : hors git (`.local/overseerr-captures/`).
+**En attente de la validation du style par Stéphane.**
