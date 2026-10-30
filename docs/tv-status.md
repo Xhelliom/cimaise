@@ -15,10 +15,14 @@ Ce qui a été vu à l'écran ou constaté sur la TV.
 - **Overseerr en HTTPS depuis la Frame (2026-10-30).** Paquet avec `<access origin>` de l'hôte Overseerr (Let's Encrypt, intermédiaire YR2, aucun en-tête CORS côté serveur). Diagnostic (0) puis Sonde Overseerr (2). Question posée : que montrent les 3 lignes (image /favicon.ico, XHR /api/v1/status sans clé, XHR /api/v1/discover/movies avec X-Api-Key) ? Réponse de Stéphane : « **Tout 200** » (choix « image 200, status 200 (version 1.33.2), discover 200 (N films) »), sans recopier les temps ni le nombre de films.
   - *Ce que j'en déduis* (non dit par lui) : Tizen 5 accepte la chaîne Let's Encrypt YR2, et l'app empaquetée n'est pas bloquée par l'absence de CORS ni par le pré-vol 405. Temps de réponse non relevés.
 
+- **Overseerr : fiche et « Demander » depuis la Frame (2026-10-30, build 3fc810f).** Questions posées : la fiche d'un film sans badge s'ouvre-t-elle et que dit l'écran après « Demander » ; au retour, badge sur l'affiche et demande visible dans Overseerr ; une série demandée couvre-t-elle toutes les saisons. Réponses de Stéphane (choix proposés, sans autre commentaire) : « **Demande envoyée** » ; « **Badge + vu dans Overseerr** » ; « **Toutes les saisons** ». Titres demandés non relevés.
+  - *Ce que j'en déduis* (non dit par lui) : `POST /api/v1/request` passe depuis l'app empaquetée (pré-vol compris), la réponse 201 est lue, le badge des rangées change sans requête, `seasons: "all"` est accepté ; les affiches TMDB (w185, w300) s'affichent probablement sur la Frame (le choix « fiche cassée, affiche absente » n'a pas été pris ; pas confirmé explicitement). Temps de réponse non mesurés ; erreurs (clé refusée, 409) non provoquées sur la TV.
+
 ## Réponse du SDK
 
 Ce que `sdb`, le packager ou le SDK ont répondu. Ne prouve pas un succès visible.
 
+- **2026-10-30, fiche Overseerr** : `package.sh apps/tv/dist` → `dist/cimaise.wgt` signé ; `install.sh` → « install completed » (3,5 s) et app présente ; `launch.sh` → « launched ».
 - **2026-10-30, sonde Overseerr** : `package.sh` (copie de `apps/tv/dist` + `local-config.js` + `<access origin>`) → `dist/cimaise.wgt` signé (author + distributor) ; `install.sh` → « install completed » (vd_appinstall, 3,8 s) et `cimaise001.Cimaise` dans la liste ; `launch.sh` → « launched ».
 
 ## Non testé
@@ -29,8 +33,8 @@ Hypothèses et points à vérifier (voir HANDOFF §11).
 - `required_version` minimal accepté
 - Codecs, HDR, pistes et sous-titres sous AVPlay
 - HTTPS auto-signé (phase 2). HTTPS **Let's Encrypt** (Overseerr) : observé OK, voir plus haut.
-- Overseerr **sans** `<access origin>` dans `config.xml` (Plex fonctionne sans) ; temps de réponse d'Overseerr sur la TV ; routes d'écriture (POST /request), jamais appelées
-- Affiches TMDB (`image.tmdb.org`, w185/w300) chargées par la Frame : non essayé (seul l'hôte Overseerr est validé). Repli possible : `/imageproxy/tmdb/t/p/` de l'instance (200 depuis le PC), via le 3e argument de `posterUrl`.
+- Overseerr **sans** `<access origin>` dans `config.xml` (Plex fonctionne sans) ; temps de réponse d'Overseerr sur la TV
+- Affiches TMDB (`image.tmdb.org`, w185/w300) chargées par la Frame : pas confirmé explicitement, probable d'après l'essai de la fiche du 30/10 (voir plus haut). Repli possible : `/imageproxy/tmdb/t/p/` de l'instance (200 depuis le PC), via le 3e argument de `posterUrl`.
 - Autorun après le mode Art et après coupure de courant
 - Persistance de l'app en arrière-plan
 
