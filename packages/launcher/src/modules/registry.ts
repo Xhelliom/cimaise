@@ -1,6 +1,11 @@
 // Registre des modules intégrés : chaque module déclare ce qu'il apporte à l'accueil (tuile, rangée) et à quoi il se
 // rattache (chunk, section de réglages). Un module masqué n'a ni tuile ni rangée et son chunk n'est jamais chargé.
-// Pour en ajouter un : une entrée dans MODULES (et, s'il a une tuile, son entrée interne dans catalog/defaults).
+// Une entrée dans MODULES fournit l'interrupteur des Réglages, l'état par défaut (configured), le masquage de la tuile
+// et le garde moduleEnabled. Ce registre ne câble PAS le reste : `chunk` et `settings` sont documentaires, rien ne les lit.
+// Pour un nouveau module (ex. Overseerr), il faut en plus, dans apps/tv/src/index.ts :
+//   - un `lazy(chunkLoader('<chunk>'))` et sa branche dans openInternal (avec le garde moduleEnabled avant tout chargement) ;
+//   - sa branche dans onModuleSettings (ouverture de ses réglages propres) ;
+//   - s'il a une tuile, son entrée interne dans catalog/defaults ; s'il a une rangée, son rafraîchissement gardé par moduleEnabled.
 import { loadStored, saveStored } from '../../../tv-core/src/storage';
 import { CatalogEntry } from '../catalog/model';
 import { defaultCatalog } from '../catalog/defaults';

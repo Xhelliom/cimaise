@@ -32,7 +32,7 @@ function el(tag) {
 }
 const find = (n, cls, out = []) => { if ((n.className || '').split(' ').includes(cls)) out.push(n); n.children.forEach((c) => find(c, cls, out)); return out; };
 
-function boot({ failChunk, stored, launched } = {}) {
+function boot({ failChunk, stored, launched, haReply } = {}) {
   const body = el('body'), head = el('head'), root = el('div');
   const loaded = [];
   head.onAppend = (s) => {
@@ -57,7 +57,11 @@ function boot({ failChunk, stored, launched } = {}) {
   };
   const ctx = vm.createContext({
     document, Date, console, Promise, Error,
-    XMLHttpRequest: function () { this.open = () => {}; this.setRequestHeader = () => {}; this.send = () => { xhrSent++; }; this.abort = () => {}; }, // ne répond jamais
+    XMLHttpRequest: function () { // ne répond jamais, sauf si haReply(url) fournit un corps
+      this.open = (m, u) => { this.url = u; }; this.setRequestHeader = () => {};
+      this.send = () => { xhrSent++; if (haReply) Promise.resolve().then(() => { this.status = 200; this.responseText = haReply(this.url); this.onload(); }); };
+      this.abort = () => {};
+    },
     setTimeout: (f, ms) => { timers.push({ f, ms }); return timers.length; },
     clearTimeout: () => {},
     localStorage: { getItem: (k) => { reads++; return k in store ? store[k] : null; }, setItem: (k, v) => { store[k] = v; } },
@@ -351,6 +355,25 @@ test('Réglages > Apps intégrées : activer les Scènes interroge Home Assistan
   a.key(BACK); a.key(BACK);
   assert.ok(a.xhr() >= 1, 'la rangée suit l’interrupteur à la fermeture');
   assert.equal(JSON.parse(a.store['cimaise.v1']).prefs.modules.scenes, true);
+});
+
+test('Réglages > Apps intégrées : masquer les Scènes retire la rangée, sans nouvelle requête vers Home Assistant', async () => {
+  const haReply = (url) => (url.endsWith('/api/states')
+    ? JSON.stringify([{ entity_id: 'scene.film', state: 'scening', attributes: { friendly_name: 'Film' } }])
+    : '[null]');
+  const a = boot({ stored: { version: 4, prefs: { ...HA } }, haReply });
+  a.flush();
+  for (let i = 0; i < 4; i++) await a.tick();
+  assert.equal(find(a.root, 'scene').length, 1, 'rangée affichée : Scènes activées par défaut');
+  const before = a.xhr();
+  a.key(UP); // la rangée de scènes est au-dessus des tuiles : un cran de plus pour atteindre les pastilles
+  await openSettings(a);
+  a.key(UP); a.key(UP); a.key(UP); a.key(OK); a.key(DOWN); a.key(OK); // Scènes : Masqué
+  assert.equal(JSON.parse(a.store['cimaise.v1']).prefs.modules.scenes, false);
+  a.key(BACK); a.key(BACK);
+  await a.tick();
+  assert.equal(find(a.root, 'scene').length, 0, 'la rangée a disparu');
+  assert.equal(a.xhr(), before, 'aucune nouvelle requête Home Assistant');
 });
 
 test('Réglages > Apps intégrées : les réglages de Plex (langues) restent accessibles même masqué', async () => {

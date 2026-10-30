@@ -1,11 +1,8 @@
-# Bilan — Apps intégrées (correction critère 3)
+# Bilan — Apps intégrées (corrections)
 
 Fait :
-- `el` sorti dans `packages/plex/src/ui/dom.ts` (sans dépendance) ; `context.ts` le ré-exporte.
-- Le panneau des langues Plex (`ui/settings.ts`) ne dépend plus que de tv-core et de `dom.ts` ; il est servi par le chunk `settings.js`.
-- `onModuleSettings('plex')` ouvre ce panneau sans jamais charger `plex.js`.
-- Test inversé dans `tests/app.test.mjs` : Plex masqué, ses réglages s'ouvrent et `loaded` reste `['settings.js']`.
-- Commentaires d'`apps/tv/src/index.ts` corrigés (tuile masquée remise en fin de catalogue, plus de « rang » conservé).
-- `npm run check` : vert (628 tests).
+- tests/app.test.mjs : nouveau test « masquer les Scènes retire la rangée, sans nouvelle requête vers Home Assistant ». Départ : Scènes activées, rangée affichée (réponse HA simulée via l'option `haReply` du mock XHR) ; interrupteur sur Masqué, fermeture des Réglages : rangée disparue, compteur de requêtes inchangé.
+- packages/launcher/src/modules/registry.ts : le commentaire dit honnêtement que `chunk` et `settings` sont documentaires et liste ce qu'il faut câbler dans apps/tv/src/index.ts pour un nouveau module (Overseerr).
+- `npm run check` : 629 tests, 0 échec.
 
-Non fait : rien de restant dans le périmètre.
+Non fait : le câblage générique par le registre (openInternal / onModuleSettings / chargement de chunk lisant MODULES) — choix de documenter plutôt que refactorer, comme le permettait la carte.
