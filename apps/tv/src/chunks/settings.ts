@@ -6,6 +6,8 @@ import { CatalogEntry } from '../../../../packages/launcher/src/catalog/model';
 import { defaultCatalog } from '../../../../packages/launcher/src/catalog/defaults';
 import { createSettingsPanel } from '../../../../packages/plex/src/ui/settings';
 import { HaSettings } from '../../../../packages/launcher/src/settings/scenes';
+import { createOverseerrProbePanel } from '../../../../packages/widgets/src/overseerr-probe';
+import { xhrHttp } from '../../../../packages/widgets/src/xhr';
 
 // Les Réglages travaillent sur AppEntry (teinte) ; le catalogue persisté est un CatalogEntry (couleur, type, rappel).
 // Au retour, on retrouve l'entrée d'origine (id + nom) pour ne pas perdre `type` ni `todo` (plusieurs entrées peuvent avoir un id vide).
@@ -77,5 +79,9 @@ function createPanel(arg: SettingsArg): Panel {
 }
 
 (function (w: any) {
-  (w.__cimaiseChunks || (w.__cimaiseChunks = {})).settings = { createPanel: createPanel, createSettingsPanel: createSettingsPanel };
+  (w.__cimaiseChunks || (w.__cimaiseChunks = {})).settings = {
+    createPanel: createPanel, createSettingsPanel: createSettingsPanel,
+    // Sonde Overseerr du diagnostic (touche 2) : ici plutôt que dans app.js, pour ne rien ajouter au démarrage.
+    createOverseerrProbe: function () { return createOverseerrProbePanel({ http: xhrHttp }); }
+  };
 })(window);

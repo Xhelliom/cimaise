@@ -13,7 +13,8 @@ mkdir -p "$REPO_ROOT/dist"
 # Le jeton ne vit que dans cette copie et dans le .wgt (dist/, ignoré par git) ; la copie est supprimée à la sortie.
 STAGE="$REPO_ROOT/dist/.stage-app"
 trap 'rm -rf "$STAGE"' EXIT
-node "$REPO_ROOT/scripts/build/local-config.mjs" "$REPO_ROOT/$APP_DIR" "$STAGE" "$LOCAL_DIR/ha.env"
+# Idem pour .local/overseerr.env (URL + clé de la sonde Overseerr, et <access origin> ajouté au config.xml de la copie).
+node "$REPO_ROOT/scripts/build/local-config.mjs" "$REPO_ROOT/$APP_DIR" "$STAGE" "$LOCAL_DIR/ha.env" "$LOCAL_DIR/overseerr.env"
 run_in_container tizen package -t wgt -s "$SIGN_PROFILE" -o /work/dist -- "/work/dist/.stage-app"
 # Le packager nomme la sortie d'après <name> : la TV relit la ligne vd_appinstall dans son shell, donc
 # espaces et parenthèses sont interdits. Espaces → « - », tout caractère hors [A-Za-z0-9._-] supprimé.

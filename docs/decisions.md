@@ -421,3 +421,41 @@ du modèle est établie. Non testé sur la TV : si le Smart Hub l'affiche flou, 
 **Coût.** `.wgt` non signé : 141 648 → 147 150 octets (**+5 502 octets**, +5,4 Ko ; 143,7 Ko / budget 1,5 Mo).
 Aucun effet sur le JS initial ni sur le démarrage (image lue par le Smart Hub, jamais par l'app).
 Afficher le logo dans l'accueil : hors périmètre, à proposer séparément avec son coût.
+
+## Overseerr joignable en HTTPS depuis la Frame : sonde avant tout écran (2026-10-30)
+
+**Question (risque n°1 du module Overseerr).** La Frame (Tizen 5, magasins de certificats de 2019) peut-elle appeler
+Overseerr derrière le proxy inverse du homelab, en HTTPS Let's Encrypt (intermédiaire **YR2**), alors qu'Overseerr
+n'envoie **aucun en-tête CORS** ? Depuis le PC (2026-10-30) : `GET /api/v1/status` 200 sans clé, `GET /api/v1/discover/movies`
+200 avec `X-Api-Key`, mais `OPTIONS` (pré-vol d'un navigateur, à cause de `X-Api-Key`) → **405** sans `Access-Control-*` :
+un navigateur ordinaire bloquerait les deux XHR.
+
+**Réponse : oui.** Sur la Frame, les trois essais de la sonde donnent 200 (Stéphane, voir `docs/tv-status.md`). Donc la
+chaîne YR2 → ISRG Root X1 est acceptée par Tizen 5, et le moteur de l'app empaquetée **n'applique pas CORS** à cette origine
+déclarée (ou ne fait pas de pré-vol) : ni en-tête CORS côté Overseerr ni proxy intermédiaire ne sont nécessaires.
+**Pas de repli LAN en http** : aucun LoadBalancer à exposer.
+
+**Ce qui est requis dans `config.xml`.** Testé avec `<access origin="https://<hôte Overseerr>" subdomains="false"/>` et **sans**
+`<tizen:content-security-policy>` (aucune CSP n'était déclarée, comme pour Plex). **Non testé sans `<access>`** : le
+module Plex joint `*.plex.direct` sans aucun `<access>`, donc l'élément n'est peut-être pas nécessaire ; on le garde (déclarer
+les origines du LAN est la règle du HANDOFF §7) tant qu'aucun essai ne prouve le contraire.
+- **Le domaine n'est pas commité.** URL et clé restent dans `.local/overseerr.env`. `scripts/build/local-config.mjs` (appelé par
+  `package.sh` avec un 4e argument) ajoute `<access origin>` au `config.xml` **de la copie empaquetée** et écrit dans
+  `local-config.js` `window.__cimaiseOverseerr = { url, key }` (en mémoire, **jamais dans localStorage**). `apps/tv/config.xml`,
+  `apps/tv/dist`, git et les logs ne contiennent ni l'URL ni la clé (`tests/local-config.test.mjs`). Même compromis que pour
+  Home Assistant : la clé est dans le `.wgt` (dist/, ignoré par git).
+
+**Sonde.** Diagnostic caché (touche **0**) puis touche **2**. Code dans `packages/widgets/src/overseerr-probe.ts`, servi par le
+chunk différé `settings.js` (+2,1 Ko minifié) : **app.js inchangé hors 3 lignes** (touche 2, enregistrement de 1 et 2). Trois GET à la
+suite, lecture seule :
+1. image `/favicon.ico` (aucun CORS : TLS + réseau seuls) ;
+2. XHR `/api/v1/status` sans clé (requête simple) ;
+3. XHR `/api/v1/discover/movies?page=1` avec `X-Api-Key` (en-tête non standard → pré-vol hors TV).
+Image OK + XHR à 0 aurait désigné CORS ; tout à 0, TLS ou réseau. Affiche code, temps, erreur ; la clé n'est jamais affichée.
+- **Touches 1 et 2** : seul 0 était enregistré auprès de `tvinputdevice` au démarrage ; 1 et 2 le sont désormais à l'ouverture
+  du diagnostic (sans cela, la TV ne les livre pas à l'app ; la touche 1 de la sonde formats en dépendait aussi).
+- **Pas de minuterie** dans le paquet widgets (règle testée) : l'image n'a pas de délai propre ; les XHR ont un `timeout` de 15 s.
+
+**Empaquetage depuis un worktree.** `.local` est un lien vers celui du dépôt principal ; le conteneur ne voit pas sa cible.
+On passe `DOCKER=<wrapper>` qui ajoute `-v <.local principal>:<même chemin>` à `docker run` (aucune copie des certificats).
+Retirer le lien après coup : `tests/structure.test.mjs` (`git check-ignore .local/x`) échoue tant qu'il existe.

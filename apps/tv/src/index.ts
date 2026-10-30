@@ -9,7 +9,7 @@ import { loadCatalog, saveCatalog, launchEntry } from '../../../packages/launche
 import { MODULES, moduleEnabled, setModuleEnabled, visibleCatalog, mergeHidden, removedModules, ensureTile } from '../../../packages/launcher/src/modules';
 import { xhrHttp, haConfigFromPrefs, listScenes, activateScene, quickScenes, normalizeChosen, saveHaConfig, saveHaScenes } from '../../../packages/widgets/src/index';
 
-interface Chunk { createPanel(arg?: any): Panel; createProbePanel?(arg?: any): Panel; createSettingsPanel?(arg?: any): Panel; }
+interface Chunk { createPanel(arg?: any): Panel; createProbePanel?(arg?: any): Panel; createSettingsPanel?(arg?: any): Panel; createOverseerrProbe?(): Panel; }
 
 var router = new Router({ root: document.getElementById('root')! });
 var plex = lazy<Chunk>(chunkLoader('plex'));
@@ -151,15 +151,26 @@ document.addEventListener('keydown', function (e) {
 
 // Diagnostic caché (horodatages) : touche 0 de la télécommande (pavé numérique) ou du clavier.
 // Sonde formats : touche 1 (ou pavé 1) pendant que le diagnostic est ouvert ; le diagnostic se referme, l'écran de la sonde le remplace.
+// Sonde Overseerr : touche 2, même principe (servie par le chunk settings.js, rien au démarrage).
+// Seul 0 est enregistré au démarrage : 1 et 2 le sont à l'ouverture du diagnostic, sinon la TV ne les livre pas.
 document.addEventListener('keydown', function (e) {
   var tag = e.target && (e.target as HTMLElement).tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA') return; // saisie en cours (adresse, jeton) : les chiffres sont du texte
-  if (e.keyCode === 48 || e.keyCode === 96) { toggleDiag(); return; }
+  if (e.keyCode === 48 || e.keyCode === 96) {
+    toggleDiag();
+    if (isDiagOpen() && hasTizen()) { try { registerKeys(['1', '2']); } catch (err) { /* déjà signalé */ } }
+    return;
+  }
   if ((e.keyCode === 49 || e.keyCode === 97) && isDiagOpen() && moduleEnabled('plex', loadStored().prefs)) { // sonde du module Plex : jamais chargée s'il est masqué
     toggleDiag();
     router.pushLazy(plex, function (m) {
       return m.createProbePanel!({ nav: { push: function (p: Panel) { router.push(p); }, pop: function () { router.pop(); } } });
     });
+    return;
+  }
+  if ((e.keyCode === 50 || e.keyCode === 98) && isDiagOpen()) {
+    toggleDiag();
+    router.pushLazy(settings, function (m) { return m.createOverseerrProbe!(); });
   }
 });
 

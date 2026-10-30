@@ -12,11 +12,14 @@ Ce qui a été vu à l'écran ou constaté sur la TV.
   - ASS converti en SRT par le serveur (sidecar) : *The Bear* S3E1, piste anglaise → « OK partout ».
   - *Ce que j'en déduis* (non dit par lui) : les trois chemins `setSelectTrack`, `setExternalSubtitlePath` et ASS → SRT sidecar fonctionnent sans transcodage. Pas de mesure de décalage ni de message d'erreur relevés ; mov_text, SSA, PGS, VobSub non testés.
 
+- **Overseerr en HTTPS depuis la Frame (2026-10-30).** Paquet avec `<access origin>` de l'hôte Overseerr (Let's Encrypt, intermédiaire YR2, aucun en-tête CORS côté serveur). Diagnostic (0) puis Sonde Overseerr (2). Question posée : que montrent les 3 lignes (image /favicon.ico, XHR /api/v1/status sans clé, XHR /api/v1/discover/movies avec X-Api-Key) ? Réponse de Stéphane : « **Tout 200** » (choix « image 200, status 200 (version 1.33.2), discover 200 (N films) »), sans recopier les temps ni le nombre de films.
+  - *Ce que j'en déduis* (non dit par lui) : Tizen 5 accepte la chaîne Let's Encrypt YR2, et l'app empaquetée n'est pas bloquée par l'absence de CORS ni par le pré-vol 405. Temps de réponse non relevés.
+
 ## Réponse du SDK
 
 Ce que `sdb`, le packager ou le SDK ont répondu. Ne prouve pas un succès visible.
 
-_(rien pour l'instant)_
+- **2026-10-30, sonde Overseerr** : `package.sh` (copie de `apps/tv/dist` + `local-config.js` + `<access origin>`) → `dist/cimaise.wgt` signé (author + distributor) ; `install.sh` → « install completed » (vd_appinstall, 3,8 s) et `cimaise001.Cimaise` dans la liste ; `launch.sh` → « launched ».
 
 ## Non testé
 
@@ -25,7 +28,8 @@ Hypothèses et points à vérifier (voir HANDOFF §11).
 - Modèle exact, firmware, version du moteur web
 - `required_version` minimal accepté
 - Codecs, HDR, pistes et sous-titres sous AVPlay
-- HTTPS auto-signé (phase 2)
+- HTTPS auto-signé (phase 2). HTTPS **Let's Encrypt** (Overseerr) : observé OK, voir plus haut.
+- Overseerr **sans** `<access origin>` dans `config.xml` (Plex fonctionne sans) ; temps de réponse d'Overseerr sur la TV ; routes d'écriture (POST /request), jamais appelées
 - Autorun après le mode Art et après coupure de courant
 - Persistance de l'app en arrière-plan
 
