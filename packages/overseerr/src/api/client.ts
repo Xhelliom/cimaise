@@ -1,4 +1,4 @@
-import { Abortable, Callback, Http, MediaType, OverseerrConfig, OverseerrError, RequestResult, Title, TitlePage } from './types';
+import { Abortable, Callback, ConnectionInfo, Http, MediaType, OverseerrConfig, OverseerrError, RequestResult, Title, TitlePage } from './types';
 import { availability, toTitle } from './media';
 
 var TIMEOUT_MS = 10000;
@@ -93,4 +93,21 @@ export function requestMedia(http: Http, cfg: OverseerrConfig | null, mediaType:
     if (!j || typeof j.id !== 'number' || typeof j.status !== 'number') return cb(fail('format', 'réponse de demande illisible'));
     cb(null, { id: j.id, status: j.status, availability: availability(j.media) });
   });
+}
+
+// Bouton « Tester » des Réglages : GET /status sans clé (joignable ? version), puis GET /settings/about avec la clé
+// (route d'administration : 403 si la clé est fausse, vérifié le 30/10 ; ne renvoie ni pseudo ni courriel).
+export function testConnection(http: Http, cfg: OverseerrConfig | null, cb: Callback<ConnectionInfo>): Abortable {
+  if (!cfg || !cfg.url || !cfg.key) { cb(fail('config', 'Overseerr non configuré (adresse ou clé absente)')); return NOOP; }
+  var cur: Abortable = http({ method: 'GET', url: cfg.url + '/api/v1/status', headers: { Accept: 'application/json' }, timeoutMs: TIMEOUT_MS }, function (err, res) {
+    if (err || !res || res.status === 0) return cb(fail('unreachable', 'Overseerr injoignable' + (err ? ' : ' + err.message : '')));
+    if (res.status < 200 || res.status >= 300) return cb(fail('http', 'HTTP ' + res.status + ' sur /status', res.status));
+    var version = '';
+    try { var j = JSON.parse(res.body); if (j && typeof j.version === 'string') version = j.version; } catch (e) { return cb(fail('format', 'réponse illisible : est-ce bien Overseerr ?')); }
+    cur = call(http, cfg, 'GET', '/settings/about', undefined, function (err2, a) {
+      if (err2) return cb(err2);
+      cb(null, { version: version, mediaItems: a && typeof a.totalMediaItems === 'number' ? a.totalMediaItems : null });
+    });
+  });
+  return { abort: function () { cur.abort(); } };
 }

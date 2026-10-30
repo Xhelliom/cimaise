@@ -6,6 +6,11 @@ import { CatalogEntry } from '../../../../packages/launcher/src/catalog/model';
 import { defaultCatalog } from '../../../../packages/launcher/src/catalog/defaults';
 import { createSettingsPanel } from '../../../../packages/plex/src/ui/settings';
 import { HaSettings } from '../../../../packages/launcher/src/settings/scenes';
+import { OverseerrSettings } from '../../../../packages/launcher/src/settings/overseerr';
+import { testConnection } from '../../../../packages/overseerr/src/api/client';
+import { Http as OverseerrHttp } from '../../../../packages/overseerr/src/api/types';
+import { DEFAULT_OVERSEERR_URL, saveOverseerrConfig } from '../../../../packages/overseerr/src/api/config';
+import { loadStored } from '../../../../packages/tv-core/src/storage';
 import { createOverseerrProbePanel } from '../../../../packages/widgets/src/overseerr-probe';
 import { xhrHttp } from '../../../../packages/widgets/src/xhr';
 
@@ -20,6 +25,7 @@ export interface SettingsArg {
   onTiles?: (n: number) => void;
   onChange: (catalog: CatalogEntry[]) => void;
   ha?: HaSettings;
+  moduleEnabled?: (id: string) => boolean;
   modules?: ModuleRow[];
   onModule?: (id: string, enabled: boolean) => CatalogEntry[] | void;   // renvoie le catalogue visible à jour
   onModuleSettings?: (id: string) => void;
@@ -48,6 +54,27 @@ function toEntry(a: AppEntry, from: CatalogEntry[]): CatalogEntry {
   return n;
 }
 
+
+// Réglages Overseerr : relus dans cimaise.v1 à chaque ouverture, enregistrés à chaque saisie validée. La clé ne sort
+// d'ici que dans l'en-tête X-Api-Key ; le texte du test n'en contient rien.
+function overseerrSettings(): OverseerrSettings {
+  var p = loadStored().prefs;
+  return {
+    url: typeof p.overseerrUrl === 'string' && p.overseerrUrl ? p.overseerrUrl : DEFAULT_OVERSEERR_URL,
+    key: typeof p.overseerrKey === 'string' ? p.overseerrKey : '',
+    onConfig: function (url, key) {
+      try { saveOverseerrConfig(url, key); } catch (e) { /* stockage refusé : valable pour cette session */ }
+    },
+    test: function (url, key, cb) {
+      // Même XHR que la sonde (renvoie toujours de quoi abandonner) : pas de second transport dans le chunk.
+      testConnection(xhrHttp as OverseerrHttp, { url: url, key: key }, function (err, info) {
+        if (err || !info) return cb(err || new Error('réponse vide'));
+        cb(null, 'Overseerr ' + (info.version || '?') + ' joignable, clé acceptée' +
+          (info.mediaItems !== null ? ' (' + info.mediaItems + ' médias)' : '') + '.');
+      });
+    }
+  };
+}
 function createPanel(arg: SettingsArg): Panel {
   var current = arg.catalog;
   return createSettings({
@@ -62,6 +89,8 @@ function createPanel(arg: SettingsArg): Panel {
       arg.onChange(next);
     },
     ha: arg.ha,
+    ov: overseerrSettings(),
+    moduleEnabled: arg.moduleEnabled,
     modules: arg.modules,
     onModule: arg.onModule && function (id, on) {
       var next = arg.onModule!(id, on);

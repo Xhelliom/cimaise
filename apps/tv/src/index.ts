@@ -79,6 +79,7 @@ var home = createHome({
       return m.createPanel({
         catalog: visibleCatalog(catalog, prefs),
         modules: MODULES.map(function (d) { return { id: d.id, name: d.name, enabled: moduleEnabled(d.id, prefs), hasSettings: true }; }),
+        moduleEnabled: function (id: string) { return moduleEnabled(id, loadStored().prefs); },
         onModule: function (id: string, on: boolean) {
           try { setModuleEnabled(id, on); } catch (e) { /* stockage refusé : l'état ne change pas */ }
           if (on) catalog = ensureTile(catalog, id);

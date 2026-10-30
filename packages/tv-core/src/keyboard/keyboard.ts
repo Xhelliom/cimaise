@@ -8,6 +8,7 @@ export interface KeyboardOptions {
   onChange?: (value: string) => void;   // à chaque frappe (recherche au fil de la saisie)
   onSubmit?: (value: string) => void;
   onCancel?: () => void;                // touche Retour
+  layout?: 'texte' | 'technique';       // technique : majuscules (touche maj) et . - / : = _ pour une adresse ou une clé
   doc?: Document;
 }
 
@@ -50,6 +51,22 @@ var ROWS: Def[][] = [
   ]
 ];
 
+// Adresses et clés d'API : la rangée des accents cède la place à . - / : ; maj bascule les lettres en capitales.
+var TECH_ROWS: Def[][] = [
+  ROWS[0],
+  ROWS[1],
+  chars('uvwxyz', 'k').concat(chars('.-/:', 'k')),
+  ROWS[3],
+  [
+    { label: 'maj', kind: 'shift', ch: '', span: 2 },
+    { label: '=', kind: 'k', ch: '=', span: 1 },
+    { label: '_', kind: 'k', ch: '_', span: 1 },
+    { label: 'effacer', kind: 'delete', ch: '', span: 2 },
+    { label: 'tout effacer', kind: 'clear', ch: '', span: 2 },
+    { label: 'valider', kind: 'submit', ch: '', span: 2 }
+  ]
+];
+
 // Clavier à l'écran piloté au D-pad, indépendant du clavier système. Rendu DOM direct, préalloué :
 // un seul repère de focus déplacé par transform, aucun nœud créé à la frappe.
 export function createKeyboard(o: KeyboardOptions): Keyboard {
@@ -57,6 +74,9 @@ export function createKeyboard(o: KeyboardOptions): Keyboard {
   var value = o.value || '';
   var row = 0, col = 0, mem = 0;   // mem : colonne mémorisée pour les déplacements verticaux
   var maxLen = o.maxLength === undefined ? 0 : o.maxLength;
+  var rows = o.layout === 'technique' ? TECH_ROWS : ROWS;
+  var upper = false;
+  var letters: { el: HTMLElement; ch: string }[] = [];   // touches a–z, relibellées par maj
 
   var root = doc.createElement('div');
   root.className = 'kb';
@@ -84,10 +104,10 @@ export function createKeyboard(o: KeyboardOptions): Keyboard {
 
   var cells: { def: Def; start: number }[][] = [];
   var y0 = FIELD_H + GAP;
-  for (var r = 0; r < ROWS.length; r++) {
+  for (var r = 0; r < rows.length; r++) {
     var cs = 0, line: { def: Def; start: number }[] = [];
-    for (var c = 0; c < ROWS[r].length; c++) {
-      var d = ROWS[r][c];
+    for (var c = 0; c < rows[r].length; c++) {
+      var d = rows[r][c];
       var el = doc.createElement('div');
       el.className = 'kb-key kb-' + d.kind;
       el.textContent = d.label;
@@ -98,6 +118,7 @@ export function createKeyboard(o: KeyboardOptions): Keyboard {
       el.style.height = KEY_H + 'px';
       el.style.transform = 'translate3d(' + (cs * (KEY_W + GAP)) + 'px,' + (y0 + r * (KEY_H + GAP)) + 'px,0)';
       root.appendChild(el);
+      if (/^[a-z]$/.test(d.ch)) letters.push({ el: el, ch: d.ch });
       line.push({ def: d, start: cs });
       cs += d.span;
     }
@@ -129,8 +150,13 @@ export function createKeyboard(o: KeyboardOptions): Keyboard {
     paintField();
     if (o.onChange) o.onChange(value);
   }
+  function shift(): void {
+    upper = !upper;
+    for (var i = 0; i < letters.length; i++) letters[i].el.textContent = upper ? letters[i].ch.toUpperCase() : letters[i].ch;
+  }
   function press(action: string, ch?: string): void {
-    if (action === 'delete') change(value.slice(0, -1));
+    if (action === 'shift') shift();
+    else if (action === 'delete') change(value.slice(0, -1));
     else if (action === 'clear') change('');
     else if (action === 'submit') { if (o.onSubmit) o.onSubmit(value); }
     else if (maxLen === 0 || value.length < maxLen) change(value + (ch === undefined ? ' ' : ch));
@@ -139,7 +165,7 @@ export function createKeyboard(o: KeyboardOptions): Keyboard {
   function handleKey(key: Key): boolean {
     if (key === 'enter') {
       var d = cur().def;
-      press(d.kind === 'k' || d.kind === 'space' ? 'type' : d.kind, d.ch);
+      press(d.kind === 'k' || d.kind === 'space' ? 'type' : d.kind, upper && /^[a-z]$/.test(d.ch) ? d.ch.toUpperCase() : d.ch);
       return true;
     }
     if (key === 'back') { if (o.onCancel) o.onCancel(); return true; }

@@ -1,21 +1,27 @@
-# Bilan : maquette Overseerr léger à valider (accueil + fiche)
+# Bilan : Réglages Overseerr (adresse et clé API saisies sur la TV)
 
 ## Fait
-- Maquette statique dans `packages/overseerr/mockups/` (aperçu seulement, jamais dans le .wgt), servie par `npm run dev` sous
-  `/mockups/overseerr/` (route ajoutée à `scripts/dev/server.mjs`, lien dans l'index des maquettes) :
-  - `accueil.html` : « Films du moment » / « Séries du moment », 2 rangées de 7 affiches, badges en pilule, focus aux flèches ;
-  - `fiche.html` : 4 états par `#demander`, `#demande`, `#attente`, `#disponible` ; Entrée sur « Demander » → badge « Demandé » (rien n'est envoyé).
-- Style : ardoise `#0f172a`, accent indigo `#6366f1`, affiches arrondies, badges pilule (vert / indigo / ambre), Outfit déjà livrée.
-  **Aucun `backdrop-filter`, `filter` ni `blur()`**, aucune image, une seule ombre (anneau de focus à rayon 0), animations `transform` seules (testé).
-- **Coût CSS : 3 439 o brut, 2 813 o minifié, 1 029 o gzip** (+14,6 % de `app.css` minifié si repris tel quel ; chargé avec le chunk Overseerr). Détail : `packages/overseerr/mockups/COUTS.md`.
-- Captures 1920×1080 : 6 de la maquette (dans git, `captures/`), 4 de la vraie instance Overseerr 1.33.2 et 3 planches côte à côte
-  (Overseerr à gauche, maquette à droite) dans `.local/overseerr-captures/` (hors git : montrent l'instance du homelab). Tout est publié sur la carte.
-- Tests : `tests/overseerr-mockups.test.mjs` (6) ; `npm run check` vert (660 tests).
+- **Registre** (`packages/launcher/src/modules/registry.ts`) : module `overseerr`, `configured` = `overseerrUrl` et `overseerrKey`
+  présents dans `cimaise.v1`. Masqué tant que non configuré, interrupteur Activé / Masqué comme Plex et Scènes.
+- **Section Réglages › Apps intégrées › Overseerr** (`packages/launcher/src/settings/overseerr.ts`, chunk `settings.js`) :
+  Adresse (défaut `https://overseerr.wetter.land`), Clé API (masquée `••••••••`), « Tester la connexion ».
+- **Clavier à l'écran** (tv-core) : disposition `technique` ajoutée (maj, `. - / : = _`). Sans elle la clé (68 caractères,
+  capitales et `=`) était impossible à taper. Disposition par défaut inchangée.
+- **Tester** : `GET /api/v1/status` sans clé, puis `GET /api/v1/settings/about` avec la clé. Vérifié contre l'instance : 200/200
+  avec la vraie clé (« 1.33.2 joignable, clé acceptée (771 médias) »), 403 → « Échec : clé API refusée » avec une fausse.
+- **Persistance** : `saveOverseerrConfig` écrit adresse + clé ensemble ; relues après rechargement de l'app (aperçu : reload de la
+  page, module toujours Activé, test réussi). En retour de section, l'interrupteur relit l'état (la saisie l'active aussitôt).
+- **Correctif au passage** : le clavier à l'écran des Réglages (Scènes aussi) chevauchait le titre ; placé sous le titre.
+- **Secrets** : clé absente du dépôt, de l'historique, de `dist/`, du `.wgt` et du journal du serveur d'aperçu (grep sur la vraie clé : 0) ;
+  aucun `console.*` ; la clé n'apparaît dans aucun message d'erreur (testé).
+- Tests : `tests/overseerr-settings.test.mjs` (4), + clavier (2), client (3), registre ; `npm run check` vert (669 tests).
+- Poids : `settings.js` +5,1 Ko min (+1,7 Ko gzip), `app.js` +0,6 Ko (38,2 / 100 Ko). Aucune requête au démarrage.
+- 6 captures 1920×1080 de l'aperçu publiées sur la carte ; entrée dans `docs/decisions.md`.
 
 ## Pas fait / à noter
-- Captures Overseerr : prises en Chromium headless après une **connexion par token Plex** (`POST /api/v1/auth/plex`, ouverture de session,
-  seule écriture) ; aucune demande envoyée. `overseerr-accueil.png` montre les pseudos d'autres utilisateurs (Demandes récentes) : publiée sur la carte
-  locale seulement, les planches utilisent la page Films à la place.
-- Affiches factices (dégradés) : coût des vraies affiches TMDB estimé, pas mesuré à l'écran (≈ 4,8 Mo décodés pour 14 affiches w185).
-- Non tranché, à décider au câblage : couleur de teinte de la fiche (Overseerr ne la fournit pas), choix des saisons pour une série, place de « Lire dans Plex ».
-- Rien n'est câblé (lot suivant, après validation du style par Stéphane).
+- **Pas essayé sur la Frame** : saisie à la télécommande et test réel restent à faire (recette sur la carte).
+- Les captures du test réel ont été prises dans Chromium avec `--disable-web-security` (Overseerr n'envoie pas d'en-tête CORS ;
+  la TV passe par `<access origin>`, déjà vérifié « Tout 200 » par la sonde). Dans l'aperçu normal, « Tester » répond « injoignable ».
+- Pas de tuile Overseerr sur l'accueil (`tileId: null`) : les écrans ne sont pas câblés, une tuile n'ouvrirait rien. Au câblage,
+  ajouter tuile, chunk et garde `moduleEnabled` (voir l'en-tête du registre).
+- Saisir 68 caractères au D-pad est long : si c'est trop pénible sur la TV, une saisie depuis le téléphone (page LAN) serait l'étape suivante.
