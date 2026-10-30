@@ -777,3 +777,42 @@ test('choix de la série (audioLang / subLang) : prime sur le mode', () => {
   assert.equal(r.subtitle.languageCode, 'fra');
   assert.equal(pb.chooseTracks(item('mkv-h264-dts').Media[0].Part[0].Stream, { mode: 'vo', subLang: '' }).subtitle, null, 'coupés pour cette série');
 });
+
+// --- Pastilles de la fiche ------------------------------------------------------------------------------------
+
+test('pastilles : 4K, Dolby Vision, 5.1, langues audio et sous-titres, mode identique à decidePlayback (fiches réelles)', () => {
+  const hdr = item('mkv-hevc-hdr10');
+  const b = pb.techBadges(hdr, {});
+  assert.deepEqual(b.labels.slice(0, 5), ['4K', 'Dolby Vision', '5.1', 'Audio FR · EN', 'Sous-titres FR · EN']);
+  assert.equal(b.mode, pb.decidePlayback(hdr, {}).mode);
+  assert.equal(b.labels[b.labels.length - 1], b.mode === 'direct' ? 'Lecture directe' : 'Transcodé');
+  // HDR10 sans Dolby Vision
+  const v = hdr.Media[0].Part[0].Stream.find((s) => s.streamType === 1);
+  delete v.DOVIPresent;
+  assert.equal(pb.techBadges(hdr, {}).labels[1], 'HDR10');
+});
+
+test('pastilles : DTS seul → Transcodé, comme le lecteur ; SRT → Lecture directe ; codes de langue courts', () => {
+  const dts = pb.techBadges(item('mkv-h264-dts'), {});
+  assert.deepEqual(dts.labels, ['1080p', '5.1', 'Audio EN', 'Sous-titres EN · FR', 'Transcodé']);
+  assert.equal(pb.decidePlayback(item('mkv-h264-dts'), {}).mode, 'transcode');
+  const srt = pb.techBadges(item('mkv-h264-ac3-srt-externe'), {});
+  assert.equal(srt.mode, 'direct');
+  assert.equal(srt.labels[srt.labels.length - 1], 'Lecture directe');
+  assert.equal(pb.techBadges(item('avi-mpeg4-mp3'), {}).labels[0], 'SD');
+  assert.equal(pb.techBadges(item('avi-mpeg4-mp3'), {}).labels[1], 'Stéréo');
+});
+
+test('pastilles : réglages de langue du lecteur pris en compte ; aucune sans pistes (série, liste)', () => {
+  // Même piste audio et mêmes sous-titres que le lecteur, donc même mode
+  const th = item('mkv-h264-truehd-pgs');
+  assert.equal(pb.techBadges(th, {}).mode, pb.decidePlayback(th, {}).mode);
+  const fr = { mode: 'fr', subLang: 'fra' }, plan = pb.decidePlayback(item('mkv-h264-ac3-pgs'), fr);
+  assert.equal(pb.techBadges(item('mkv-h264-ac3-pgs'), fr).mode, plan.mode);
+  assert.equal(pb.techBadges({ ratingKey: '1', type: 'show', title: 's' }, {}), null);
+  assert.equal(pb.techBadges({ ratingKey: '1', type: 'movie', title: 'm', Media: [{ id: 1, Part: [{ id: 1, key: '/k' }] }] }, {}), null);
+  // Au-delà de trois langues : « +N »
+  const many = item('mkv-h264-ac3-pgs');
+  ['spa', 'deu', 'ita'].forEach((l, i) => many.Media[0].Part[0].Stream.push({ id: 900 + i, streamType: 3, codec: 'srt', languageCode: l }));
+  assert.ok(pb.techBadges(many, {}).labels.indexOf('Sous-titres EN · FR · ES +2') >= 0);
+});

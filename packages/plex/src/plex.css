@@ -37,9 +37,15 @@
 .plex-dbg{position:absolute;left:0;top:0;width:1920px;height:1080px;opacity:0;transition:opacity .4s}
 .plex-dbg.on{opacity:1}
 .plex-dposter{position:absolute;left:120px;top:140px;width:360px;height:540px;border-radius:12px;background:#2b2b2e}
-.plex-dtitle,.plex-dmeta,.plex-prog,.plex-btns,.plex-dsummary{position:absolute;left:520px}
+.plex-dtitle,.plex-dinfo,.plex-prog,.plex-btns,.plex-dsummary{position:absolute;left:520px}
 .plex-dtitle{top:140px;width:1280px;font-size:72px;font-weight:500;letter-spacing:-.02em;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.plex-dmeta{top:244px;font-size:28px;color:rgba(255,255,255,.75)}
+.plex-dinfo{top:236px;width:1340px;height:48px;display:flex;align-items:center;white-space:nowrap;overflow:hidden}
+.plex-dmeta{font-size:28px;color:rgba(255,255,255,.75);margin-right:4px}
+/* Pastilles techniques : texte seul ; la dernière dit lecture directe (verte) ou transcodage (ambre) */
+.plex-dbadges{display:flex}
+.plex-badge{height:40px;line-height:40px;padding:0 16px;margin-left:12px;border-radius:8px;font-size:22px;font-weight:500;background:rgba(255,255,255,.14);color:rgba(255,255,255,.9)}
+.plex-badge.direct{background:rgba(70,180,110,.3)}
+.plex-badge.transcode{background:rgba(229,160,13,.32)}
 .plex-prog{top:296px;width:480px;height:8px;border-radius:4px;background:rgba(255,255,255,.2);overflow:hidden}
 .plex-prog-bar{width:480px;height:8px;background:#e5a00d;transform-origin:0 0}
 .plex-btns{top:328px;display:flex}

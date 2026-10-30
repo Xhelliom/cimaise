@@ -7,6 +7,8 @@ import { createPlayerPanel } from './player';
 import { recordMeasure } from '../../../tv-core/src/diag';
 import { backdropUrl, detailPosterUrl, EPISODE, episodeThumbUrl } from './images';
 import { scrobble, unscrobble } from '../api/media';
+import { techBadges } from '../playback/badges';
+import { langPrefsFor } from '../../../tv-core/src/langprefs';
 
 type Zone = 'play' | 'seasons' | 'episodes';
 
@@ -61,6 +63,10 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
   poster.className = 'plex-dposter';
   var title = el(doc, 'plex-dtitle', stub.title);
   var meta = el(doc, 'plex-dmeta', '');
+  // Sous le titre : la méta puis les pastilles techniques (texte seul), sur une ligne.
+  var info = el(doc, 'plex-dinfo'), badges = el(doc, 'plex-dbadges');
+  info.appendChild(meta);
+  info.appendChild(badges);
   var prog = el(doc, 'plex-prog');
   var bar = el(doc, 'plex-prog-bar');
   prog.appendChild(bar);
@@ -76,7 +82,7 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
   var episodesBox = el(doc, 'plex-episodes');
   // Indices de débordement des deux rangées d'une série (chevron à droite tant que des éléments suivent hors de l'écran)
   var seasonsMore = el(doc, 'plex-more plex-seasons-more'), episodesMore = el(doc, 'plex-more plex-episodes-more');
-  var parts = [backdrop, poster, title, meta, prog, btns, summary, seasonsBox, epTitle, episodesBox, seasonsMore, episodesMore, msg];
+  var parts = [backdrop, poster, title, info, prog, btns, summary, seasonsBox, epTitle, episodesBox, seasonsMore, episodesMore, msg];
   for (var p = 0; p < parts.length; p++) root.appendChild(parts[p]);
 
   var seasons: Item[] = [], episodes: Item[] = [];
@@ -121,6 +127,17 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
     play.className = zone === 'play' && sel === play ? 'plex-play focus' : 'plex-play';
     restart.className = zone === 'play' && sel === restart ? 'plex-restart focus' : 'plex-restart';
     mark.className = zone === 'play' && sel === mark ? 'plex-mark focus' : 'plex-mark';
+  }
+
+  // Pastilles de la fiche complète (Media/Stream), avec les réglages de langue du lecteur : « Transcodé » dit ce que fera Lire.
+  // Recalculées à l'arrivée de la fiche seulement, pas à chaque touche.
+  function paintBadges(): void {
+    while (badges.firstChild) badges.removeChild(badges.firstChild);
+    var b = techBadges(item, langPrefsFor(item.grandparentRatingKey, arg.store));
+    if (!b) return;
+    for (var i = 0; i < b.labels.length; i++) {
+      badges.appendChild(el(doc, i === b.labels.length - 1 ? 'plex-badge ' + b.mode : 'plex-badge', b.labels[i]));
+    }
   }
 
   function buttons(): HTMLElement[] {
@@ -235,6 +252,7 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
         if (next && next.type === 'episode') { target = next; wanted = next; } else if (!next) { wanted = null; if (target && !(target.ratingKey && episodes.length)) target = null; }
       }
       paint();
+      paintBadges();
       if (stub.type === 'show') openSeason();
       if (!measured) { measured = true; recordMeasure('fiche', Date.now() - t0); }
     }, undefined, stub.type === 'show');
