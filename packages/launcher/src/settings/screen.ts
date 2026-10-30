@@ -41,6 +41,10 @@ var CSS =
   '.reglages .bouton{font-weight:500;color:#fff}' +
   '.reglages .etat{position:absolute;left:120px;bottom:72px;font-size:28px;font-weight:300;color:rgba(255,255,255,.6)}' +
   '.reglages .titre-section{position:absolute;left:24px;height:96px;display:flex;align-items:center;font-size:26px;font-weight:500;color:rgba(255,255,255,.5)}' +
+  '.reglages .ligne.titre{height:64px;padding-top:16px;font-size:26px;font-weight:500;color:rgba(255,255,255,.5);background:none;pointer-events:none}' +
+  '.reglages .ligne.titre .puce{background:none;font-size:22px;font-weight:300;color:rgba(255,255,255,.4)}' +
+  '.reglages .ligne.choisie{background:rgba(255,255,255,.06);box-shadow:inset 6px 0 0 rgba(255,255,255,.5);color:#fff}' +
+  '.reglages .ligne.choisie.focus{background:rgba(255,255,255,.14)}' +
   '.reglages .deja{font-size:26px;color:rgba(255,255,255,.5)}' +
   '.reglages .rang{width:48px;font-size:28px;font-weight:500;color:rgba(255,255,255,.5)}' +
   '.reglages .champ{flex:none;width:720px;height:64px;box-sizing:border-box;padding:0 24px;border:0;border-radius:20px;background:#fff;color:#111;font:500 30px Outfit,sans-serif}';

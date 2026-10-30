@@ -304,3 +304,12 @@ test('menu des pièces : une pièce dont toutes les scènes sont indisponibles e
   assert.ok(t.includes('Bureau') && !t.includes('Cave'));
   assert.ok(!t.includes('0'));
 });
+
+test('la feuille de style des Réglages cible titres de pièce et scènes choisies', () => {
+  const doc = fakeDoc();
+  S.createSettings({ doc, catalog: [], listInstalledApps: (ok) => ok([]), onChange: () => {}, onClose: () => {} });
+  const css = all(doc.head, (e) => e.tag === 'style').map((e) => e.textContent).join('');
+  assert.match(css, /\.reglages \.ligne\.titre\{[^}]*pointer-events:none/);
+  assert.match(css, /\.reglages \.ligne\.titre\{[^}]*font-weight:500/);
+  assert.match(css, /\.reglages \.ligne\.choisie\{[^}]*(background|box-shadow)/);
+});
