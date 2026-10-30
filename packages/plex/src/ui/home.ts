@@ -80,16 +80,17 @@ export function createHomePanel(arg: PlexArg): Panel {
   }
 
   function addHub(title: string, tile: (it: any, withImage: boolean) => any, open: (it: any) => void): Hub {
-    var box = el(doc, 'plex-row');
+    var box = el(doc, 'plex-row'), more = el(doc, 'plex-more');
     var h: Hub = { title: title, box: box, items: [], list: null as any };
     h.list = createRow({
-      container: box, doc: doc, count: 0, itemW: POSTER.w, itemH: POSTER.h + 72, gap: GAP, viewportW: 1800, viewportH: POSTER.h + 72,
+      container: box, doc: doc, count: 0, itemW: POSTER.w, itemH: POSTER.h + 72, gap: GAP, viewportW: 1800, viewportH: POSTER.h + 72, edge: more,
       render: function (i) { return h.items[i] ? tile(h.items[i], wants(h)) : null; },
       onSelect: function (i) { open(h.items[i]); }
     });
     var wrap = el(doc, 'plex-hub');
     wrap.appendChild(el(doc, 'plex-hub-title', title));
     wrap.appendChild(box);
+    wrap.appendChild(more);
     layer.appendChild(wrap);
     hubs.push(h);
     return h;

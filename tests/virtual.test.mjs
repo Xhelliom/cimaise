@@ -189,3 +189,23 @@ test('setCount à nombre égal : les tuiles déjà posées sont reliées au nouv
   assert.deepEqual(imgs, ['img/b0', 'img/b1', 'img/b2']);
   assert.equal(layer.children.filter((t) => t.classList.contains('sel')).length, 1);
 });
+
+test('indice de débordement : « shown » sur edge tant que des éléments suivent hors de la fenêtre, classe touchée au changement seulement', () => {
+  const log = [], doc = fakeDoc(log), container = doc.createElement('div'), edge = doc.createElement('div');
+  let adds = 0;
+  const add = edge.classList.add;
+  edge.classList.add = (c) => { adds++; add(c); };
+  // 300 + 20 px par tuile dans 1000 px : 3 tuiles entières visibles
+  const r = core.createRow({ container, doc, edge, count: 2, itemW: 300, itemH: 170, gap: 20, viewportW: 1000, viewportH: 170, render: () => null });
+  r.update();
+  assert.equal(edge.classList.contains('shown'), false, '2 éléments : tout tient');
+  r.setCount(5);
+  assert.equal(edge.classList.contains('shown'), true, '5 éléments : ça déborde');
+  r.handleKey('right'); r.handleKey('right');
+  assert.equal(edge.classList.contains('shown'), true, 'focus sur la 3e : la 4e et la 5e suivent');
+  assert.equal(adds, 1, 'classe posée une fois, pas à chaque appui');
+  r.handleKey('right'); r.handleKey('right');
+  assert.equal(edge.classList.contains('shown'), false, 'dernière visible : plus d’indice');
+  r.handleKey('left'); r.handleKey('left'); r.handleKey('left'); r.handleKey('left');
+  assert.equal(edge.classList.contains('shown'), true, 'retour au début : l’indice revient');
+});

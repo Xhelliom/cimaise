@@ -77,7 +77,8 @@ export function createSettingsPanel(arg: { doc?: Document; store?: Storage }): P
   root.appendChild(el(doc, 'plex-set-title', 'Réglages'));
   for (var r0 = 0; r0 < 1 + 2 * SLOTS; r0++) {
     var line = el(doc, 'plex-set-row');
-    line.style.transform = 'translate3d(0,' + (r0 === 0 ? 0 : r0 * ROW_H + 72) + 'px,0)';
+    // Position fixe en top (posée une fois) : le transform reste libre pour le scale du focus.
+    line.style.top = 190 + (r0 === 0 ? 0 : r0 * ROW_H + 72) + 'px';
     names.push(el(doc, 'plex-set-name'));
     vals.push(el(doc, 'plex-set-val'));
     line.appendChild(names[r0]);

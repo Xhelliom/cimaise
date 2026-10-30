@@ -78,10 +78,10 @@ export function createSearchPanel(arg: PlexArg): Panel {
 
   function visible(): Row[] { return rows.filter(function (r) { return r.items.length > 0; }); }
   function addRow(type: string, title: string): Row {
-    var box = el(doc, 'plex-row'), wrap = el(doc, 'plex-hub');
+    var box = el(doc, 'plex-row'), wrap = el(doc, 'plex-hub'), more = el(doc, 'plex-more');
     var r: Row = { type: type, title: title, box: box, wrap: wrap, items: [], list: null as any };
     r.list = createRow({
-      container: box, doc: doc, count: 0, itemW: SEARCH_POSTER.w, itemH: SEARCH_POSTER.h + 64, gap: GAP, viewportW: 560, viewportH: SEARCH_POSTER.h + 64,
+      container: box, doc: doc, count: 0, itemW: SEARCH_POSTER.w, itemH: SEARCH_POSTER.h + 64, gap: GAP, viewportW: 560, viewportH: SEARCH_POSTER.h + 64, edge: more,
       render: function (i) {
         var it = r.items[i];
         return it ? { title: tileTitle(it), image: images && !held ? searchPosterUrl(c.session, it) : null } : null;
@@ -90,6 +90,7 @@ export function createSearchPanel(arg: PlexArg): Panel {
     });
     wrap.appendChild(el(doc, 'plex-hub-title', title));
     wrap.appendChild(box);
+    wrap.appendChild(more);
     resBox.appendChild(wrap);
     return r;
   }

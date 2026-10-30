@@ -74,7 +74,9 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
   var seasonsBox = el(doc, 'plex-seasons');
   var epTitle = el(doc, 'plex-ep-title', '');
   var episodesBox = el(doc, 'plex-episodes');
-  var parts = [backdrop, poster, title, meta, prog, btns, summary, seasonsBox, epTitle, episodesBox, msg];
+  // Indices de débordement des deux rangées d'une série (chevron à droite tant que des éléments suivent hors de l'écran)
+  var seasonsMore = el(doc, 'plex-more plex-seasons-more'), episodesMore = el(doc, 'plex-more plex-episodes-more');
+  var parts = [backdrop, poster, title, meta, prog, btns, summary, seasonsBox, epTitle, episodesBox, seasonsMore, episodesMore, msg];
   for (var p = 0; p < parts.length; p++) root.appendChild(parts[p]);
 
   var seasons: Item[] = [], episodes: Item[] = [];
@@ -161,12 +163,12 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
   var seasonList: VirtualList | null = null, episodeList: VirtualList | null = null;
   if (stub.type === 'show') {
     seasonList = createRow({
-      container: seasonsBox, doc: doc, count: 0, itemW: 240, itemH: 84, gap: 24, viewportW: 1400, viewportH: 84,
+      container: seasonsBox, doc: doc, count: 0, itemW: 240, itemH: 84, gap: 24, viewportW: 1400, viewportH: 84, edge: seasonsMore,
       render: function (i) { return seasons[i] ? { title: seasons[i].title, image: null, selected: seasons[i] === curSeason, done: seasonSeen(seasons[i]) } : null; },
       onSelect: function (i) { settle(); loadEpisodes(seasons[i]); }
     });
     episodeList = createRow({
-      container: episodesBox, doc: doc, count: 0, itemW: EPISODE.w, itemH: EPISODE.h + 72, gap: 48, viewportW: 1800, viewportH: EPISODE.h + 72,
+      container: episodesBox, doc: doc, count: 0, itemW: EPISODE.w, itemH: EPISODE.h + 72, gap: 48, viewportW: 1800, viewportH: EPISODE.h + 72, edge: episodesMore,
       render: function (i) {
         var e = episodes[i];
         return e ? { title: (e.index ? e.index + '. ' : '') + e.title, image: episodeThumbUrl(c.session, e), done: !!e.viewCount && e.viewCount > 0, progress: progress(e) } : null;

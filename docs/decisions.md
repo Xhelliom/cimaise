@@ -691,3 +691,37 @@ et le texte « 22 min vues · reste 1 h 24 ».
 
 **Poids.** `app.css` 22 128 → **22 653 o** minifié (+525 o, +87 o gzip) ; `plex.js` 91 839 → **93 609 o** (+1 770 o, chunk différé).
 `app.js` inchangé. DOM de la fiche : +2 nœuds (fond, bouton). Une image de plus par fiche (≈ 4 Ko).
+
+## Plex : focus homogène et indice de débordement des rangées (2026-10-30)
+
+**Focus homogène** (maquette du 30/10) dans tout le module : anneau blanc net de 6 px (`box-shadow` à rayon de flou 0) +
+`scale(1.06)`, transition sur `transform` seulement. Repris partout où le focus était différent : affiches de l'accueil, de la grille
+et des épisodes (`scale(1.1)` + anneau à 92 % → 1.06 + blanc), affiches de la recherche (1.08, 4 px), pastilles de saison, lettres de la
+barre alphabétique, serveurs (connexion), réglages, dernières recherches, menu Audio / Sous-titres et dialogue du lecteur (tous en
+« pastille inversée » blanche jusque-là). Un test vérifie que chaque règle de focus de `plex.css` porte cet anneau et n'a pas d'aplat
+blanc. Exceptions : la **barre de progression** du lecteur garde l'anneau (6 px) sans scale (elle porte le curseur et la miniature) ;
+le **repère du clavier** (tv-core) prend l'anneau sans scale (il glisse déjà par un transform en ligne).
+
+Deux contraintes de structure : une tuile virtualisée porte son `translate3d` en style en ligne, donc le scale d'une **pastille de
+saison** va au libellé (qui porte désormais la pastille) ; les **lignes des Réglages** étaient placées par `translate3d` en ligne,
+elles le sont maintenant par `top` (posé une fois à la création, aucun coût par appui) pour laisser le transform au focus.
+
+**Indice de débordement** : chevron blanc sur un disque sombre (56 px) au bord droit d'une rangée, en fondu d'`opacity`, tant que des
+éléments suivent hors de l'écran ; il disparaît quand le dernier est entier à l'écran. Rangées de l'accueil, saisons et épisodes de
+la fiche, rangées de la recherche. **Pas de dégradé de bord** (la maquette en avait un : coût de composition non mesuré sur la Frame,
+repli prévu par `COUTS.md`) et **pas de compteur « 7 sur 8 »** (texte réécrit à chaque appui). Porté par `VirtualList` (option
+`edge`) : la classe `shown` n'est touchée que lorsque l'état change, pas à chaque appui (testé).
+
+**Latence touche → frame** (diagnostic, aperçu Chromium, CPU ×4, 20 appuis par série, vraie bibliothèque du homelab) :
+
+| Écran | Avant (min / méd / max ms) | Après |
+|---|---|---|
+| Accueil (3 séries) | 7–8 / 20–22 / 34–36 | 6–7 / 16–18 / 30–34 |
+| Bibliothèque (grille) | 7 / 24 / 37 | 7 / 25 / 37 |
+| Fiche (boutons) | 2 / 13 / 31 | 7 / 14 / 29 |
+
+Écart dans le bruit : inchangée dans l'aperçu. Comme pour le Dock, l'aperçu ne reproduit pas le coût de la TV : **mesure Frame à
+relever par Stéphane** (touche 0 après ~20 appuis dans l'accueil Plex).
+
+**Poids.** `app.css` 22 653 → **23 387 o** minifié (+734 o, +104 o gzip) ; `plex.js` 93 609 → **93 933 o** (+324 o, chunk différé) ;
+`app.js` 40 074 → **40 221 o** (+147 o : `VirtualList` est partagée avec l'accueil). DOM : +1 nœud par rangée. Aucune image.

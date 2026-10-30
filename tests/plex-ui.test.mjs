@@ -1348,3 +1348,27 @@ test('fiche : fond = art flouté et assombri par le transcodeur (480×270), lib�
   p.destroy();
   assert.doesNotMatch(readFileSync('packages/plex/src/plex.css', 'utf8'), /backdrop-filter|filter\s*:|blur\(/i);
 });
+
+test('focus homogène : chaque état focalisé du module = anneau blanc net 6 px (+ scale 1.06), aucune pastille inversée', () => {
+  const css = readFileSync('packages/plex/src/plex.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const rules = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)].filter((m) => /\.focus\b|\.plex-set-row\.on\{|kb-focus/.test(m[1]) && /box-shadow|background|transform/.test(m[2]));
+  assert.ok(rules.length >= 10, rules.length + ' règles');
+  for (const [, sel, body] of rules) {
+    if (/\.plex-row:not\(\.on\)|\.plex-episodes:not\(\.on\)/.test(sel)) continue;   // rangée inactive : focus retiré
+    if (/plex-set-row\.on \.plex-set-val/.test(sel)) continue;                    // valeur du réglage, pas l'élément focalisé
+    assert.match(body, /box-shadow:0 0 0 6px #fff/, sel);
+    // la barre du lecteur (curseur dedans) et le repère du clavier (déjà translaté en ligne) n'ont pas de scale
+    if (!/plex-pl-track|kb-focus/.test(sel)) assert.match(body, /transform:scale\(1\.06\)/, sel);
+    assert.doesNotMatch(body, /background:(#fff|rgba\(255,255,255,\.9)/, sel + ' : pas d’aplat blanc');
+  }
+});
+
+test('indice de débordement : un chevron par rangée de l’accueil, caché quand tout tient (le débordement est testé dans virtual.test)', async () => {
+  const d = deps();
+  const p = ui.createHomePanel(d.arg);
+  await tick(); await tick();
+  const more = byClass(p.el, 'plex-more');
+  assert.equal(more.length, 2, 'un par rangée');
+  assert.ok(more.every((m) => !m.classList.contains('on')), 'pas la classe « on » des zones actives');
+  assert.ok(more.every((m) => !m.classList.contains('shown')), '2 et 3 éléments tiennent à l’écran : pas d’indice');
+});
