@@ -1,0 +1,91 @@
+/* Maquette des finitions Plex (30/10) : accent indigo partagé avec Overseerr, focus homogène (anneau net + léger scale).
+   Aucun flou ni filtre CSS : le fond flou de la fiche est une image calculée par le transcodeur photo de Plex.
+   On n'anime que transform et opacity. Affiches factices en dégradé (0 image). */
+@font-face{font-family:OF;src:url(../outfit-latin.woff2) format("woff2");font-weight:300 500}
+:root{--bg:#0b0b0d;--t:#fff;--tv:rgba(255,255,255,.6);--s:rgba(255,255,255,.12);--i:#6366f1}
+*{box-sizing:border-box}
+html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:var(--bg);color:var(--t);font:300 30px/1.2 OF,sans-serif}
+
+/* Focus homogène : un seul élément focalisé, anneau blanc de 6 px à rayon de flou 0 + scale(1.06) */
+.f{transition:transform .2s ease}
+.f.focus{box-shadow:0 0 0 6px #fff;transform:scale(1.06);position:relative;z-index:2}
+
+/* Pastilles et boutons ronds (accueil, fiche, lecteur) */
+.pil{height:88px;padding:0 44px;border-radius:44px;display:flex;align-items:center;font-size:32px;font-weight:500;background:var(--s)}
+.pil.on{background:var(--i)}
+.rond{width:88px;height:88px;border-radius:44px;display:flex;align-items:center;justify-content:center;background:var(--s)}
+.rond svg{width:48px;height:48px;fill:#fff}
+
+/* Icônes en CSS (0 octet d'image, indépendantes de la police) : lecture, pause, loupe, coche */
+.ic{position:relative;display:inline-block;flex:none}
+.lec{width:0;height:0;border-style:solid;border-width:15px 0 15px 26px;border-color:transparent transparent transparent currentColor}
+.pau{width:24px;height:30px;border-style:solid;border-width:0 8px;border-color:currentColor}
+.lou{width:32px;height:32px;border:4px solid currentColor;border-radius:50%}
+.lou:after{content:"";position:absolute;left:25px;top:25px;width:16px;height:5px;background:currentColor;transform:rotate(45deg);transform-origin:0 50%}
+.coc{width:16px;height:28px;border:solid currentColor;border-width:0 6px 6px 0;transform:rotate(45deg);margin:-6px 4px 0}
+.pil .ic{margin-right:20px}
+
+/* Accueil : Rechercher en tête, roue dentée à côté, onglets en pilules, puis En cours et Ajoutés récemment */
+.tete{position:absolute;left:120px;top:56px;display:flex;gap:24px}
+.cherche{width:720px;color:rgba(255,255,255,.8)}
+.cherche .ic{margin-right:28px}
+.onglets{position:absolute;left:120px;top:192px;display:flex;gap:16px}
+.onglets .pil{height:64px;padding:0 36px;border-radius:32px;font-size:28px;color:var(--tv);background:rgba(255,255,255,.07)}
+.onglets .pil.on{color:#fff;background:var(--i)}
+.rangee{position:absolute;left:0;width:1920px;overflow:hidden}
+.r1{top:296px;height:548px}.r2{top:844px;height:236px}
+.rangee h2{margin:0 0 0 120px;height:48px;font-size:36px;font-weight:500}
+.rangee h2 span{margin-left:20px;font-size:26px;font-weight:300;color:var(--tv)}
+.piste{display:flex;gap:48px;padding:28px 0 0 120px;transition:transform .25s ease}
+.t{flex:0 0 240px;min-width:0}
+.af{display:block;position:relative;overflow:hidden;width:240px;height:360px;border-radius:12px;background:#2b2b2e linear-gradient(160deg,var(--a),var(--b));background-size:cover}
+.lb{margin-top:20px;font-size:26px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:rgba(255,255,255,.9)}
+.lb small{display:block;margin-top:4px;font-size:24px;font-weight:300;color:var(--tv)}
+.pr{position:absolute;left:0;bottom:0;height:8px;background:var(--i)}
+/* Indice de débordement : fondu au bord (dégradé statique, peint une fois) + chevron ; « 1 sur 12 » à côté du titre */
+.bord{position:absolute;top:48px;bottom:0;width:200px;z-index:4;pointer-events:none}
+.bord.d{right:0;background:linear-gradient(to left,var(--bg) 15%,rgba(11,11,13,0))}
+.bord.g{left:0;opacity:0;background:linear-gradient(to right,var(--bg) 15%,rgba(11,11,13,0))}
+.rangee.dec .bord.g{opacity:1}
+.bord:after{content:"";position:absolute;top:150px;width:28px;height:28px;border:solid #fff;border-width:6px 6px 0 0}
+.bord.d:after{right:52px;transform:rotate(45deg)}
+.bord.g:after{left:52px;transform:rotate(-135deg)}
+.r2 .bord:after{top:96px}
+
+/* Fiche : fond = image floue et assombrie PAR LE SERVEUR (480×270, mise à l'échelle), aucun voile ni flou CSS */
+.fond{position:absolute;left:0;top:0;width:1920px;height:1080px}
+.fiche .af{position:absolute;left:120px;top:180px;width:360px;height:540px;border-radius:16px}
+.col{position:absolute;left:560px;top:176px;width:1240px}
+.sur{font-size:26px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.7)}
+.titre{margin:10px 0 18px;font-size:80px;font-weight:500;letter-spacing:-.02em;line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meta{font-size:30px;color:rgba(255,255,255,.75)}
+.prog{display:flex;align-items:center;gap:24px;margin-top:28px;font-size:26px;color:rgba(255,255,255,.75)}
+.jauge{width:480px;height:8px;border-radius:4px;background:rgba(255,255,255,.2);overflow:hidden}
+.jauge i{display:block;width:480px;height:8px;background:var(--i);transform-origin:0 0}
+.actions{display:flex;gap:24px;margin-top:44px}
+.actions .pil.vu{background:rgba(255,255,255,.12)}
+.resume{margin:48px 0 0;max-width:1080px;max-height:176px;overflow:hidden;font-size:32px;line-height:44px;color:rgba(255,255,255,.85)}
+
+/* Lecteur : la vidéo AVPlay est sous le HTML ; un seul calque de contrôles dont on ne fait varier que l'opacité */
+.video{position:absolute;left:0;top:0;width:1920px;height:1080px;background:radial-gradient(ellipse 60% 70% at 70% 35%,#c2734a,#3b1d2b 60%,#0d0a14);background-size:cover}
+.ui{position:absolute;left:0;top:0;width:1920px;height:1080px;background:linear-gradient(to top,rgba(0,0,0,.85) 0,rgba(0,0,0,.6) 240px,rgba(0,0,0,0) 460px);transition:opacity .2s}
+.grand{position:absolute;left:860px;top:440px;width:200px;height:200px;border-radius:100px;background:rgba(0,0,0,.45);color:rgba(255,255,255,.85);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .2s}
+.grand .pau{width:76px;height:96px;border-width:0 26px}
+.pause .grand{opacity:1}
+.ligne{position:absolute;left:120px;top:812px;width:1680px;display:flex;align-items:baseline;justify-content:space-between}
+.ligne h1{margin:0;font-size:44px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:1240px}
+.ligne h1 small{margin-left:20px;font-size:30px;font-weight:300;color:rgba(255,255,255,.7)}
+.fin{font-size:30px;color:rgba(255,255,255,.85)}
+.barre{position:absolute;left:120px;top:890px;width:1680px;height:8px;border-radius:4px;background:rgba(255,255,255,.25)}
+.barre i{display:block;width:1680px;height:8px;border-radius:4px;background:var(--i);transform-origin:0 0}
+.barre b{position:absolute;top:-8px;width:24px;height:24px;margin-left:-12px;border-radius:12px;background:#fff}
+.temps{position:absolute;left:120px;top:914px;width:1680px;display:flex;justify-content:space-between;font-size:26px;color:rgba(255,255,255,.75)}
+.ctl{position:absolute;left:0;top:960px;width:1920px;height:96px;display:flex;justify-content:center;align-items:center;gap:32px}
+.ctl .rond,.ctl .pil{background:rgba(0,0,0,.5);box-shadow:inset 0 0 0 2px rgba(255,255,255,.25)}
+.ctl .rond{color:#fff;font-size:26px;font-weight:500}
+.ctl .rond.gros{width:96px;height:96px;border-radius:48px}
+.ctl .f.focus{box-shadow:0 0 0 6px #fff}
+.ctl .rond.focus{background:var(--i)}
+.ctl .lec{margin-left:6px}
+.ctl .droite{position:absolute;right:120px;display:flex;gap:20px}
+.ctl .pil{height:72px;padding:0 36px;font-size:28px}

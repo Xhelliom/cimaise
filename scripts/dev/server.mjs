@@ -114,17 +114,18 @@ const routes = {
   '/app/app.css': async () => [await bundle('apps/tv/src/style.css', { external: ['*.woff2'] }), 'text/css'],
 };
 
-// Maquettes statiques de packages/launcher/mockups et, sous /mockups/overseerr/, de packages/overseerr/mockups
+// Maquettes statiques de packages/launcher/mockups et, sous /mockups/overseerr/ et /mockups/plex/, de packages/<module>/mockups
 // (aperçu seulement, jamais dans le .wgt).
-const MIME = { html: 'text/html', css: 'text/css', woff2: 'font/woff2' };
+const MIME = { html: 'text/html', css: 'text/css', woff2: 'font/woff2', jpg: 'image/jpeg' };
+const BINARY = new Set(['woff2', 'jpg']);
 const mockupRoute = (url) => {
-  const m = /^\/mockups\/(overseerr\/)?([\w-]*(?:\.(html|css|woff2))?)$/.exec(url);
+  const m = /^\/mockups\/(?:(overseerr|plex)\/)?([\w-]*(?:\.(html|css|woff2|jpg))?)$/.exec(url);
   if (!m) return null;
   const name = m[2] || (m[1] ? 'accueil.html' : 'index.html');
-  const file = `${root}packages/${m[1] ? 'overseerr' : 'launcher'}/mockups/${name}`;
+  const file = `${root}packages/${m[1] || 'launcher'}/mockups/${name}`;
   if (!existsSync(file)) return null;
   const ext = name.split('.').pop();
-  return async () => [readFileSync(file, ext === 'woff2' ? undefined : 'utf8'), MIME[ext]];
+  return async () => [readFileSync(file, BINARY.has(ext) ? undefined : 'utf8'), MIME[ext]];
 };
 
 // Logos d'apps (packages/launcher/src/catalog/known-apps/logos) : /app/logos/<nom>.png (et /demo/logos/ pour la démo de l'accueil), noms simples seulement.

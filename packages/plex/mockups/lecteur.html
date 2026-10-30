@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><title>cimaise — maquette Plex, lecteur</title><link rel="stylesheet" href="plex.css"></head>
+<body>
+<!-- Sur la TV, la vidéo AVPlay est sous le HTML : ce dégradé ne sert qu'à la maquette. -->
+<div class="video"></div>
+<div class="ui">
+<div class="grand"><i class="ic pau"></i></div>
+<div class="ligne"><h1>Le Dernier Phare<small>2025</small></h1><span class="fin">finit à 23:12</span></div>
+<div class="barre"><i style="transform:scaleX(.2)"></i><b style="left:20%"></b></div>
+<div class="temps"><span>22:10</span><span>−1:24:05</span></div>
+<div class="ctl z"><a class="rond f">−10</a><a class="rond gros f focus"><i class="ic pau"></i></a><a class="rond f">+10</a>
+<div class="droite"><a class="pil f">Audio</a><a class="pil f">Sous-titres</a></div></div>
+</div>
+<script>
+(function(){
+// Démonstration seulement : Entrée sur le bouton central bascule lecture / pause ; #pause ouvre la maquette en pause.
+var b=document.querySelectorAll(".ctl .f"),i=1,p=false;
+function go(n){if(n<0||n>=b.length)return;b[i].className=b[i].className.replace(" focus","");i=n;b[i].className+=" focus";}
+function set(v){p=v;document.body.className=p?"pause":"";b[1].firstChild.className="ic "+(p?"lec":"pau");}
+document.addEventListener("keydown",function(e){var k=e.keyCode;if(k===37)go(i-1);else if(k===39)go(i+1);
+ else if(k===13&&i===1)set(!p);else if(k===27||k===8)location.href="fiche.html";});
+if(location.hash==="#pause")set(true);
+})();
+</script>
+</body></html>
