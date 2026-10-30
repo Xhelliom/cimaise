@@ -165,3 +165,6 @@ SDK : `install completed`, app présente, `launched` (ne prouve pas l'affichage)
 **Vu par le script** (lecture seule, extrait) : session Cimaise `copy transcode aac`, `viewOffset` ≈ 2037 s au démarrage (reprise), puis ≈ 1426 s et ≈ 1500 s après des sauts, états `playing`/`paused` alternés.
 
 **Pas encore observé** : choix d'une piste (rechargement sans gel, position juste), bandes du letterbox, sortie et disparition de la session côté serveur (critère 3).
+
+**Observé physiquement par Stéphane (suite, 88f58c0)** : choix d'un sous-titre réel (rechargement) — « all good » ; bandes du letterbox — « all good ». Son message ne détaille pas séparément le gel et la position après rechargement : je les retiens comme OK sur la foi de « all good », sans mesure.
+**Pas encore observé** : progression remontée sur un autre appareil, sortie et disparition de la session côté serveur.
