@@ -33,7 +33,7 @@
 .plex-lib-title{position:absolute;left:120px;top:72px;font-size:40px;font-weight:500}
 .plex-lib-count{position:absolute;left:120px;top:130px;font-size:28px;color:rgba(255,255,255,.6)}
 /* Fiche (maquette du 30/10) : fond = art flouté et assombri PAR LE TRANSCODEUR (480×270 mis à l'échelle), aucun flou CSS ;
-   Reprendre en indigo (▶), Depuis le début, Marquer vu (✓) en pastilles de 88 px ; focus = anneau blanc net + scale. */
+   Reprendre en jaune Plex (▶, texte noir), Depuis le début, Marquer vu (✓) en pastilles de 88 px ; focus = anneau blanc net + scale. */
 .plex-dbg{position:absolute;left:0;top:0;width:1920px;height:1080px;opacity:0;transition:opacity .4s}
 .plex-dbg.on{opacity:1}
 .plex-dposter{position:absolute;left:120px;top:140px;width:360px;height:540px;border-radius:12px;background:#2b2b2e}
@@ -41,10 +41,10 @@
 .plex-dtitle{top:140px;width:1280px;font-size:72px;font-weight:500;letter-spacing:-.02em;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .plex-dmeta{top:244px;font-size:28px;color:rgba(255,255,255,.75)}
 .plex-prog{top:296px;width:480px;height:8px;border-radius:4px;background:rgba(255,255,255,.2);overflow:hidden}
-.plex-prog-bar{width:480px;height:8px;background:#6366f1;transform-origin:0 0}
+.plex-prog-bar{width:480px;height:8px;background:#e5a00d;transform-origin:0 0}
 .plex-btns{top:328px;display:flex}
 .plex-play,.plex-restart,.plex-mark{height:88px;padding:0 44px;margin-right:24px;border-radius:44px;display:flex;align-items:center;font-size:32px;font-weight:500;background:rgba(255,255,255,.12);color:#fff;transition:transform .2s ease}
-.plex-play{background:#6366f1}
+.plex-play{background:#e5a00d;color:#111}
 .plex-play::before{content:"";margin-right:20px;border-style:solid;border-width:15px 0 15px 26px;border-color:transparent transparent transparent currentColor}
 .plex-mark::before{content:"";width:16px;height:28px;margin:-6px 24px 0 4px;border:solid currentColor;border-width:0 6px 6px 0;transform:rotate(45deg)}
 .plex-play.focus,.plex-restart.focus,.plex-mark.focus{box-shadow:0 0 0 6px #fff;transform:scale(1.06)}
@@ -93,10 +93,10 @@
 .plex-pl-elapsed{position:absolute;left:120px;top:912px;font-size:28px;color:rgba(255,255,255,.85)}
 .plex-pl-remaining{position:absolute;left:1500px;top:912px;width:300px;text-align:right;font-size:28px;color:rgba(255,255,255,.85)}
 .plex-pl-end{position:absolute;left:1400px;top:824px;width:400px;text-align:right;font-size:30px;color:rgba(255,255,255,.85)}
-/* Rangée de boutons (maquette du 30/10) : ▶/❚❚ rond au centre, Audio, Sous-titres (et Épisode suivant) en pastilles à droite ; focus indigo + anneau blanc net */
+/* Rangée de boutons (maquette du 30/10) : ▶/❚❚ rond au centre, Audio, Sous-titres (et Épisode suivant) en pastilles à droite ; focus jaune Plex (texte noir) + anneau blanc net */
 .plex-pl-ctls{position:absolute;left:0;top:960px;width:1920px;height:96px;padding-right:120px;box-sizing:border-box;text-align:right;white-space:nowrap}
 .plex-pl-ctl{transition:transform .2s ease;display:inline-block;vertical-align:top;margin:12px 0 0 20px;height:72px;padding:0 36px;border-radius:36px;line-height:72px;font-size:28px;font-weight:500;background:rgba(0,0,0,.5);box-shadow:inset 0 0 0 2px rgba(255,255,255,.25)}
-.plex-pl-ctl.focus{background:#6366f1;color:#fff;box-shadow:0 0 0 6px #fff;transform:scale(1.06)}
+.plex-pl-ctl.focus{background:#e5a00d;color:#111;box-shadow:0 0 0 6px #fff;transform:scale(1.06)}
 .plex-pl-pp{position:absolute;left:912px;top:0;margin:0;width:96px;height:96px;padding:0;border-radius:48px;display:flex;align-items:center;justify-content:center}
 .plex-ic{display:block;box-sizing:border-box;flex:none}
 .plex-ic-play{width:0;height:0;margin-left:6px;border-style:solid;border-width:15px 0 15px 26px;border-color:transparent transparent transparent currentColor}
@@ -165,7 +165,7 @@
 .plex-gear-h{position:absolute;left:16px;top:16px;width:16px;height:16px;border-radius:50%;background:#28282a}
 .plex-tabs{position:absolute;left:120px;top:192px;width:1680px;height:64px;white-space:nowrap}
 .plex-tab{display:inline-block;vertical-align:top;height:64px;line-height:64px;padding:0 36px;margin-right:16px;border-radius:32px;font-size:28px;font-weight:500;color:rgba(255,255,255,.6);background:rgba(255,255,255,.07);transition:transform .2s ease}
-.plex-tab.here{color:#fff;background:#6366f1}
+.plex-tab.here{color:#111;background:#e5a00d}
 /* Recherche : clavier à gauche (1188 px), résultats en rangées étroites à droite */
 .plex-search-kb{position:absolute;left:120px;top:200px}
 .plex-search-res{position:absolute;left:1340px;top:150px;width:580px;height:900px;overflow:hidden}

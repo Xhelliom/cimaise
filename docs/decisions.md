@@ -726,3 +726,9 @@ chevron vus à l'écran, conformes.
 
 **Poids.** `app.css` 22 653 → **23 387 o** minifié (+734 o, +104 o gzip) ; `plex.js` 93 609 → **93 933 o** (+324 o, chunk différé) ;
 `app.js` 40 074 → **40 221 o** (+147 o : `VirtualList` est partagée avec l'accueil). DOM : +1 nœud par rangée. Aucune image.
+
+**Accent : jaune Plex au lieu de l'indigo (2026-10-30, demande de Stéphane après l'avoir vu sur la Frame).** La bascule ambre → indigo
+de la maquette était « à confirmer » ; Stéphane préfère le jaune Plex `#e5a00d`. Repassés au jaune : bouton Lire/Reprendre de la fiche,
+jauge de la fiche, onglet « Accueil » courant, bouton focalisé du lecteur. Texte et icônes (▶, ❚❚, qui suivent `currentColor`) en
+noir `#111` sur le jaune, comme l'app Plex : le blanc y serait peu lisible. Le reste du module (barres de progression, coches « vu »)
+était déjà en jaune : un seul accent. Coût : quelques octets.
