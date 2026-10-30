@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><title>cimaise — maquette Plex, accueil</title><link rel="stylesheet" href="plex.css"></head>
+<body>
+<nav class="tete z"><a class="pil cherche f"><i class="ic lou"></i>Rechercher un film, une série…</a><a class="rond f" title="Réglages"><svg viewBox="0 0 48 48"><path id="d" d="M20 2h8l1 8h-10z"/><use href="#d" transform="rotate(45 24 24)"/><use href="#d" transform="rotate(90 24 24)"/><use href="#d" transform="rotate(135 24 24)"/><use href="#d" transform="rotate(180 24 24)"/><use href="#d" transform="rotate(225 24 24)"/><use href="#d" transform="rotate(270 24 24)"/><use href="#d" transform="rotate(315 24 24)"/><circle cx="24" cy="24" r="12" fill="none" stroke="#fff" stroke-width="8"/></svg></a></nav>
+<nav class="onglets z"><a class="pil on f">Accueil</a><a class="pil f">Films</a><a class="pil f">Séries</a></nav>
+<section class="rangee r1"><h2>En cours<span>1 sur 8</span></h2><div class="piste z">
+<div class="t"><a class="af f focus" style="--a:#0e7490;--b:#082f49"><i class="pr" style="width:72%"></i></a><div class="lb">Station Boréale<small>S1 E4 · reste 12 min</small></div></div>
+<div class="t"><a class="af f" style="--a:#9a3412;--b:#431407"><i class="pr" style="width:20%"></i></a><div class="lb">Le Dernier Phare<small>reste 1 h 24</small></div></div>
+<div class="t"><a class="af f" style="--a:#6b21a8;--b:#1e1b4b"><i class="pr" style="width:45%"></i></a><div class="lb">Code Ardoise<small>S2 E7 · reste 26 min</small></div></div>
+<div class="t"><a class="af f" style="--a:#a16207;--b:#422006"><i class="pr" style="width:8%"></i></a><div class="lb">Kilomètre zéro<small>reste 1 h 51</small></div></div>
+<div class="t"><a class="af f" style="--a:#3f6212;--b:#1a2e05"><i class="pr" style="width:60%"></i></a><div class="lb">Vallée perdue<small>S3 E1 · reste 18 min</small></div></div>
+<div class="t"><a class="af f" style="--a:#be123c;--b:#4c0519"><i class="pr" style="width:33%"></i></a><div class="lb">La Cité des vents<small>reste 1 h 02</small></div></div>
+<div class="t"><a class="af f" style="--a:#334155;--b:#020617"><i class="pr" style="width:90%"></i></a><div class="lb">Nuit blanche à Lisbonne<small>reste 9 min</small></div></div>
+<div class="t"><a class="af f" style="--a:#86198f;--b:#2e1065"><i class="pr" style="width:15%"></i></a><div class="lb">Le Bureau des rêves<small>S1 E2 · reste 22 min</small></div></div>
+</div><i class="bord g"></i><i class="bord d"></i></section>
+<section class="rangee r2"><h2>Ajoutés récemment<span>1 sur 8</span></h2><div class="piste z">
+<div class="t"><a class="af f" style="--a:#1e3a8a;--b:#0f172a"></a><div class="lb">Orbite basse<small>2026</small></div></div>
+<div class="t"><a class="af f" style="--a:#155e75;--b:#082f49"></a><div class="lb">Marée noire<small>2026</small></div></div>
+<div class="t"><a class="af f" style="--a:#713f12;--b:#1c1917"></a><div class="lb">Les Héritiers<small>Saison 2</small></div></div>
+<div class="t"><a class="af f" style="--a:#0f766e;--b:#042f2e"></a><div class="lb">Les Heures claires<small>2025</small></div></div>
+<div class="t"><a class="af f" style="--a:#4338ca;--b:#1e1b4b"></a><div class="lb">Quai 9<small>Saison 1</small></div></div>
+<div class="t"><a class="af f" style="--a:#b45309;--b:#451a03"></a><div class="lb">Saison sèche<small>2025</small></div></div>
+<div class="t"><a class="af f" style="--a:#475569;--b:#0f172a"></a><div class="lb">Les Mariniers<small>2024</small></div></div>
+<div class="t"><a class="af f" style="--a:#7c2d12;--b:#1c1917"></a><div class="lb">Haute Saison<small>2024</small></div></div>
+</div><i class="bord g"></i><i class="bord d"></i></section>
+<script>
+(function(){
+// Démonstration seulement : zones de haut en bas (Rechercher/Réglages, onglets, En cours, Ajoutés récemment), flèches, #zone-index.
+var z=document.querySelectorAll(".z"),zi=2,ci=[0,0,0,0],h=/^#(\d)-(\d)$/.exec(location.hash);
+function it(i){return z[i].querySelectorAll(".f")}
+function go(nz,nc){
+ if(nz<0||nz>=z.length||nc<0||nc>=it(nz).length)return;
+ it(zi)[ci[zi]].className=it(zi)[ci[zi]].className.replace(" focus","");zi=nz;ci[zi]=nc;it(zi)[nc].className+=" focus";
+ if(zi<2)return;
+ var r=z[zi].parentNode,d=Math.max(0,nc-4),n=it(zi).length;
+ z[zi].style.transform="translateX("+(-288*d)+"px)";
+ r.className=d?"rangee r"+(zi-1)+" dec":"rangee r"+(zi-1);
+ r.querySelector("h2 span").textContent=(nc+1)+" sur "+n;
+ r.querySelector(".bord.d").style.opacity=d+6>=n?0:1;
+}
+document.addEventListener("keydown",function(e){var k=e.keyCode;
+ if(k===37)go(zi,ci[zi]-1);else if(k===39)go(zi,ci[zi]+1);
+ else if(k===38)go(zi-1,Math.min(ci[zi-1],it(zi-1).length-1));else if(k===40)go(zi+1,Math.min(ci[zi+1],it(zi+1).length-1));
+ else if(k===13&&zi>=2)location.href="fiche.html";});
+if(h)go(+h[1],+h[2]);
+})();
+</script>
+</body></html>

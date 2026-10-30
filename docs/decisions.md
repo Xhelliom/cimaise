@@ -604,3 +604,17 @@ n'a testé que l'origine Overseerr), fluidité du défilement, latence du focus.
 
 **Poids.** `overseerr.js` 22,1 → **26,4 Ko minifié** (8,3 → **9,3 Ko gzip**), CSS de la fiche compris. `app.js` et `app.css`
 inchangés. Rien au démarrage.
+
+## Maquette des finitions Plex, à valider avant câblage (2026-10-30)
+
+Maquette statique `packages/plex/mockups/` (accueil, fiche, lecteur), servie sous `/mockups/plex/`, d'après les finitions demandées par
+Stéphane le 30/10 : lecteur en icônes ▶ / ❚❚ (CSS, sans glyphe de police), grand ❚❚ au centre en pause, bouton focalisé indigo, titre +
+« finit à HH:MM » au-dessus de la barre ; accueil avec Rechercher en tête, roue dentée à côté (Réglages), onglets en pilules
+Accueil · Films · Séries à la place des carrés des bibliothèques ; fiche avec fond flou ; focus homogène (anneau blanc 6 px à rayon 0 +
+`scale(1.06)`) et indice de débordement des rangées (fondu statique + chevron, « 7 sur 8 »).
+
+**Flou côté serveur seulement.** Le fond de fiche est `/photo/:/transcode?width=480&height=270&blur=20&opacity=35&background=0b0b0d`
+(vérifié sur le serveur : 3,9 Ko JPEG, assombrissement compris, donc pas de voile CSS). Aucun `filter`/`backdrop-filter` (testé).
+Coût : 6,1 Ko de CSS minifié pour la maquette autonome, **+1,5 à +2 Ko estimés** sur le chunk Plex à l'intégration ; app.js et app.css
+initiaux inchangés (fiche : `packages/plex/mockups/COUTS.md`). L'ambre du module devient l'indigo d'Overseerr : **à confirmer**.
+Captures avant/après sur la bibliothèque : hors git (`.local/plex-finitions-captures/`). **En attente de la validation de Stéphane.**
