@@ -24,6 +24,11 @@
   d'avant** pour l'accueil Plex (seule référence Frame : le Dock, méd 18 / max 298 ms le 29/10, autre écran) ; l'ancienne
   version n'étant plus installée, la seule comparaison avant/après reste celle de l'aperçu (inchangée).
 
+## Accent jaune Plex (commit 52a88a6)
+- À la demande de Stéphane : l'indigo devient le jaune Plex `#e5a00d` (texte et icônes noirs) sur Lire/Reprendre, la jauge de
+  la fiche, l'onglet « Accueil » et le bouton focalisé du lecteur. Réempaqueté, réinstallé ; **vu sur la Frame par Stéphane :
+  « Oui, c'est bon »** (jaune partout, texte noir lisible, plus d'indigo).
+
 ## Pas fait / pas vérifié
 - Lecteur en lecture réelle non capturé (pas d'AVPlay dans l'aperçu) : seul le dialogue d'échec a été vu.
 - Note : le worktree n'a pas de `.local` ; empaquetage et installation via un relais docker qui monte en lecture seule le
