@@ -1,9 +1,11 @@
 import { Panel } from '../../../tv-core/src/router/router';
 import { Key } from '../../../tv-core/src/keys';
 import { createRow, TileInfo, VirtualList } from '../../../tv-core/src/virtual/list';
-import { Abortable, Availability, Callback, Http, OverseerrConfig, Title, TitlePage } from '../api/types';
+import { Abortable, Callback, Http, OverseerrConfig, Title, TitlePage } from '../api/types';
 import { appendTitles, posterUrl } from '../api/media';
 import { discoverMovies, discoverTv } from '../api/client';
+import { createOverseerrSearchPanel, Timers } from './search';
+import { badgeFor } from './badge';
 
 // Accueil Overseerr (maquette validée, packages/overseerr/mockups/accueil.html) : « Films du moment » et « Séries du moment »,
 // deux rangées virtualisées de 240×360. Une page (20 titres) chacune à l'ouverture, la suivante quand le focus approche de la fin.
@@ -14,7 +16,10 @@ export var CSS =
   '.ov-head{position:absolute;left:120px;top:48px}' +
   '.ov-sur{font-size:24px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:#a5b4fc}' +
   '.ov-h{margin-top:12px;font-size:56px;font-weight:500;letter-spacing:-.02em;line-height:1}' +
-  '.ov-st{position:absolute;right:120px;top:84px;font-size:28px;color:#94a3b8}' +
+  '.ov-st{position:absolute;right:120px;top:168px;font-size:28px;color:#94a3b8}' +
+  // Pastille « Rechercher » de la maquette (« Mes demandes » viendra avec son écran) : Haut depuis la 1re rangée.
+  '.ov-pill{position:absolute;right:120px;top:68px;height:72px;padding:0 36px;border-radius:36px;font-size:28px;font-weight:500;line-height:72px;background:#1e293b;color:#94a3b8}' +
+  '.ov-pill.focus{background:#fff;color:#0f172a}' +
   '.ov-row{position:absolute;left:0;width:1920px;height:470px;overflow:hidden}' +
   '.ov-r1{top:160px}.ov-r2{top:610px}' +
   '.ov-t{margin-left:120px;height:52px;font-size:36px;font-weight:500}' +
@@ -33,14 +38,7 @@ export var CSS =
 var W = 240, H = 360, GAP = 48;
 var AHEAD = 8;   // titres restants avant la fin de la rangée : la page suivante est demandée
 
-// Badge de l'affiche : texte court (240 px de large), couleur de la maquette. Rien pour un titre jamais demandé.
-var BADGES: { [a: string]: { text: string; cls: string } } = {
-  available: { text: 'Disponible', cls: 'ok' },
-  partial: { text: 'Partiel', cls: 'ok' },
-  processing: { text: 'Demandé', cls: 'dem' },
-  pending: { text: 'En attente', cls: 'att' }
-};
-export function badgeFor(a: Availability): { text: string; cls: string } | null { return BADGES[a] || null; }
+export { badgeFor };
 
 export interface OverseerrArg {
   http: Http;
@@ -48,6 +46,8 @@ export interface OverseerrArg {
   imageBase?: string;
   doc?: Document;
   onOpen?: (t: Title) => void;            // fiche (lot suivant) ; absente : Entrée ne fait rien
+  push?: (p: Panel) => void;              // empile la recherche ; absente : pas de pastille « Rechercher »
+  timers?: Timers;
 }
 
 type Load = (http: Http, cfg: OverseerrConfig | null, page: number, cb: Callback<TitlePage>) => Abortable;
@@ -69,7 +69,9 @@ export function createOverseerrPanel(arg: OverseerrArg): Panel {
   root.appendChild(head);
   var status = div('ov-st', 'Chargement…');
   root.appendChild(status);
-  var active = 0;
+  var pill = arg.push ? div('ov-pill', 'Rechercher') : null;
+  if (pill) root.appendChild(pill);
+  var active = 0;   // -1 : pastille « Rechercher »
   var failed = '';
 
   function tile(t: Title): TileInfo {
@@ -92,6 +94,7 @@ export function createOverseerrPanel(arg: OverseerrArg): Panel {
   }
 
   function paint(): void {
+    if (pill) pill.className = active < 0 ? 'ov-pill focus' : 'ov-pill';
     for (var i = 0; i < rows.length; i++) {
       rows[i].box.className = i === active ? 'ov-box on' : 'ov-box';
       rows[i].list.setActive(i === active);
@@ -126,10 +129,14 @@ export function createOverseerrPanel(arg: OverseerrArg): Panel {
     onKey: function (k: Key): boolean {
       if (k === 'up' || k === 'down') {
         var next = k === 'up' ? active - 1 : active + 1;
-        if (next < 0 || next >= rows.length) return true;
+        if (next < (pill ? -1 : 0) || next >= rows.length) return true;
         active = next;
         paint();
         return true;
+      }
+      if (active < 0) {
+        if (k === 'enter') arg.push!(createOverseerrSearchPanel({ http: arg.http, config: arg.config, imageBase: arg.imageBase, doc: doc, timers: arg.timers, onOpen: arg.onOpen }));
+        return k !== 'back';
       }
       if (k === 'left' || k === 'right' || k === 'enter') {
         var r = rows[active];

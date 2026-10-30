@@ -62,7 +62,7 @@ var home = createHome({
     if (id === 'overseerr') {
       // Chunk overseerr.js : injecté à la première ouverture seulement, jamais s'il est masqué.
       if (!moduleEnabled('overseerr', loadStored().prefs)) { home.notify('Overseerr est masqué (Réglages > Apps intégrées)'); return; }
-      router.pushLazy(overseerr, function (m) { return m.createPanel(); }, function () { home.notify('Overseerr : chargement impossible'); });
+      router.pushLazy(overseerr, function (m) { return m.createPanel({ nav: { push: function (p: Panel) { router.push(p); } } }); }, function () { home.notify('Overseerr : chargement impossible'); });
       return;
     }
     if (id !== 'plex') { home.notify('Module inconnu : ' + id); return; }
