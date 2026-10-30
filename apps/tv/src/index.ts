@@ -6,9 +6,10 @@ import { loadStored, mark, toggleDiag, keyLatency, normalizeKey, isDiagOpen, has
 import { Router, lazy, chunkLoader, Panel } from '../../../packages/tv-core/src/index';
 import { createHome, loadHomeMode, saveHomeMode, loadHomeTiles, saveHomeTiles, loadSmartHubTarget } from '../../../packages/launcher/src/home';
 import { loadCatalog, saveCatalog, launchEntry } from '../../../packages/launcher/src/catalog';
+import { MODULES, moduleEnabled, setModuleEnabled, visibleCatalog, mergeHidden, removedModules, ensureTile } from '../../../packages/launcher/src/modules';
 import { xhrHttp, haConfigFromPrefs, listScenes, activateScene, quickScenes, normalizeChosen, saveHaConfig, saveHaScenes } from '../../../packages/widgets/src/index';
 
-interface Chunk { createPanel(arg?: any): Panel; createProbePanel?(arg?: any): Panel; }
+interface Chunk { createPanel(arg?: any): Panel; createProbePanel?(arg?: any): Panel; createSettingsPanel?(arg?: any): Panel; }
 
 var router = new Router({ root: document.getElementById('root')! });
 var plex = lazy<Chunk>(chunkLoader('plex'));
@@ -19,6 +20,8 @@ loadStored(undefined, true);
 mark('storageRead');
 var catalog = loadCatalog(undefined, true);
 var mode = loadHomeMode(undefined, true);
+// Apps intégrées : le catalogue complet garde les tuiles des modules masqués (couleur ; remises en fin de catalogue) ; l'accueil ne reçoit que les visibles.
+var modulePrefs = loadStored(undefined, true).prefs;
 var tiles = loadHomeTiles(undefined, true);
 mark('catalogLoaded');
 
@@ -36,16 +39,18 @@ function openSmartHub(): void {
 // Scènes Home Assistant (rangée au-dessus du Dock) : chargées après la 1re peinture, jamais au démarrage ; injoignable ou
 // non configuré = pas de rangée (quickScenes ne remonte pas d'erreur).
 function refreshScenes(): void {
+  if (!moduleEnabled('scenes', loadStored().prefs)) { home.setScenes([]); return; } // module masqué : aucune requête vers Home Assistant
   quickScenes(xhrHttp, loadStored().prefs, function (list) { home.setScenes(list); });
 }
 
 var home = createHome({
   deferRich: true,
-  catalog: catalog,
+  catalog: visibleCatalog(catalog, modulePrefs),
   mode: mode,
   tiles: tiles,
   openInternal: function (id) {
     if (id !== 'plex') { home.notify('Module inconnu : ' + id); return; }
+    if (!moduleEnabled('plex', loadStored().prefs)) { home.notify('Plex intégré est masqué (Réglages > Apps intégrées)'); return; }
     router.pushLazy(plex, function (m) {
       return m.createPanel({
         nav: { push: function (p: Panel) { router.push(p); }, pop: function () { router.pop(); } },
@@ -72,7 +77,24 @@ var home = createHome({
     router.pushLazy(settings, function (m) {
       var prefs = loadStored().prefs;
       return m.createPanel({
-        catalog: catalog,
+        catalog: visibleCatalog(catalog, prefs),
+        modules: MODULES.map(function (d) { return { id: d.id, name: d.name, enabled: moduleEnabled(d.id, prefs), hasSettings: true }; }),
+        onModule: function (id: string, on: boolean) {
+          try { setModuleEnabled(id, on); } catch (e) { /* stockage refusé : l'état ne change pas */ }
+          if (on) catalog = ensureTile(catalog, id);
+          try { saveCatalog(catalog); } catch (e) { /* stockage plein ou refusé */ }
+          var vis = visibleCatalog(catalog, loadStored().prefs);
+          home.setCatalog(vis);
+          if (id === 'scenes') scenesDirty = true; // la rangée suit l'interrupteur à la fermeture, sans minuterie
+          return vis;
+        },
+        // Réglages propres d'un module : Scènes s'ouvre dans les Réglages ; ceux de Plex (langues) sont servis par le chunk settings.js : plex.js n'est jamais chargé s'il est masqué.
+        onModuleSettings: function (id: string) {
+          if (id !== 'plex') return;
+          router.pushLazy(settings, function (m) {
+            return m.createSettingsPanel!({});
+          });
+        },
         ha: {
           url: typeof prefs.haUrl === 'string' ? prefs.haUrl : '',
           token: typeof prefs.haToken === 'string' ? prefs.haToken : '',
@@ -101,9 +123,13 @@ var home = createHome({
         },
         listInstalledApps: listInstalledApps,
         onChange: function (next: typeof catalog) {
-          catalog = next;
+          // Retirer la tuile d'un module revient à le masquer : l'entrée reste au catalogue, rangée avec les masquées.
+          var gone = removedModules(visibleCatalog(catalog, loadStored().prefs), next);
+          for (var g = 0; g < gone.length; g++) { try { setModuleEnabled(gone[g], false); } catch (e) { /* stockage refusé */ } }
+          var now = loadStored().prefs;
+          catalog = mergeHidden(catalog, next, now);
           try { saveCatalog(catalog); } catch (e) { /* stockage plein ou refusé : le catalogue reste valable pour cette session */ }
-          home.setCatalog(catalog);
+          home.setCatalog(visibleCatalog(catalog, now));
         },
         onClose: function () {
           router.pop();
@@ -129,7 +155,7 @@ document.addEventListener('keydown', function (e) {
   var tag = e.target && (e.target as HTMLElement).tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA') return; // saisie en cours (adresse, jeton) : les chiffres sont du texte
   if (e.keyCode === 48 || e.keyCode === 96) { toggleDiag(); return; }
-  if ((e.keyCode === 49 || e.keyCode === 97) && isDiagOpen()) {
+  if ((e.keyCode === 49 || e.keyCode === 97) && isDiagOpen() && moduleEnabled('plex', loadStored().prefs)) { // sonde du module Plex : jamais chargée s'il est masqué
     toggleDiag();
     router.pushLazy(plex, function (m) {
       return m.createProbePanel!({ nav: { push: function (p: Panel) { router.push(p); }, pop: function () { router.pop(); } } });

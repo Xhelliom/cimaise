@@ -1,11 +1,14 @@
 import { applyIcon } from '../../../tv-core/src/icon';
 import { Key } from '../../../tv-core/src/keys';
 import { Panel } from '../../../tv-core/src/router/router';
-import { AppEntry, DiscoveredApp, removeAt, moveItem, addInternal, setTint, nextTint, addDiscovered, ROW_H, scrollOffset } from './model';
+import { AppEntry, DiscoveredApp, removeAt, moveItem, setTint, nextTint, addDiscovered, ROW_H, scrollOffset } from './model';
 import { HomeMode, normalizeMode, normalizeTiles, TILES_CHOICES } from '../home/model';
 import { fillIds } from '../catalog/model';
 import { knownApp } from '../catalog/known-apps';
 import { HaSettings, ScenesView, createScenesView } from './scenes';
+
+// Une ligne de la section « Apps intégrées » : l'état vient du registre (modules/), le propriétaire persiste.
+export interface ModuleRow { id: string; name: string; enabled: boolean; hasSettings: boolean; }
 
 export interface SettingsOptions {
   catalog: AppEntry[];
@@ -16,8 +19,11 @@ export interface SettingsOptions {
   onMode?: (mode: HomeMode) => void;         // le propriétaire persiste
   tiles?: number;                            // tuiles à l'écran : 4 (défaut), 5 ou 6
   onTiles?: (n: number) => void;             // le propriétaire persiste
-  internalApps?: AppEntry[];                 // modules internes proposables (rubrique « Apps intégrées ») ; ne dépend pas de la découverte
-  ha?: HaSettings;                           // section « Scènes » (Home Assistant) ; absente = ligne non proposée
+  modules?: ModuleRow[];                     // section « Apps intégrées » ; absente ou vide = ligne non proposée
+  // Interrupteur Activé / Masqué ; le propriétaire persiste et peut renvoyer le catalogue visible à jour (la tuile d'un module apparaît ou disparaît).
+  onModule?: (id: string, enabled: boolean) => AppEntry[] | void;
+  onModuleSettings?: (id: string) => void;   // réglages propres d'un module autre que Scènes (ex. Plex) : le propriétaire les ouvre
+  ha?: HaSettings;                           // réglages du module Scènes (Home Assistant), ouverts depuis « Apps intégrées »
   onClose: () => void;
   doc?: Document;
 }
@@ -59,8 +65,11 @@ export function createSettings(opts: SettingsOptions): Panel {
   var found: DiscoveredApp[] = [];
   var mode: HomeMode = normalizeMode(opts.mode);
   var tiles = normalizeTiles(opts.tiles);
-  var view: ScenesView | null = null;   // section Scènes ouverte
-  var row = 0;      // -3 = section Scènes ; -2 = affichage de l'accueil ; -1 = tuiles à l'écran ; 0 = bouton Découvrir ; 1..n = catalogue ; ensuite apps découvertes
+  var view: ScenesView | null = null;   // réglages du module Scènes ouverts
+  var mods = (opts.modules || []).map(function (m) { return { id: m.id, name: m.name, enabled: m.enabled, hasSettings: m.hasSettings }; });
+  var modView = false;                  // section « Apps intégrées » ouverte
+  var modRow = 0, modChip = 0;          // module focalisé ; 0 = interrupteur, 1 = Réglages
+  var row = 0;      // -3 = Apps intégrées ; -2 = affichage de l'accueil ; -1 = tuiles à l'écran ; 0 = bouton Découvrir ; 1..n = catalogue ; ensuite apps découvertes
   var chip = 0;
   var grabbed = false;
   var status = '';
@@ -92,25 +101,13 @@ export function createSettings(opts: SettingsOptions): Panel {
     return t;
   }
 
-  // Modules internes absents du catalogue : proposés même quand la découverte échoue.
-  function missing(): AppEntry[] {
-    var out: AppEntry[] = [], all = opts.internalApps || [];
-    for (var i = 0; i < all.length; i++) {
-      var dup = false;
-      for (var j = 0; j < catalog.length; j++) if (catalog[j].id === all[i].id) dup = true;
-      if (!dup) out.push(all[i]);
-    }
-    return out;
-  }
-
-  function rowCount(): number { return 1 + catalog.length + missing().length + found.length; }
+  function rowCount(): number { return 1 + catalog.length + found.length; }
 
   // Ligne sélectionnable -> position dans la liste (le titre de section occupe une ligne non sélectionnable).
   function posOf(r: number): number {
-    var m = missing().length;
-    return r + 3 + (m && r > catalog.length ? 1 : 0) + (found.length && r > catalog.length + m ? 1 : 0);
+    return r + 3 + (found.length && r > catalog.length ? 1 : 0);
   }
-  function totalPos(): number { var m = missing().length; return 4 + catalog.length + (m ? 1 + m : 0) + (found.length ? 1 + found.length : 0); }
+  function totalPos(): number { return 4 + catalog.length + (found.length ? 1 + found.length : 0); }
 
   function absRow(node: HTMLElement, pos: number): HTMLElement {
     node.style.top = pos * ROW_H + 'px';
@@ -121,26 +118,26 @@ export function createSettings(opts: SettingsOptions): Panel {
   function render(): void {
     while (el.firstChild) el.removeChild(el.firstChild);
     var h = doc.createElement('h1');
-    h.textContent = view ? 'Scènes' : 'Réglages';
+    h.textContent = view ? 'Scènes' : modView ? 'Apps intégrées' : 'Réglages';
     el.appendChild(h);
     if (view) {
       el.appendChild(view.render());
       if (view.status()) el.appendChild(div('etat', view.status()));
       return;
     }
+    if (modView) { el.appendChild(modList()); return; }
     offset = row <= 0 ? 0 : scrollOffset(offset, posOf(row), totalPos()); // la section Accueil et Découvrir restent en haut
     var vue = div('vue'), list = div('liste');
     list.style.transform = 'translateY(' + (offset ? -offset : 0) + 'px)';
     var total = totalPos();
     var from = Math.max(-3, Math.floor(offset / ROW_H) - 5), to = Math.min(total - 4, Math.ceil(offset / ROW_H) + 7); // pos = position visuelle - 3
-    var miss = missing(), m = miss.length;
     var inCat: { [id: string]: boolean } = {};
     for (var q = 0; q < catalog.length; q++) if (catalog[q].id) inCat[catalog[q].id] = true;
     for (var pos = from; pos <= to; pos++) {
       if (pos === -3) {
-        if (!opts.ha) continue; // sans Home Assistant à régler : la ligne n'existe pas
+        if (!mods.length) continue; // aucun module intégré : la ligne n'existe pas
         var sl = div('ligne bouton' + (row === -3 ? ' focus' : ''));
-        sl.appendChild(div('nom', 'Scènes Home Assistant'));
+        sl.appendChild(div('nom', 'Apps intégrées'));
         list.appendChild(absRow(sl, 0));
       } else if (pos === -2) {
         var ml = div('ligne bouton' + (row === -2 ? ' focus' : ''));
@@ -163,19 +160,10 @@ export function createSettings(opts: SettingsOptions): Panel {
           if (on) line.appendChild(div('puce' + (chip === c ? ' focus' : ''), CHIPS[c]));
         }
         list.appendChild(absRow(line, pos + 3));
-      } else if (m && pos === catalog.length + 1) {
-        list.appendChild(absRow(div('titre-section', 'Apps intégrées'), pos + 3));
-      } else if (m && pos <= catalog.length + 1 + m) {
-        var mi = pos - catalog.length - 2, mon = row === pos - 1;
-        var ml2 = div('ligne' + (mon ? ' focus' : ''));
-        ml2.appendChild(tile(miss[mi].name, miss[mi].tint, miss[mi].icon));
-        ml2.appendChild(div('nom', miss[mi].name));
-        if (mon) ml2.appendChild(div('puce focus', 'Ajouter'));
-        list.appendChild(absRow(ml2, pos + 3));
-      } else if (pos === catalog.length + (m ? m + 1 : 0) + 1) {
+      } else if (pos === catalog.length + 1) {
         list.appendChild(absRow(div('titre-section', 'Apps installées'), pos + 3));
       } else {
-        var f = pos - catalog.length - (m ? m + 1 : 0) - 2, fon = row === catalog.length + m + 1 + f;
+        var f = pos - catalog.length - 2, fon = row === catalog.length + 1 + f;
         var fl = div('ligne' + (fon ? ' focus' : ''));
         fl.appendChild(tile(found[f].name, null, found[f].icon));
         var fk = knownApp(found[f].name), nom = div('nom', fk ? undefined : found[f].name);
@@ -190,6 +178,39 @@ export function createSettings(opts: SettingsOptions): Panel {
     vue.appendChild(list);
     el.appendChild(vue);
     if (status) el.appendChild(div('etat', status));
+  }
+
+  // Section « Apps intégrées » : une ligne par module, interrupteur Activé / Masqué et accès à ses réglages propres.
+  function modList(): HTMLElement {
+    var vue = div('vue'), list = div('liste');
+    for (var i = 0; i < mods.length; i++) {
+      var on = i === modRow, line = div('ligne' + (on ? ' focus' : ''));
+      line.appendChild(div('nom', mods[i].name));
+      if (on && mods[i].hasSettings) line.appendChild(div('puce' + (modChip === 1 ? ' focus' : ''), 'Réglages'));
+      line.appendChild(div('puce' + (on && modChip === 0 ? ' focus' : ''), mods[i].enabled ? 'Activé' : 'Masqué'));
+      list.appendChild(absRow(line, i));
+    }
+    list.style.height = mods.length * ROW_H + 'px';
+    vue.appendChild(list);
+    return vue;
+  }
+
+  function pressMods(k: Key): boolean {
+    var m = mods[modRow];
+    if (k === 'back') { modView = false; }
+    else if (k === 'up' || k === 'down') { modRow = Math.max(0, Math.min(mods.length - 1, modRow + (k === 'up' ? -1 : 1))); modChip = 0; }
+    else if (k === 'left' || k === 'right') { modChip = k === 'right' && m.hasSettings ? 1 : 0; }
+    else if (k === 'enter') {
+      if (modChip === 0) {
+        m.enabled = !m.enabled;
+        var next = opts.onModule ? opts.onModule(m.id, m.enabled) : undefined;
+        if (next) catalog = next.slice(0);
+      }
+      else if (m.id === 'scenes' && opts.ha) openScenes();
+      else if (opts.onModuleSettings) opts.onModuleSettings(m.id);
+    } else return false;
+    render();
+    return true;
   }
 
   function toggleMode(): void {
@@ -236,7 +257,7 @@ export function createSettings(opts: SettingsOptions): Panel {
 
   function clampRow(): void {
     if (row >= rowCount()) row = rowCount() - 1;
-    if (row < (opts.ha ? -3 : -2)) row = opts.ha ? -3 : -2;
+    if (row < (mods.length ? -3 : -2)) row = mods.length ? -3 : -2;
   }
 
   function press(k: Key): boolean {
@@ -252,6 +273,7 @@ export function createSettings(opts: SettingsOptions): Panel {
       render();
       return handled;
     }
+    if (modView) return pressMods(k);
     if (k === 'back') {
       if (grabbed) grabbed = false; else opts.onClose();
       render();
@@ -274,7 +296,7 @@ export function createSettings(opts: SettingsOptions): Panel {
       else if (row === -1) stepTiles(k === 'left' ? -1 : 1, false);
       else if (inCatalog) chip = Math.max(0, Math.min(CHIPS.length - 1, chip + (k === 'left' ? -1 : 1)));
     } else if (k === 'enter') {
-      if (row === -3) { openScenes(); return true; }
+      if (row === -3) { modView = true; modRow = 0; modChip = 0; render(); return true; }
       if (row === -2) { toggleMode(); render(); return true; }
       if (row === -1) { stepTiles(1, true); render(); return true; }
       if (row === 0) { discover(); return true; }
@@ -282,12 +304,8 @@ export function createSettings(opts: SettingsOptions): Panel {
         if (chip === 0) { catalog = setTint(catalog, idx, nextTint(catalog[idx].tint)); changed(); }
         else if (chip === 1) grabbed = true;
         else { catalog = removeAt(catalog, idx); chip = 0; clampRow(); changed(); }
-      } else if (row <= catalog.length + missing().length) {
-        catalog = addInternal(catalog, missing()[row - 1 - catalog.length]);
-        clampRow();
-        changed();
       } else {
-        var app = found[row - 1 - catalog.length - missing().length];
+        var app = found[row - 1 - catalog.length];
         var before = catalog.length;
         catalog = addDiscovered(catalog, app);
         if (catalog.length !== before) { row++; changed(); } // le catalogue grandit d'une ligne : le focus reste sur l'app

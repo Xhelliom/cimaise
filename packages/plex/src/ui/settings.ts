@@ -1,7 +1,7 @@
 import { Panel } from '../../../tv-core/src/router/router';
 import { Key } from '../../../tv-core/src/keys';
 import { LANG_CHOICES, LANG_MODES, LangMode, langLabel, loadLangPrefs, saveLangPrefs } from '../../../tv-core/src/langprefs';
-import { el, PlexArg } from './context';
+import { el } from './dom';
 
 var SLOTS = 3;   // langues par liste du mode personnalisé
 var ROW_H = 104;
@@ -13,9 +13,9 @@ var MODE_DESC: { [k: string]: string } = {
   custom: 'Vos langues audio par ordre de préférence ; des sous-titres seulement si l’audio n’est dans aucune d’elles.'
 };
 
-// Réglages du module Plex : langues audio et sous-titres. Chargé avec plex.js ; lit et écrit prefs.plexLang (cimaise.v1).
+// Réglages du module Plex : langues audio et sous-titres. Aussi servi par le chunk settings.js (sans plex.js) ; lit et écrit prefs.plexLang (cimaise.v1).
 // Gauche / droite / Entrée parcourent les valeurs de la ligne ; chaque changement est enregistré aussitôt.
-export function createSettingsPanel(arg: PlexArg): Panel {
+export function createSettingsPanel(arg: { doc?: Document; store?: Storage }): Panel {
   var doc = arg.doc || document;
   var root = el(doc, 'plex-panel plex-settings');
   var cur = loadLangPrefs(arg.store);

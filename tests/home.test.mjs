@@ -257,7 +257,7 @@ test('mode : préférence mémorisée dans cimaise.v1 (prefs.homeMode), défaut 
   assert.equal(H.loadHomeMode(st), 'grille');
   H.saveHomeMode('rangee', st);
   assert.equal(JSON.parse(st.d['cimaise.v1']).prefs.homeMode, 'rangee');
-  assert.equal(JSON.parse(st.d['cimaise.v1']).version, 3);
+  assert.equal(JSON.parse(st.d['cimaise.v1']).version, 4);
   assert.equal(H.loadHomeMode(st), 'rangee');
   H.saveHomeMode('grille', st);
   assert.equal(H.loadHomeMode(st), 'grille');
@@ -655,7 +655,7 @@ test('tuiles : préférence mémorisée dans cimaise.v1 (prefs.homeTiles), défa
   H.saveHomeTiles(6, st);
   const saved = JSON.parse(st.d['cimaise.v1']);
   assert.equal(saved.prefs.homeTiles, 6);
-  assert.equal(saved.version, 3);
+  assert.equal(saved.version, 4);
   assert.equal(H.loadHomeTiles(st), 6);
   H.saveHomeMode('rangee', st);
   assert.equal(H.loadHomeTiles(st), 6, 'le mode n’écrase pas les tuiles');
@@ -665,7 +665,7 @@ test('tuiles : préférence mémorisée dans cimaise.v1 (prefs.homeTiles), défa
   assert.equal(H.loadHomeTiles(old), 4, 'v1 migré : 4 par défaut');
   H.saveHomeTiles(5, old);
   const m = JSON.parse(old.d['cimaise.v1']);
-  assert.deepEqual([m.version, m.prefs.homeMode, m.prefs.homeTiles, m.prefs.catalog.version], [3, 'rangee', 5, 1]);
+  assert.deepEqual([m.version, m.prefs.homeMode, m.prefs.homeTiles, m.prefs.catalog.version], [4, 'rangee', 5, 1]);
   const junk = mem();
   junk.setItem('cimaise.v1', JSON.stringify({ version: 2, prefs: { homeTiles: 8 } }));
   assert.equal(H.loadHomeTiles(junk), 4);

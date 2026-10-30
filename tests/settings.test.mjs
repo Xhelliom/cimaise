@@ -130,28 +130,69 @@ test('découverte sur action : liste, ajout (id, nom, icône), erreur explicite 
   assert.equal(e.changes.length, 0);
 });
 
-test('Apps intégrées : un module interne retiré réapparaît (sans découverte) et se remet en tête', () => {
-  const plex = { id: 'plex', name: 'Plex intégré', tint: S.PALETTE[0] };
-  const { panel, changes, calls, press } = open({ catalog: [app('netflix'), app('youtube')], internalApps: [plex] });
-  assert.ok(texts(panel.el).includes('Apps intégrées'));
-  assert.ok(texts(panel.el).includes('Plex intégré'));
+const MODS = (over = []) => [
+  { id: 'plex', name: 'Plex intégré', enabled: true, hasSettings: true },
+  { id: 'scenes', name: 'Scènes Home Assistant', enabled: false, hasSettings: true },
+  ...over,
+];
+
+// Ouvre la section « Apps intégrées » (ligne tout en haut de la liste).
+function openMods(extra = {}) {
+  const log = { toggles: [], settings: [] };
+  const r = open({ modules: MODS(), onModule: (id, on) => { log.toggles.push([id, on]); }, onModuleSettings: (id) => { log.settings.push(id); }, ...extra });
+  r.press('up', 'up', 'up', 'enter');
+  return { ...r, log };
+}
+
+test('Apps intégrées : section distincte des apps de la TV, ligne tout en haut, une ligne par module avec son état', () => {
+  const { panel, press, calls } = open({ modules: MODS() });
+  assert.ok(texts(panel.el).includes('Apps intégrées'), 'ligne d’accès dans les Réglages');
+  assert.ok(!texts(panel.el).includes('Plex intégré'), 'les modules ne sont pas mêlés au catalogue');
+  press('up', 'up', 'up', 'enter');
   assert.equal(calls.list, 0, 'ne dépend pas de la découverte');
-  press('down', 'down', 'down');   // netflix, youtube, Plex intégré
-  assert.ok(focused(panel.el).some((f) => f.includes('Plex intégré') && f.includes('Ajouter')));
-  press('enter');
-  assert.deepEqual(changes.at(-1).map((x) => x.id), ['plex', 'netflix', 'youtube']);
-  assert.ok(!texts(panel.el).includes('Apps intégrées'), 'plus rien à proposer');
+  const t = texts(panel.el);
+  assert.ok(t.includes('Plex intégré') && t.includes('Scènes Home Assistant'));
+  assert.ok(t.includes('Activé') && t.includes('Masqué'));
+  press('back');
+  assert.ok(texts(panel.el).includes('Découvrir les apps installées'), 'Retour : liste principale');
+  assert.equal(calls.closed, 0);
 });
 
-test('Apps intégrées : proposée aussi quand la découverte échoue ; absente si déjà au catalogue', () => {
-  const plex = { id: 'plex', name: 'Plex intégré', tint: S.PALETTE[0] };
-  const r = open({ catalog: [app('netflix')], internalApps: [plex] });
-  r.calls.impl = (ok, fail) => fail(new Error('tizen est absent'));
-  r.press('enter');
-  assert.ok(texts(r.panel.el).some((t) => /tizen est absent/.test(t)));
-  assert.ok(texts(r.panel.el).includes('Apps intégrées'));
-  assert.ok(texts(r.panel.el).includes('Plex intégré'));
-  assert.ok(!texts(open({ catalog: [app('plex')], internalApps: [plex] }).panel.el).includes('Apps intégrées'));
+test('Apps intégrées : Entrée bascule Activé / Masqué et prévient le propriétaire ; les autres modules ne bougent pas', () => {
+  const { panel, press, log } = openMods();
+  assert.ok(focused(panel.el).some((f) => f.includes('Plex intégré') && f.includes('Activé')));
+  press('enter');
+  assert.deepEqual(log.toggles, [['plex', false]]);
+  assert.ok(focused(panel.el).some((f) => f.includes('Plex intégré') && f.includes('Masqué')));
+  press('enter');
+  assert.deepEqual(log.toggles, [['plex', false], ['plex', true]]);
+  press('down', 'enter');
+  assert.deepEqual(log.toggles.at(-1), ['scenes', true]);
+});
+
+test('Apps intégrées : un module masqué garde l’accès à ses réglages (chip « Réglages »)', () => {
+  const { panel, press, log } = openMods({ modules: MODS().map((m) => ({ ...m, enabled: false })) });
+  assert.ok(texts(panel.el).includes('Masqué'));
+  press('right', 'enter');
+  assert.deepEqual(log.settings, ['plex'], 'les réglages propres de Plex s’ouvrent même masqué');
+  assert.deepEqual(log.toggles, [], 'ouvrir les réglages ne change pas l’état');
+});
+
+test('Apps intégrées : les réglages des Scènes s’ouvrent dans la section ; Retour revient à la liste des modules', () => {
+  const ha = { url: '', token: '', chosen: [], onConfig() {}, onChosen() {}, listScenes: (cb) => cb(null, []) };
+  const { panel, press, calls } = openMods({ ha });
+  press('down', 'right', 'enter');
+  assert.ok(texts(panel.el).includes('Adresse') && texts(panel.el).includes('Jeton'));
+  press('back');
+  assert.ok(texts(panel.el).includes('Plex intégré'), 'retour à la liste des modules');
+  press('back');
+  assert.ok(texts(panel.el).includes('Découvrir les apps installées'));
+  assert.equal(calls.closed, 0);
+});
+
+test('Apps intégrées : sans module déclaré, pas de ligne ; la liste reste utilisable', () => {
+  const { panel } = open();
+  assert.ok(!texts(panel.el).includes('Apps intégrées'));
 });
 
 test('Affichage de l’accueil : Grille par défaut, Haut atteint la ligne, Entrée / gauche / droite basculent et préviennent', () => {
