@@ -6,7 +6,11 @@ Modèle exact et firmware : à relever en M0.
 
 Ce qui a été vu à l'écran ou constaté sur la TV.
 
-_(rien pour l'instant)_
+- **Sous-titres sur la Frame, lecture directe (2026-10-30, build 0c099db + caa9407).** Stéphane a joué trois épisodes avec un sous-titre actif. Question posée pour chacun : texte affiché, synchrone avec la voix, toujours là après un saut (±10 s et saut long). Réponse de Stéphane (choix « OK partout » dans les trois cas, sans autre commentaire) :
+  - SRT interne : *Bluey* S1E1, piste anglaise → « OK partout » ;
+  - SRT externe : *Rick and Morty* S1E5 → « OK partout » ;
+  - ASS converti en SRT par le serveur (sidecar) : *The Bear* S3E1, piste anglaise → « OK partout ».
+  - *Ce que j'en déduis* (non dit par lui) : les trois chemins `setSelectTrack`, `setExternalSubtitlePath` et ASS → SRT sidecar fonctionnent sans transcodage. Pas de mesure de décalage ni de message d'erreur relevés ; mov_text, SSA, PGS, VobSub non testés.
 
 ## Réponse du SDK
 
@@ -44,8 +48,8 @@ Un échantillon par cas quand c'est possible, choisi pour n'isoler qu'une variab
 | E-AC3 | Bluey S3E39 (26265), 6 min ; alternative S3E1 (19745) | mkv, h264 High L4.0 1080p, eac3 5.1 fra/eng | Direct | | |
 | Opus | **Aucun sans AV1.** Andor S1E2 (10025), 36 min : opus 5.1 mais vidéo AV1 L8 | mkv, av1 Main, opus 5.1 | Transcodage (opus et av1 absents) ; un échec ne dirait pas lequel des deux est en cause | | |
 | FLAC | C'est arrivé près de chez vous (31451), 96 min ; alternative : FLAC secondaire dans IT: Welcome to Derry S1E4 (26408) | mkv, h264 High L4.1, flac stéréo fra | Transcodage (flac absent) | | |
-| SRT interne | Bluey S1E1 (19691), 7 min ; alternative S1E2 (19692) | mkv, h264 L4.0, aac/eac3, 2 SRT internes en | Direct, `setSelectTrack` | | |
-| SRT externe | Rick and Morty S1E5 (3763), 20 min ; alternative Bluey S1E1 (19691) | mp4 ou mkv, SRT externes en/fr | Direct, `setExternalSubtitlePath` | | |
-| ASS converti en SRT (sidecar) | The Bear S3E1 (18301), 37 min ; alternatives S3E3 (18293), S3E5 (18299) | mkv, ASS interne en, lecture directe de la vidéo ; le serveur sert la piste en SRT (`/library/streams/N`), passée à `setExternalSubtitlePath` | Direct, sous-titres affichés (serveur : SRT confirmé 200 le 2026-10-30) | | |
+| SRT interne | Bluey S1E1 (19691), 7 min ; alternative S1E2 (19692) | mkv, h264 L4.0, aac/eac3, 2 SRT internes en | Direct, `setSelectTrack` | | « OK partout » (Stéphane, 2026-10-30) : affiché, synchrone, survit aux sauts | Oui (`confirmed` : srt interne) |
+| SRT externe | Rick and Morty S1E5 (3763), 20 min ; alternative Bluey S1E1 (19691) | mp4 ou mkv, SRT externes en/fr | Direct, `setExternalSubtitlePath` | | « OK partout » (Stéphane, 2026-10-30) : affiché, synchrone, survit aux sauts | Oui (`confirmed` : srt externe) |
+| ASS converti en SRT (sidecar) | The Bear S3E1 (18301), 37 min ; alternatives S3E3 (18293), S3E5 (18299) | mkv, ASS interne en, lecture directe de la vidéo ; le serveur sert la piste en SRT (`/library/streams/N`), passée à `setExternalSubtitlePath` | Direct, sous-titres affichés (serveur : SRT confirmé 200 le 2026-10-30) | | « OK partout » (Stéphane, 2026-10-30) : affiché, synchrone, survit aux sauts | Oui (`confirmed` : ass converti ; ssa non vu) |
 
 Cas sans échantillon propre : **Opus** seul (voir ligne). Rappel : un cas dont le lecteur échoue n'est retiré du profil qu'après observation à l'écran ; sinon `confirmed` reste à false.

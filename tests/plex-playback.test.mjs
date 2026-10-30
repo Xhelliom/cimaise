@@ -33,16 +33,19 @@ const SERVER = { uri: 'https://192-0-2-10.' + '0'.repeat(32) + '.plex.direct:324
 
 // --- Profil ---------------------------------------------------------------------------------------------------
 
-test('profil : chaque entrée est marquée supposée (rien n’est confirmé sans test sur la TV)', () => {
+test('profil : seules les entrées vues sur la Frame sont confirmées (sous-titres SRT interne/externe et ASS converti, 2026-10-30)', () => {
   const P = pb.FRAME_2019_PROFILE;
   assert.match(P.model, /LS03R/);
   const all = [].concat(P.containers, P.video, P.hdr, P.audio, P.subtitles.embedded, P.subtitles.external);
   assert.ok(all.length >= 10);
   for (const e of all) {
     assert.equal(typeof e.name, 'string');
-    assert.equal(e.confirmed, false, e.name + ' ne doit pas être confirmé');
-    assert.match(pb.confirmationLabel(e), /supposé, à confirmer sur la TV/);
+    const seen = P.subtitles.embedded.concat(P.subtitles.external).indexOf(e) >= 0;
+    assert.equal(e.confirmed, seen, e.name + (seen ? ' vu sur la TV' : ' ne doit pas être confirmé'));
+    assert.match(pb.confirmationLabel(e), seen ? /confirmé sur la TV/ : /supposé, à confirmer sur la TV/);
   }
+  assert.equal(P.subtitles.converted.find((x) => x.name === 'ass').confirmed, true);
+  assert.equal(P.subtitles.converted.find((x) => x.name === 'ssa').confirmed, false, 'ssa non vu');
   assert.equal(pb.confirmationLabel({ name: 'x', confirmed: true }), 'confirmé sur la TV');
 });
 
