@@ -660,3 +660,34 @@ Pas d'indice de débordement ni de « 1 sur 8 » sur les rangées (autre finitio
 **Poids.** `app.css` 21 073 → **22 128 o** minifié (+1 055 o, +192 o gzip ; les règles des carrés « Bibliothèques » sont retirées) ;
 `plex.js` 90 692 → **91 839 o** (+1 147 o, chunk différé). `app.js` inchangé. Aucune image. DOM de l'accueil : la rangée Réglages
 (1 tuile) et la rangée Bibliothèques (2 à 3 tuiles virtualisées) laissent place à 12 blocs d'en-tête et 1 + n pilules.
+
+## Fiche Plex : Marquer vu / non vu, fond flou du transcodeur, boutons de la maquette (2026-10-30)
+
+**Marquer vu / non vu.** Troisième bouton de la fiche, après Lire/Reprendre et Depuis le début (Gauche/Droite entre les trois).
+Il agit sur ce que lit Lire : le film, ou l'épisode visé d'une série (« Lire S1 E4 » → « Marquer vu » marque S1 E4). Libellé
+« Marquer non vu » quand l'élément est compté vu sans reprise en cours. `/:/scrobble` ou `/:/unscrobble` (`packages/plex/src/api/media.ts`),
+une demande à la fois. **Vérifié le 30/10 sur le serveur du homelab** (film non vu de la bibliothèque, avec les fonctions du module) :
+scrobble → `viewCount` 1 et `lastViewedAt` posé, `viewOffset` absent ; unscrobble → `viewCount` et `lastViewedAt` retirés (état
+d'origine rétabli). C'est l'état que lisent les autres clients ; l'app Plex officielle elle-même n'a **pas** été regardée.
+
+**Mise à jour sans recharger.** À la réponse du serveur, `data.marked` (même mécanisme que `data.progressed`, partie commune `touch`) :
+position locale dans le cache (`o:`, 60 s) avec `unseen` pour un non vu (le `viewCount` ancien du serveur est retiré), fiche et liste
+des épisodes corrigées sur place, série et saisons marquées à redemander, l'élément **retiré de « En cours »** dans les deux cas. La fiche
+se repeint aussitôt (Reprendre → Lire, coche de l'épisode), puis redemande la série (à suivre, compte de vus) et les saisons. En cas
+d'échec : message, rien ne change (pas d'affichage optimiste qui mentirait).
+
+**Saison entière : pas fait.** Le serveur l'accepte (`/:/scrobble?key=<saison>`), mais il n'y a pas de geste simple à la télécommande :
+Entrée sur une saison sert déjà (la saison suit le focus), et une zone de plus entre saisons et épisodes allongerait le chemin Bas. À
+trancher : bouton « Saison vue » au bout de la rangée des saisons, ou appui long.
+
+**Fond.** `<img>` plein écran sous la fiche : `/photo/:/transcode?width=480&height=270&…&blur=20&opacity=35&background=0b0b0d&url=<art>`
+(flou et assombrissement faits par le serveur, ≈ 4 Ko, 0,5 Mo décodé), mis à l'échelle en 1920×1080. **Aucun `filter` ni `blur()`**
+dans le CSS (testé). Fondu d'`opacity` de 0,4 s une fois l'image chargée, `src` retiré en quittant la fiche. Sans `art` : fond uni.
+
+**Boutons.** Pastilles de 88 px de la maquette : Reprendre/Lire en indigo `#6366f1` avec ▶, Depuis le début et Marquer vu en aplat
+`rgba(255,255,255,.12)`, ✓ ; icônes en bordures CSS sur `::before` (0 nœud, 0 image) ; focus = anneau blanc net de 6 px + `scale(1.06)`,
+comme le lecteur et l'accueil. Barre de progression de la fiche passée à l'indigo. Pas repris de la maquette : la ligne « FILM · 2025 »
+et le texte « 22 min vues · reste 1 h 24 ».
+
+**Poids.** `app.css` 22 128 → **22 653 o** minifié (+525 o, +87 o gzip) ; `plex.js` 91 839 → **93 609 o** (+1 770 o, chunk différé).
+`app.js` inchangé. DOM de la fiche : +2 nœuds (fond, bouton). Une image de plus par fiche (≈ 4 Ko).

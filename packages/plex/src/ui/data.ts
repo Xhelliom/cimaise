@@ -11,6 +11,8 @@ var TTL_HOME = 5 * 60000, TTL_SECTIONS = 3600000, TTL_PAGE = 10 * 60000, TTL_MET
 
 // Position quittée au lecteur : le serveur la reçoit avec un léger retard, une réponse plus ancienne ne doit pas la remplacer.
 var LOCAL_MS = 60000;   // gardée dans le cache (clé 'o:'), donc partagée entre les écrans, qui ont chacun leur Data
+// `unseen` : marqué non vu, le compteur de vues du serveur (encore ancien) est retiré.
+interface Local { offset: number; watched: boolean; unseen?: boolean; }
 
 function noop(): void { /* rien à annuler */ }
 
@@ -37,6 +39,8 @@ export interface Data {
   children(ratingKey: string, on: On<Item[]>, err?: Err): Cancel;
   // Retour de lecture : la fiche est corrigée sur place, « En cours » et les parents (saison, série) sont rechargés.
   progressed(it: Item, offsetMs: number, watched: boolean): void;
+  // Marqué vu ou non vu (scrobble réussi) : même correction sur place ; l'élément quitte « En cours » dans les deux cas.
+  marked(it: Item, watched: boolean): void;
 }
 
 export function createData(http: Http, id: Identity, s: ServerRef, cache: Cache): Data {
@@ -58,11 +62,11 @@ export function createData(http: Http, id: Identity, s: ServerRef, cache: Cache)
   function same<T>(v: T): T { return v; }
 
   function apply(it: Item): Item {
-    var h = cache.get<{ offset: number; watched: boolean }>('o:' + it.ratingKey, LOCAL_MS);
+    var h = cache.get<Local>('o:' + it.ratingKey, LOCAL_MS);
     if (!h || !h.fresh) return it;
     var l = h.value;
     var o: any = {};
-    for (var k in it) if (it.hasOwnProperty(k) && k !== 'viewOffset') o[k] = (it as any)[k];
+    for (var k in it) if (it.hasOwnProperty(k) && k !== 'viewOffset' && !(l.unseen && k === 'viewCount')) o[k] = (it as any)[k];
     if (l.watched) { if (!o.viewCount) o.viewCount = 1; } else if (l.offset > 0) o.viewOffset = l.offset;
     return o;
   }
@@ -70,6 +74,14 @@ export function createData(http: Http, id: Identity, s: ServerRef, cache: Cache)
   function patch<T>(key: string, fn: (v: T) => T): void {
     var hit = cache.get<T>(key, 0);
     if (hit) cache.set(key, fn(hit.value), true);
+  }
+
+  // Tout est corrigé sur place puis marqué à redemander : l'affichage est immédiat, le serveur reprend la main ensuite.
+  function touch(it: Item, local: Local): void {
+    cache.set('o:' + it.ratingKey, local);
+    patch<Item>('m:' + it.ratingKey, apply);
+    if (it.parentRatingKey) patch<Item[]>('c:' + it.parentRatingKey, applyAll);
+    if (it.grandparentRatingKey) { patch<Item>('m:' + it.grandparentRatingKey, same); patch<Item[]>('c:' + it.grandparentRatingKey, same); }
   }
 
   return {
@@ -97,10 +109,7 @@ export function createData(http: Http, id: Identity, s: ServerRef, cache: Cache)
       return load<Item[]>('c:' + rk, TTL_META, function (cb) { return getChildren(http, id, s, rk, cb); }, function (l) { return applyAll(slimAll(l)); }, on, err);
     },
     progressed: function (it, offsetMs, watched) {
-      cache.set('o:' + it.ratingKey, { offset: Math.round(offsetMs), watched: watched });
-      // Tout est corrigé sur place puis marqué à redemander : l'affichage est immédiat, le serveur reprend la main ensuite.
-      patch<Item>('m:' + it.ratingKey, apply);
-      if (it.parentRatingKey) patch<Item[]>('c:' + it.parentRatingKey, applyAll);
+      touch(it, { offset: Math.round(offsetMs), watched: watched });
       patch<Item[]>('ondeck', function (l) {
         var out = applyAll(l), seen = false;
         if (watched) return out.filter(function (x) { return x.ratingKey !== it.ratingKey; });
@@ -108,7 +117,10 @@ export function createData(http: Http, id: Identity, s: ServerRef, cache: Cache)
         if (!seen && offsetMs > 0 && (it.type === 'movie' || it.type === 'episode')) out.unshift(apply(slim(it)));
         return out;
       });
-      if (it.grandparentRatingKey) { patch<Item>('m:' + it.grandparentRatingKey, same); patch<Item[]>('c:' + it.grandparentRatingKey, same); }
+    },
+    marked: function (it, watched) {
+      touch(it, { offset: 0, watched: watched, unseen: !watched });
+      patch<Item[]>('ondeck', function (l) { return l.filter(function (x) { return x.ratingKey !== it.ratingKey; }); });
     }
   };
 }
