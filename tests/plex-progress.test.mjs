@@ -182,10 +182,10 @@ test('retour de lecture : fiche corrigée sur place, « En cours » et parents r
 
   data.progressed(ep, 42000, false);
   assert.equal(cache.get('m:7').value.viewOffset, 42000);
-  assert.equal(cache.get('ondeck'), null);
-  assert.equal(cache.get('c:6'), null);
-  assert.equal(cache.get('m:5'), null);
-  assert.equal(cache.get('c:5'), null);
+  // « En cours » et la liste du parent : position locale tout de suite, mais marqués périmés (le serveur est redemandé).
+  assert.equal(cache.get('ondeck').value[0].viewOffset, 42000);
+  assert.equal(cache.get('c:6').value[0].viewOffset, 42000);
+  for (const k of ['m:7', 'ondeck', 'c:6', 'm:5', 'c:5']) assert.equal(cache.get(k).fresh, false, k + ' à redemander');
 
   data.progressed(ep, DUR, true);
   const m = cache.get('m:7').value;
