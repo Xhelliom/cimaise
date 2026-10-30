@@ -1,13 +1,11 @@
 # Bilan — sous-titres sans incrustation (ASS / mov_text)
 
-**Fait**
-- `scripts/plex/probe-subs.mjs` : sonde en lecture seule (GET) du vrai serveur ; constat consigné dans `docs/plex-audit.md`.
-- Constat : seules les pistes SRT *externes* (3 035) ont une `key` servie en SRT. Les 346 ASS, 79 mov_text et les 17 435 SRT internes n'ont aucune `key` ;
-  `/library/streams/{id}` répond 501 pour elles, `/video/:/transcode/universal/subtitles` répond 400 en GET.
+**Fait** (commits 0c099db code + tests, caa9407 audit/doc)
+- Sonde lecture seule `scripts/plex/probe-subs.mjs` : seules les pistes SRT externes ont une clé ; ASS, mov_text, SRT internes n'en ont pas (501/400).
+- Essai `subtitles=sidecar` autorisé par Stéphane (`scripts/plex/probe-sidecar.mjs`) : ASS → SRT servi par `/library/streams/N` ; mov_text → aucune piste renvoyée (reste incrusté).
+- Code : profil `subtitles.converted = [ass, ssa]`, `decidePlayback` (`subtitleMode: 'converted'`, lecture directe), `requestSubtitleSidecar`, lecteur (URL du SRT converti → `setExternalSubtitlePath`). Tests ajoutés ; `npm run check` vert (601 tests).
+- Audit avant/après dans `docs/plex-audit.md` : épisodes en transcodage avec sous-titres français 380 → 277 (−103), films 46 → 44.
 
-**Non fait — arrêt volontaire (décision qui revient à Stéphane)**
-- Obtenir un SRT depuis un ASS/mov_text exige très probablement une décision de transcodage avec `subtitles=sidecar` : une écriture serveur (session), alors que la carte demande une vérification en lecture seule. Je n'ai pas décidé à sa place.
-- Vérification sur la Frame du SRT interne (`setSelectTrack`) et externe (`setExternalSubtitlePath`) : exige la TV et Stéphane, non faite ; `docs/tv-status.md` inchangé.
-- `decidePlayback` / profil non modifiés ; audit non relancé (pas d'« après » à mesurer) ; `npm run check` non relancé (aucun code applicatif changé).
-
-**Question** : autorises-tu un essai avec décision `subtitles=sidecar` (session arrêtée aussitôt, comme pour l'essai audio) ? Sinon, alternative : extraire les ASS hors de l'app (côté homelab).
+**Pas fait**
+- Observation sur la Frame (SRT interne, SRT externe, ASS converti) : en attente de Stéphane ; `docs/tv-status.md` à remplir avec ses mots. Tant que ce n'est pas vu, `confirmed` reste à false.
+- mov_text : non convertible via sidecar ; reste incrusté.
