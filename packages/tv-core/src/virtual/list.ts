@@ -104,6 +104,14 @@ export class VirtualList {
     if (this.o.pageSize) delete this.requested[Math.floor(start / this.o.pageSize)];
   }
 
+  // Contenu remplacé (autre tri, autre filtre) : vide, retour en haut, toutes les pages pourront être redemandées.
+  reset(): void {
+    this.requested = {};
+    this.focus.index = 0;
+    this.top = 0;
+    this.setCount(0);
+  }
+
   // Écran recouvert ou quitté : retire les images décodées des tuiles actives (les nœuds restent, sans src).
   release(): void {
     this.held = true;
