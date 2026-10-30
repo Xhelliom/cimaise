@@ -29,9 +29,14 @@
 .plex-alpha-l{height:33px;line-height:33px;text-align:center;font-size:22px;color:rgba(255,255,255,.75);border-radius:8px;transition:transform .2s ease}
 .plex-alpha-l.empty{color:rgba(255,255,255,.2)}
 .plex-alpha-l.cur{color:#fff;font-weight:700}
+.plex-alpha.off{display:none}
 .plex-alpha-l.focus{box-shadow:0 0 0 6px #fff;transform:scale(1.06);color:#fff;font-weight:700;position:relative;z-index:1}
 .plex-lib-title{position:absolute;left:120px;top:72px;font-size:40px;font-weight:500}
 .plex-lib-count{position:absolute;left:120px;top:130px;font-size:28px;color:rgba(255,255,255,.6)}
+.plex-lib-pills{position:absolute;right:96px;top:72px;height:64px;white-space:nowrap}
+.plex-pill{display:inline-block;vertical-align:top;height:64px;line-height:64px;padding:0 36px;margin-left:16px;border-radius:32px;font-size:28px;font-weight:500;color:rgba(255,255,255,.75);background:rgba(255,255,255,.07);transition:transform .2s ease}
+.plex-pill.on{color:#111;background:#e5a00d}
+.plex-pill.focus{box-shadow:0 0 0 6px #fff;transform:scale(1.06)}
 /* Fiche (maquette du 30/10) : fond = art flouté et assombri PAR LE TRANSCODEUR (480×270 mis à l'échelle), aucun flou CSS ;
    Reprendre en jaune Plex (▶, texte noir), Depuis le début, Marquer vu (✓) en pastilles de 88 px ; focus = anneau blanc net + scale. */
 .plex-dbg{position:absolute;left:0;top:0;width:1920px;height:1080px;opacity:0;transition:opacity .4s}

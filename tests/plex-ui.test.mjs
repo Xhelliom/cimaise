@@ -429,6 +429,119 @@ test('barre alphabétique : la lettre courante suit le défilement normal ; Droi
   assert.equal(p.onKey('back'), false, 'Retour reste au routeur');
 });
 
+// ---- tri et filtre « Non vus » (côté serveur) ------------------------------------------------------------------
+// Serveur factice : 412 titres, 100 non vus ; l'index /firstCharacter filtré somme aussi à 100.
+function viewRoutes() {
+  const all = (req) => {
+    const unseen = /[?&]unwatched=1/.test(req.url), total = unseen ? 100 : 412;
+    const start = Number(req.headers['X-Plex-Container-Start'] || 0), size = Number(req.headers['X-Plex-Container-Size'] || 50);
+    const tag = (req.url.match(/sort=([^&]+)/) || [])[1] + (unseen ? '/nv' : '');
+    const items = [];
+    for (let i = start; i < Math.min(total, start + size); i++) items.push({ ratingKey: String(1000 + i), type: 'movie', title: tag + ' ' + i, thumb: '/library/metadata/' + (1000 + i) + '/thumb/1' });
+    return JSON.stringify({ MediaContainer: { size: items.length, totalSize: total, offset: start, Metadata: items } });
+  };
+  const fc = (req) => (/unwatched=1/.test(req.url)
+    ? JSON.stringify({ MediaContainer: { Directory: [{ title: 'A', size: 40 }, { title: 'C', size: 60 }] } }) : fx('first-character'));
+  return [[/\/library\/sections\/\d+\/all/, all], [/\/library\/sections\/\d+\/firstCharacter/, fc], ...serverRoutes()];
+}
+const pills = (p) => byClass(p.el, 'plex-pill');
+const allCalls = (d, from = 0) => d.arg.http.calls.slice(from).filter((c) => /\/all\?/.test(c.url));
+const fcCalls = (d, from = 0) => d.arg.http.calls.slice(from).filter((c) => /firstCharacter/.test(c.url));
+const bar = (p) => byClass(p.el, 'plex-alpha')[0];
+
+test('tri et filtre : Haut depuis la première ligne ouvre les pilules ; le serveur trie et filtre, pages depuis 0', async () => {
+  const d = deps({ http: fakeHttp(viewRoutes()) });
+  const p = ui.createLibraryPanel(d.arg, { key: '1', title: 'Films' });
+  await tick(); await tick();
+  assert.deepEqual(pills(p).map((x) => x.textContent), ['Tri : Titre', 'Non vus'], 'défaut : par titre, tout');
+  assert.ok(!bar(p).classList.contains('off'));
+  for (let k = 0; k < 3; k++) p.onKey('down');
+  await tick(); await tick();
+  p.onKey('up'); p.onKey('up'); p.onKey('up');
+  assert.equal(p.onKey('up'), true, 'première ligne : Haut passe aux pilules');
+  assert.ok(pills(p)[0].classList.contains('focus'));
+  assert.equal(byClass(p.el, 'vtile').filter((t) => t.classList.contains('focus')).length, 0, 'plus de focus dans la grille');
+  let from = d.arg.http.calls.length;
+  p.onKey('enter');                                   // Titre → Année
+  await tick(); await tick();
+  assert.equal(pills(p)[0].textContent, 'Tri : Année');
+  assert.deepEqual(allCalls(d, from).map((c) => [c.url.replace(/^.*\/all\?/, ''), c.headers['X-Plex-Container-Start']]), [['sort=year:desc', '0']]);
+  assert.ok(bar(p).classList.contains('off'), 'barre alphabétique masquée hors tri par titre');
+  assert.equal(fcCalls(d, from).length, 0);
+  assert.equal(p.onKey('left'), true);
+  p.onKey('down');                                    // retour dans la grille, en haut
+  assert.equal(focusTitle(p), 'year:desc 0');
+  assert.equal(p.onKey('left'), false, 'pas de barre : Gauche en colonne 0 sort de l’écran');
+  for (let k = 0; k < 9; k++) { p.onKey('down'); await tick(); }
+  const starts = allCalls(d, from).map((c) => Number(c.headers['X-Plex-Container-Start']));
+  assert.ok(starts.includes(36) && starts.includes(72) && new Set(starts).size === starts.length, 'pagination intacte : ' + starts);
+  assert.ok(allCalls(d, from).every((c) => /sort=year:desc/.test(c.url)), 'pages suivantes dans le même tri');
+
+  for (let k = 0; k < 10; k++) p.onKey('up');
+  p.onKey('right');                                   // « Non vus »
+  assert.ok(pills(p)[1].classList.contains('focus'));
+  from = d.arg.http.calls.length;
+  p.onKey('enter');
+  await tick(); await tick();
+  assert.ok(pills(p)[1].classList.contains('on'));
+  assert.deepEqual(allCalls(d, from).map((c) => c.url.replace(/^.*\/all\?/, '')), ['sort=year:desc&unwatched=1']);
+  assert.ok(texts(p.el).includes('100 non vus'), 'compteur filtré');
+
+  p.onKey('left'); p.onKey('enter'); p.onKey('enter'); // Année → Ajout récent → Titre
+  await tick(); await tick();
+  assert.equal(pills(p)[0].textContent, 'Tri : Titre');
+  assert.ok(allCalls(d, from).some((c) => /sort=addedAt:desc&unwatched=1/.test(c.url)));
+  assert.ok(!bar(p).classList.contains('off'), 'barre de retour en tri par titre');
+  assert.deepEqual(fcCalls(d, from).map((c) => c.url.replace(/^.*firstCharacter/, '')), ['?unwatched=1'], 'index filtré comme la grille');
+  assert.ok(letter(p, 'B').classList.contains('empty') && !letter(p, 'C').classList.contains('empty'));
+  p.onKey('down');
+  p.onKey('left');
+  for (let k = 0; k < 3; k++) p.onKey('down');        // A → C (B vide)
+  p.onKey('enter');
+  await tick(); await tick();
+  assert.equal(focusTitle(p), 'titleSort/nv 40', 'saut à la lettre dans la liste filtrée');
+  p.destroy();
+});
+
+test('tri et filtre : réponse d’un tri abandonné ignorée ; « Tout a été vu » si le filtre ne laisse rien', async () => {
+  const empty = JSON.stringify({ MediaContainer: { size: 0, totalSize: 0, offset: 0, Metadata: [] } });
+  const pending = [];
+  const http = (req, cb) => { http.calls.push(req); pending.push([req, cb]); return { abort() { req.aborted = true; } }; };
+  http.calls = [];
+  const d = deps({ http });
+  const p = ui.createLibraryPanel(d.arg, { key: '1', title: 'Films' });
+  p.onKey('up'); p.onKey('right'); p.onKey('enter');
+  const first = pending.find(([r]) => /\/all\?sort=titleSort$/.test(r.url));
+  assert.ok(first[0].aborted, 'requête du choix précédent annulée');
+  for (const [r, cb] of pending) if (!r.aborted) cb(null, { status: 200, body: /firstCharacter/.test(r.url) ? '{"MediaContainer":{"Directory":[]}}' : empty });
+  assert.ok(texts(p.el).includes('Tout a été vu.'));
+  assert.ok(texts(p.el).includes('0 non vus'));
+  p.destroy();
+});
+
+test('tri et filtre : choix mémorisés par bibliothèque dans cimaise.v1, retrouvés à la réouverture', async () => {
+  const store = memStore();
+  const d = deps({ store, http: fakeHttp(viewRoutes()) });
+  const p = ui.createLibraryPanel(d.arg, { key: '1', title: 'Films' });
+  await tick();
+  p.onKey('up'); p.onKey('enter'); p.onKey('enter');   // Titre → Année → Ajout récent
+  p.onKey('right'); p.onKey('enter');                 // Non vus
+  p.destroy();
+  assert.deepEqual(JSON.parse(store.getItem('cimaise.v1')).prefs.plexLibrary, { 1: { sort: 'added', unwatched: true } });
+  const again = deps({ store, http: fakeHttp(viewRoutes()) });
+  const q = ui.createLibraryPanel(again.arg, { key: '1', title: 'Films' });
+  assert.deepEqual(pills(q).map((x) => [x.textContent, x.classList.contains('on')]), [['Tri : Ajout récent', false], ['Non vus', true]]);
+  assert.deepEqual(allCalls(again).map((c) => c.url.replace(/^.*\/all\?/, '')), ['sort=addedAt:desc&unwatched=1'], 'dès la première page');
+  assert.ok(bar(q).classList.contains('off'));
+  const other = deps({ store, http: fakeHttp(viewRoutes()) });
+  const s = ui.createLibraryPanel(other.arg, { key: '2', title: 'Séries' });
+  assert.equal(pills(s)[0].textContent, 'Tri : Titre', 'autre bibliothèque : son propre choix (défaut)');
+  assert.deepEqual(allCalls(other).map((c) => c.url.replace(/^.*\/all\?/, '')), ['sort=titleSort']);
+  store.setItem('cimaise.v1', JSON.stringify({ version: 4, prefs: { plexLibrary: { 1: { sort: 'inconnu', unwatched: 'oui' } } } }));
+  assert.deepEqual(ui.loadLibraryChoice('1', store), { sort: 'title', unwatched: false }, 'valeur inconnue : défaut');
+  q.destroy(); s.destroy();
+});
+
 // ---- fiche ---------------------------------------------------------------------------------------------------
 test('fiche film : titre, durée, progression, Reprendre ; Lire ouvre l’écran lecteur', async () => {
   const d = deps();
