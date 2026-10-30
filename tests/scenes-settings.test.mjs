@@ -269,3 +269,38 @@ test('saisie : une flèche pendant la saisie laisse le champ attaché et focalis
   panel.onKey('back');
   assert.ok(!field());
 });
+
+test('« Toutes » : ajouter une scène garde le focus sur une candidate, jamais sur un titre de section', () => {
+  const { panel, press, log } = ready();
+  press('down', 'down', 'down', 'down', 'down');   // Alpha (1re du groupe Bureau)
+  press('enter');
+  assert.deepEqual(log.chosen.at(-1), ['scene.a']);
+  assert.deepEqual(focused(panel.el).filter((f) => f.includes('Bravo')).length, 1, 'focus sur la candidate suivante');
+  assert.ok(!focused(panel.el).some((f) => f === 'Bureau'), 'pas sur le titre');
+  press('down', 'down');                           // Charlie, puis saute le titre « Cuisine » vers Dîner
+  press('enter');                                  // ajoute Dîner
+  assert.deepEqual(log.chosen.at(-1), ['scene.a', 'scene.diner']);
+  assert.ok(focused(panel.el).some((f) => f.includes('Été')), 'focus sur la candidate suivante');
+  press('enter');                                  // Entrée agit bien sur une scène
+  assert.equal(log.chosen.at(-1).length, 3);
+});
+
+test('« Toutes » : retirer une choisie ou fermer le clavier ne laisse pas le focus sur un titre', () => {
+  const { panel, press } = ready({ chosen: ['scene.film'] });
+  press('down', 'down', 'down', 'down', 'down');   // Film (choisie)
+  press('right', 'right', 'enter');                // Retirer
+  assert.ok(focused(panel.el).length >= 1 && !focused(panel.el).some((f) => /^(Bureau|Cuisine|Salon|Sans pièce)$/.test(f)));
+  press('up', 'enter');                            // Recherche → clavier
+  typeWord(panel, 'z');
+  panel.onKey('back');                             // filtre : aucune ligne ; rien ne casse
+  assert.ok(!focused(panel.el).some((f) => /^(Bureau|Cuisine|Salon|Sans pièce)$/.test(f)));
+});
+
+test('menu des pièces : une pièce dont toutes les scènes sont indisponibles est omise', () => {
+  const list = [...SCENES, { ...SC('x', 'Veilleuse', 'Cave'), state: 'unavailable' }];
+  const { panel, press } = ready({ listScenes: (cb) => cb(null, list) });
+  press('down', 'down', 'down', 'enter');
+  const t = texts(panel.el);
+  assert.ok(t.includes('Bureau') && !t.includes('Cave'));
+  assert.ok(!t.includes('0'));
+});

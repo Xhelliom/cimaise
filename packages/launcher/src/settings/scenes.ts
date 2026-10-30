@@ -66,11 +66,21 @@ export function createScenesView(doc: Document, ha: HaSettings, redraw: () => vo
     return r;
   }
 
+  // Ramène `sel` sur la ligne focalisable la plus proche (jamais un titre de section) après tout changement de rows().
+  function settle(): void {
+    var rs = rows();
+    if (sel >= rs.length) sel = rs.length - 1;
+    var up = sel, down = sel;
+    while (down < rs.length && rs[down].kind === 'head') down++;
+    while (up >= 0 && rs[up].kind === 'head') up--;
+    if (down < rs.length) sel = down; else if (up >= 0) sel = up;
+  }
+
   // Options de la liste déroulante : « Toutes » en tête, puis chaque pièce avec son nombre de scènes disponibles.
   function options(): Row[] {
     var c = countByArea(scenes), names = areasOf(scenes);
     var o: Row[] = [{ kind: 'opt', name: 'Toutes', n: c.total }];
-    for (var i = 0; i < names.length; i++) o.push({ kind: 'opt', id: names[i], name: names[i], n: c.byArea[names[i]] || 0 });
+    for (var i = 0; i < names.length; i++) if (c.byArea[names[i]]) o.push({ kind: 'opt', id: names[i], name: names[i], n: c.byArea[names[i]] });   // pièce sans scène disponible : omise
     return o;
   }
 
@@ -83,7 +93,7 @@ export function createScenesView(doc: Document, ha: HaSettings, redraw: () => vo
       if (err || !list) { status = err ? err.message : 'Home Assistant : réponse vide'; scenes = []; loaded = false; }
       else {
         scenes = list; loaded = true;
-        if (area !== null && areasOf(scenes).indexOf(area) < 0) area = null;
+        if (area !== null && !countByArea(scenes).byArea[area]) area = null;
         status = list.length + (list.length > 1 ? ' scènes' : ' scène');
       }
       redraw();
@@ -120,7 +130,7 @@ export function createScenesView(doc: Document, ha: HaSettings, redraw: () => vo
     if (kb) kb.destroy();
     kb = null; kbNote = null; kbBox = null;
     query = query.replace(/^\s+|\s+$/g, '');
-    sel = Math.min(sel, rows().length - 1);
+    settle();
     redraw();
   }
 
@@ -153,9 +163,10 @@ export function createScenesView(doc: Document, ha: HaSettings, redraw: () => vo
 
   function render(): HTMLElement {
     if (kbBox) return kbBox;
-    var inMenu = menu >= 0, rs = inMenu ? options() : rows(), at = inMenu ? menu : sel;
+    var inMenu = menu >= 0;
+    if (!inMenu) settle();
+    var rs = inMenu ? options() : rows(), at = inMenu ? menu : sel;
     if (at >= rs.length) at = rs.length - 1;
-    if (!inMenu) sel = at;
     offset = scrollOffset(offset, at, rs.length);
     var vue = div('vue'), list = div('liste');
     list.style.transform = 'translateY(' + (offset ? -offset : 0) + 'px)';
@@ -224,10 +235,18 @@ export function createScenesView(doc: Document, ha: HaSettings, redraw: () => vo
       else if (r.kind === 'cand') {
         var next = addChosen(chosen, r.id as string);
         if (next === chosen) status = 'Six scènes au plus sur l’accueil.';
-        else { chosen = next; status = ''; changed(); }
+        else {
+          var after = sel + 1;   // le focus passe à la candidate suivante (la ligne choisie s'insère au-dessus)
+          while (after < rs.length && rs[after].kind !== 'cand') after++;
+          var keep = after < rs.length ? rs[after].id : undefined;
+          chosen = next; status = ''; changed();
+          var nrs = rows();
+          for (var z = 0; keep && z < nrs.length; z++) if (nrs[z].kind === 'cand' && nrs[z].id === keep) sel = z;
+          settle();
+        }
       } else if (r.kind === 'chosen') {
         var at = chosen.indexOf(r.id as string);
-        if (chip === 2) { chosen = removeChosen(chosen, r.id as string); chip = 0; changed(); }
+        if (chip === 2) { chosen = removeChosen(chosen, r.id as string); chip = 0; changed(); settle(); }
         else {
           var moved = moveChosen(chosen, at, chip === 0 ? -1 : 1);
           if (moved[at] !== chosen[at]) { chosen = moved; sel += chip === 0 ? -1 : 1; changed(); }
