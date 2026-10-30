@@ -178,3 +178,42 @@ SDK : `install completed`, app présente, `launched` (ne prouve pas l'affichage)
 - La session de transcodage Cimaise (vidéo copiée, audio AAC) disparaît du serveur entre 115 s et 119 s, soit vers 15:21:55 ; les relevés suivants restent à « aucune session » (jusqu'à 242 s au moins). Une session en lecture directe (id 31356, autre appareil) apparaît ensuite : elle n'est pas Cimaise.
 - Lecture seule du serveur ensuite : Bohemian Rhapsody `viewOffset` = 1534,5 s (25:34), `lastViewedAt` 15:21:57. C'est cohérent avec le dernier `viewOffset` de la session (1529 s) : la progression a bien été remontée à la sortie.
 - Constat de Stéphane : « c'est tout bon je pense » (sans position notée ni lecture sur un autre appareil). **L'heure de sortie et la position affichée ne sont donc pas confirmées par lui ; la position vue sur un autre appareil Plex n'est pas observée.** La disparition de la session est établie par le serveur (script), pas par une observation de la TV.
+
+## Sous-titres sans incrustation : sonde du serveur (2026-10-30, `scripts/plex/probe-subs.mjs`, GET seulement)
+
+Pistes de sous-titres de tout le catalogue, par format et présence de `key` :
+
+| Format | Pistes | `key` |
+|---|---|---|
+| SRT externe | 3 035 | `/library/streams/N` (servi en SRT : 200, `?format=srt` et `.srt` identiques) |
+| SRT interne | 17 435 | **aucune** |
+| ASS/SSA | 346 | **aucune** (toutes internes) |
+| mov_text | 79 | **aucune** |
+| PGS / VobSub / autres | 408 / 122 / 36 | aucune |
+
+- Le point d'accès `/library/streams/{id}` ne sert **que** les pistes externes. Pour une piste interne (SRT, ASS, mov_text) : `501 Not Implemented`, avec ou sans `.srt` / `?format=srt`.
+- `/video/:/transcode/universal/subtitles` (extraction par le transcodeur) répond `400 Bad Request` en GET, avec ou sans `X-Plex-Client-Profile-Name: Generic`.
+  Il demande probablement une décision de transcodage préalable (`subtitles=sidecar`) : c'est une **écriture serveur** (session), hors de la vérification « en lecture seule ».
+- Conséquence : sans écriture serveur, **aucune version SRT d'un ASS ou d'un mov_text n'est obtenable**. Les chiffres « avant/après » du gain ne peuvent pas encore être mesurés.
+
+### Essai `subtitles=sidecar` autorisé par Stéphane (2026-10-30, `scripts/plex/probe-sidecar.mjs`, une décision, aucune session lancée)
+
+- **ASS : ça marche.** `GET /video/:/transcode/universal/decision` avec `subtitles=sidecar&subtitleStreamID=<piste ASS>` (mêmes paramètres que la décision de transcodage) → `1001`,
+  et la réponse contient une piste `srt` (`location: sidecar-subs`, `key: /library/streams/N`, `N` ≠ id de la piste ASS). `GET` de cette clé : `200`, corps **SRT**, encore lisible après l'arrêt (aucune session n'était ouverte : `stop` répond 404).
+- **mov_text : ça ne marche pas.** Même décision : la réponse ne contient aucune piste de sous-titres. mov_text (79 pistes) reste donc incrusté.
+- **Code.** `FRAME_2019_PROFILE.subtitles.converted = [ass, ssa]` ; `decidePlayback` rend alors la lecture directe avec `subtitleMode: 'converted'` (incrusté seulement si autre cause de transcodage) ;
+  `requestSubtitleSidecar` obtient l'URL du SRT, passée à `setExternalSubtitlePath` comme un SRT externe ; sans réponse du serveur, la vidéo se lit sans sous-titres (« Sous-titres indisponibles »).
+  **Non vu sur la Frame** (voir `docs/tv-status.md`).
+
+### Gain mesuré (`node scripts/plex/audit.mjs` avant/après, même serveur, même jour)
+
+| Sous-titres français activés | Avant | Après |
+|---|---|---|
+| Épisodes → transcodage | 380 (21,7 %) | **277 (15,8 %)** : −103 (les ASS) |
+| Films → transcodage | 46 (18,2 %) | 44 (17,4 %) : −2 |
+| Fiches directes sans sous-titres que les sous-titres font transcoder (épisodes / films) | 2 / 6 | 1 / 5 |
+| Lecture directe par défaut (épisodes / films) | 72,0 % / 85,4 % | 75,7 % / 85,9 % |
+
+Les chiffres « avant » diffèrent de ceux du premier audit (102 épisodes, 13 films) : le défaut de choix de piste a changé depuis (les sous-titres sont maintenant retenus d'après les préférences),
+donc l'indicateur « bascule » n'est plus le même ; la ligne « −103 épisodes » correspond exactement aux 103 épisodes dont le sous-titre français retenu est un ASS.
+Restent incrustés : PGS, VobSub, mov_text.

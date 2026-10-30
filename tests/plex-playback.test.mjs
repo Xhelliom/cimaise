@@ -33,16 +33,19 @@ const SERVER = { uri: 'https://192-0-2-10.' + '0'.repeat(32) + '.plex.direct:324
 
 // --- Profil ---------------------------------------------------------------------------------------------------
 
-test('profil : chaque entrée est marquée supposée (rien n’est confirmé sans test sur la TV)', () => {
+test('profil : seules les entrées vues sur la Frame sont confirmées (sous-titres SRT interne/externe et ASS converti, 2026-10-30)', () => {
   const P = pb.FRAME_2019_PROFILE;
   assert.match(P.model, /LS03R/);
   const all = [].concat(P.containers, P.video, P.hdr, P.audio, P.subtitles.embedded, P.subtitles.external);
   assert.ok(all.length >= 10);
   for (const e of all) {
     assert.equal(typeof e.name, 'string');
-    assert.equal(e.confirmed, false, e.name + ' ne doit pas être confirmé');
-    assert.match(pb.confirmationLabel(e), /supposé, à confirmer sur la TV/);
+    const seen = P.subtitles.embedded.concat(P.subtitles.external).indexOf(e) >= 0;
+    assert.equal(e.confirmed, seen, e.name + (seen ? ' vu sur la TV' : ' ne doit pas être confirmé'));
+    assert.match(pb.confirmationLabel(e), seen ? /confirmé sur la TV/ : /supposé, à confirmer sur la TV/);
   }
+  assert.equal(P.subtitles.converted.find((x) => x.name === 'ass').confirmed, true);
+  assert.equal(P.subtitles.converted.find((x) => x.name === 'ssa').confirmed, false, 'ssa non vu');
   assert.equal(pb.confirmationLabel({ name: 'x', confirmed: true }), 'confirmé sur la TV');
 });
 
@@ -57,6 +60,7 @@ test('profil : couvre MKV/MP4/TS, H.264/HEVC, HDR10, AAC/AC3/E-AC3/MP3, SRT ; pa
   assert.equal(names(P.video).indexOf('av1'), -1);
   assert.deepEqual(names(P.subtitles.embedded), ['srt']);
   assert.deepEqual(names(P.subtitles.external), ['srt']);
+  assert.deepEqual(names(P.subtitles.converted), ['ass', 'ssa']);
   const hevc = P.video.find((e) => e.name === 'hevc'), h264 = P.video.find((e) => e.name === 'h264');
   assert.equal(hevc.maxBitDepth, 10);
   assert.equal(h264.maxBitDepth, 8);
@@ -208,15 +212,61 @@ test('décision : PGS demandé → transcodage avec sous-titres incrustés', () 
   assert.match(plan.reason, /incrust/);
 });
 
-test('décision : ASS et VobSub demandés → transcodage avec incrustation', () => {
+test('décision : ASS demandé → lecture directe, SRT converti par le serveur (sidecar), pas d’incrustation', () => {
   const ass = item('mkv-h264-ac3-ass');
-  const a = pb.decidePlayback(ass, { subtitleId: ass.Media[0].Part[0].Stream.filter((s) => s.codec === 'ass')[0].id });
-  assert.equal(a.mode, 'transcode');
-  assert.equal(a.subtitleMode, 'burned');
+  const id = ass.Media[0].Part[0].Stream.filter((s) => s.codec === 'ass')[0].id;
+  const a = pb.decidePlayback(ass, { subtitleId: id });
+  assert.equal(a.mode, 'direct');
+  assert.deepEqual(codes(a), []);
+  assert.equal(a.subtitleMode, 'converted');
+  assert.match(a.reason, /ass/);
+  assert.match(a.reason, /SRT/);
+  assert.equal(pb.subtitleUrl(SERVER, a), null, 'l’URL vient de la décision sidecar, pas de la fiche');
+  // Autre cause de transcodage (ici l’audio) : les sous-titres sont incrustés avec le reste.
+  const dts = item('mkv-h264-dts'), st = dts.Media[0].Part[0].Stream;
+  st.push({ id: 9001, streamType: 3, codec: 'ass', languageCode: 'eng', index: 9 });
+  const b = pb.decidePlayback(dts, { subtitleId: 9001 });
+  assert.equal(b.mode, 'transcode');
+  assert.equal(b.subtitleMode, 'burned');
+});
+
+test('décision : VobSub et mov_text demandés → transcodage avec incrustation (pas convertibles)', () => {
   const vob = item('mkv-h264-ac3-vobsub');
   const b = pb.decidePlayback(vob, { subtitleId: vob.Media[0].Part[0].Stream.filter((s) => s.codec === 'vobsub')[0].id });
   assert.equal(b.mode, 'transcode');
   assert.deepEqual(codes(b), ['subtitle-format']);
+  const mp4 = item('mp4-h264-aac');
+  mp4.Media[0].Part[0].Stream.push({ id: 9002, streamType: 3, codec: 'mov_text', languageCode: 'fra', index: 9 });
+  const c = pb.decidePlayback(mp4, { subtitleId: 9002 });
+  assert.equal(c.mode, 'transcode');
+  assert.equal(c.subtitleMode, 'burned');
+});
+
+test('sidecar : la requête de décision d’un plan converti demande subtitles=sidecar sur la piste', () => {
+  const ass = item('mkv-h264-ac3-ass'), s = ass.Media[0].Part[0].Stream.filter((x) => x.codec === 'ass')[0];
+  const plan = pb.decidePlayback(ass, { subtitleId: s.id });
+  const q = new URLSearchParams(pb.transcodeQuery(ID, SERVER, plan, 'sess-s', 0));
+  assert.equal(q.get('subtitles'), 'sidecar');
+  assert.equal(q.get('subtitleStreamID'), String(s.id));
+});
+
+test('sidecar : requestSubtitleSidecar rend l’URL SRT de la piste convertie (clé de la décision + jeton)', async () => {
+  const ass = item('mkv-h264-ac3-ass'), s = ass.Media[0].Part[0].Stream.filter((x) => x.codec === 'ass')[0];
+  const plan = pb.decidePlayback(ass, { subtitleId: s.id });
+  const body = { MediaContainer: { generalDecisionCode: 1001, Metadata: [{ Media: [{ Part: [{ Stream: [
+    { id: 1, streamType: 1, codec: 'h264' }, { id: 77, streamType: 3, codec: 'srt', format: 'srt', key: '/library/streams/77', selected: true, location: 'sidecar-subs' }] }] }] }] } };
+  const http = fakeHttp({ status: 200, body: JSON.stringify(body) });
+  const [err, url] = await sync((cb) => pb.requestSubtitleSidecar(http, ID, SERVER, plan, 'sess-s', cb));
+  assert.equal(err, null);
+  assert.equal(url, SERVER.uri + '/library/streams/77?X-Plex-Token=FAKE-SERVER-TOKEN');
+  assert.ok(http.calls[0].url.startsWith(SERVER.uri + '/video/:/transcode/universal/decision?'));
+  assert.equal(new URL(http.calls[0].url).searchParams.get('subtitles'), 'sidecar');
+  // Réponse sans piste SRT à clé : erreur claire.
+  body.MediaContainer.Metadata[0].Media[0].Part[0].Stream.pop();
+  const [err2] = await sync((cb) => pb.requestSubtitleSidecar(fakeHttp({ status: 200, body: JSON.stringify(body) }), ID, SERVER, plan, 's2', cb));
+  assert.match(err2.message, /sous-titres/);
+  const [err3] = await sync((cb) => pb.requestSubtitleSidecar(http, ID, SERVER, pb.decidePlayback(item('mkv-h264-ac3-srt-externe'), LEGACY), 's3', cb));
+  assert.ok(err3, 'plan non converti : refusé');
 });
 
 test('décision : AVI MPEG-4 → transcodage (conteneur et codec vidéo), plusieurs raisons', () => {
@@ -325,7 +375,7 @@ test('décision : jeu complet des fixtures — verdict attendu pour chacune', ()
   const expected = {
     'mp4-h264-aac': 'direct', 'mkv-h264-ac3-srt-externe': 'direct', 'mkv-hevc-eac3-srt-interne-et-externe': 'direct', 'mkv-hevc-hdr10': 'direct',
     'mkv-h264-dts': 'transcode', 'mkv-h264-truehd-pgs': 'direct', 'mkv-h264-ac3-pgs': 'direct',
-    'mkv-h264-ac3-ass': 'transcode', // audio ita + sous-titre ASS forcé ita : activé par défaut, donc incrusté
+    'mkv-h264-ac3-ass': 'direct', // audio ita + sous-titre ASS forcé ita : activé par défaut, converti en SRT par le serveur (sidecar)
     'mkv-h264-ac3-srt-force': 'direct', 'mkv-h264-ac3-vobsub': 'direct', 'avi-mpeg4-mp3': 'transcode', 'mkv-av1-opus': 'transcode',
   };
   assert.ok(samples.length >= 5 && samples.length <= 12);
@@ -482,11 +532,11 @@ test('sous-titres : un SRT lisible l’emporte sur ASS/PGS de la même langue (p
   assert.equal(pgs.subtitle.codec, 'srt');
 });
 
-test('sous-titres : ASS seul dans la langue → transcodage, sous-titres incrustés (subtitles=burn)', () => {
+test('sous-titres : ASS seul dans la langue → lecture directe, SRT converti par le serveur (subtitles=sidecar)', () => {
   const plan = pb.decidePlayback(item('mkv-h264-ac3-ass'), { audioLang: 'eng', subLang: 'ita' });
-  assert.equal(plan.mode, 'transcode');
-  assert.equal(plan.subtitleMode, 'burned');
-  assert.ok(codes(plan).includes('subtitle-format'));
+  assert.equal(plan.mode, 'direct');
+  assert.equal(plan.subtitleMode, 'converted');
+  assert.deepEqual(codes(plan), []);
   assert.equal(plan.subtitle.codec, 'ass');
   assert.equal(plan.subtitle.forced, undefined, 'la piste complète est préférée à la piste forcée');
 });

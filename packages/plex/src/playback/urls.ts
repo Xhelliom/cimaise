@@ -1,4 +1,4 @@
-import { Callback, Http, Identity, PlexError, ServerRef } from '../api/types';
+import { Callback, Http, Identity, PlexError, ServerRef, Stream } from '../api/types';
 import { directPlayUrl } from '../api/media';
 import { query, serverGet } from '../api/request';
 import { PlaybackPlan } from './decide';
@@ -21,6 +21,21 @@ export function subtitleUrl(server: ServerRef, plan: PlaybackPlan): string | nul
   if (plan.subtitleMode !== 'external' || !plan.subtitle || !plan.subtitle.key) return null;
   assertPlexDirect(server);
   return directPlayUrl(server, plan.subtitle.key);
+}
+
+// Sous-titre interne (ASS) converti par le serveur : une décision `subtitles=sidecar` renvoie la piste en SRT avec une clé /library/streams/N,
+// servie ensuite sans session (vérifié sur le serveur : 200 en SRT, encore lisible après l'arrêt). Rend l'URL à passer à setExternalSubtitlePath.
+export function requestSubtitleSidecar(http: Http, id: Identity, server: ServerRef, plan: PlaybackPlan, session: string, cb: Callback<string>) {
+  if (plan.subtitleMode !== 'converted') { cb(new Error('plan sans sous-titres à convertir')); return null; }
+  try { assertPlexDirect(server); } catch (e) { cb(e as Error); return null; }
+  return serverGet(http, id, server, '/video/:/transcode/universal/decision?' + transcodeQuery(id, server, plan, session, 0), null, function (err, j) {
+    if (err) return cb(err);
+    var c = j && j.MediaContainer, md = c && c.Metadata && c.Metadata[0], med = md && md.Media && md.Media[0], part = med && med.Part && med.Part[0];
+    var st: Stream[] = (part && part.Stream) || [], hit: Stream | null = null;
+    for (var i = 0; i < st.length && !hit; i++) if (st[i].streamType === 3 && st[i].key && /^(srt|subrip)$/i.test(st[i].codec || '')) hit = st[i];
+    if (!hit) return cb(new Error('le serveur n’a pas converti les sous-titres en SRT'));
+    cb(null, directPlayUrl(server, hit.key!));
+  });
 }
 
 // Débit vidéo maximal demandé au transcodeur (kb/s) : large pour un LAN, la Frame 4K décode jusque-là.
@@ -49,7 +64,7 @@ var CLIENT_PROFILE_EXTRA = 'add-transcode-target(type=videoProfile&context=strea
 // Paramètres communs de la décision et du flux HLS. directStream=1 : le transcodeur ne retouche que les pistes qui l'exigent.
 // offset : secondes, la session démarre à cette position (reprise, saut lointain).
 export function transcodeQuery(id: Identity, server: ServerRef, plan: PlaybackPlan, session: string, offsetMs: number): string {
-  var burn = plan.subtitleMode === 'burned' && plan.subtitle;
+  var burn = plan.subtitleMode === 'burned' && plan.subtitle, side = plan.subtitleMode === 'converted' && plan.subtitle;
   var m = plan.media, copy = isAudioOnlyTranscode(plan) && (!m.bitrate || m.bitrate <= MAX_VIDEO_BITRATE);
   // Vérifié sur le serveur : un plafond maxVideoBitrate (même au-dessus du débit de la source) ou une videoResolution fait ré-encoder la vidéo.
   // Pour un transcodage audio seul, on les omet : la session reçoit alors videoDecision=copy.
@@ -58,7 +73,7 @@ export function transcodeQuery(id: Identity, server: ServerRef, plan: PlaybackPl
     ['path', '/library/metadata/' + plan.ratingKey], ['mediaIndex', plan.mediaIndex], ['partIndex', 0],
     ['protocol', 'hls'], ['fastSeek', 1], ['directPlay', 0], ['directStream', 1], ['location', 'lan'],
     ['audioStreamID', plan.audio ? plan.audio.id : 0],
-    ['subtitles', burn ? 'burn' : 'none'], ['subtitleStreamID', burn ? plan.subtitle!.id : 0],
+    ['subtitles', burn ? 'burn' : side ? 'sidecar' : 'none'], ['subtitleStreamID', burn || side ? plan.subtitle!.id : 0],
     ['offset', Math.max(0, Math.floor(offsetMs / 1000))], ['session', session],
     ['X-Plex-Client-Identifier', id.clientId], ['X-Plex-Product', id.product], ['X-Plex-Version', id.version],
     ['X-Plex-Platform', id.platform], ['X-Plex-Device', id.device], ['X-Plex-Client-Profile-Name', CLIENT_PROFILE], ['X-Plex-Client-Profile-Extra', CLIENT_PROFILE_EXTRA], ['X-Plex-Token', server.token]

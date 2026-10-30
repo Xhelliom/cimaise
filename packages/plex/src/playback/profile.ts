@@ -11,15 +11,17 @@ export interface ClientProfile {
   // Fonctions de transfert acceptées telles quelles (colorTrc de Plex) ; le reste du HDR passe par le transcodeur.
   hdr: Entry[];
   audio: Entry[];
-  subtitles: { embedded: Entry[]; external: Entry[] };
+  // converted : sous-titres internes que le serveur sait servir en SRT (décision `subtitles=sidecar`), lus ensuite comme un SRT externe.
+  subtitles: { embedded: Entry[]; external: Entry[]; converted: Entry[] };
   // Profils Dolby Vision sans base HDR10 que la TV ne sait pas afficher.
   unsupportedDolbyVisionProfiles: number[];
 }
 
 var A = 'supposé, à confirmer sur la TV';
 
-function e(name: string, note?: string): Entry {
-  return note ? { name: name, confirmed: false, note: note } : { name: name, confirmed: false };
+function e(name: string, note?: string, confirmed?: boolean): Entry {
+  var c = !!confirmed;
+  return note ? { name: name, confirmed: c, note: note } : { name: name, confirmed: c };
 }
 function v(name: string, maxWidth: number, maxHeight: number, maxBitDepth: number, note: string): VideoEntry {
   return { name: name, confirmed: false, note: note, maxWidth: maxWidth, maxHeight: maxHeight, maxBitDepth: maxBitDepth };
@@ -45,8 +47,10 @@ export var FRAME_2019_PROFILE: ClientProfile = {
     // Volontairement absents : dca (DTS, retiré des TV Samsung depuis 2018), truehd, flac, opus → transcodage de l’audio.
   ],
   subtitles: {
-    embedded: [e('srt', 'piste interne, sélectionnée par setSelectTrack')],
-    external: [e('srt', 'fichier externe, chargé par setExternalSubtitlePath')]
+    embedded: [e('srt', 'piste interne, sélectionnée par setSelectTrack ; vu sur la Frame le 2026-10-30', true)],
+    external: [e('srt', 'fichier externe, chargé par setExternalSubtitlePath ; vu sur la Frame le 2026-10-30', true)],
+    // Vérifié sur le serveur (2026-10-30) : l'ASS sort en SRT par une décision sidecar. mov_text n'y figure pas : la même décision ne renvoie aucune piste.
+    converted: [e('ass', 'SRT servi par le serveur (sidecar), lu comme un SRT externe ; vu sur la Frame le 2026-10-30', true), e('ssa', 'idem ass')]
   },
   unsupportedDolbyVisionProfiles: [5]
 };

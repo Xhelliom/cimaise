@@ -1208,3 +1208,24 @@ test('aperçu : index en erreur ou invalide → repli sur l’heure seule, sans 
     p.panel.destroy();
   }
 });
+
+test('sous-titres : ASS → lecture directe, décision sidecar puis URL du SRT converti passée à AVPlay (aucune incrustation)', async () => {
+  const sidecar = JSON.stringify({ MediaContainer: { generalDecisionCode: 1001, Metadata: [{ Media: [{ Part: [{ Stream: [
+    { id: 777, streamType: 3, codec: 'srt', format: 'srt', key: '/library/streams/777', selected: true }] }] }] }] } });
+  const s = setup({ meta: () => sample('mkv-h264-ac3-ass') });
+  prefsStore(s.arg.store, { plexSeries: { 900: { audioLang: 'eng', subLang: 'ita' } } });
+  const base = s.arg.http;
+  const http = (req, cb) => {
+    if (/transcode\/universal\/decision/.test(req.url)) { http.calls.push(req); setImmediate(() => cb(null, { status: 200, body: sidecar })); return { abort() {} }; }
+    return base(req, cb);
+  };
+  http.calls = base.calls; http.timelines = base.timelines; http.scrobbles = base.scrobbles;
+  s.arg.http = http;
+  ui.createPlayerPanel(s.arg, EPISODE);
+  await flush();
+  const dec = http.calls.filter((c) => /transcode\/universal\/decision/.test(c.url));
+  assert.equal(dec.length, 1);
+  assert.equal(param(dec[0], 'subtitles'), 'sidecar');
+  assert.ok(s.player.url.startsWith(SERVER.uri + '/library/parts/'), 'vidéo en lecture directe : ' + s.player.url);
+  assert.ok(s.player.openOpts.subtitleUrl.startsWith(SERVER.uri + '/library/streams/777?'), String(s.player.openOpts.subtitleUrl));
+});

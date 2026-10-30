@@ -1,5 +1,5 @@
 import { Abortable, Item } from '../api/types';
-import { bifFrameAt, findNextEpisode, inSpan, Markers, parseMarkers, Bif, decidePlayback, hasPreviewIndex, loadBif, directPlaybackUrl, newTranscodeSession, normalizeLang, PlaybackPlan, requestTranscode, stopTranscode, subtitleUrl, trackEntries, TrackEntry } from '../playback';
+import { bifFrameAt, findNextEpisode, inSpan, Markers, parseMarkers, Bif, decidePlayback, hasPreviewIndex, loadBif, directPlaybackUrl, newTranscodeSession, normalizeLang, PlaybackPlan, requestSubtitleSidecar, requestTranscode, stopTranscode, subtitleUrl, trackEntries, TrackEntry } from '../playback';
 import { getMetadata } from '../api/library';
 import { xhrBinary, xhrHttp } from '../api/xhr';
 import { createProgress, Progress } from '../progress';
@@ -414,9 +414,9 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number, ch
   // Ouvre le flux du plan courant (direct ou transcodé) dans le lecteur déjà créé ; sert aussi à relancer après un changement de piste.
   function launch(startMs: number): void {
     var p = player!;
-    function opened(url: string): void {
+    function opened(url: string, sidecarUrl?: string): void {
       var oo: OpenOptions = {};
-      extFailed = false;
+      extFailed = !sidecarUrl && plan!.subtitleMode === 'converted';
       // Direct : seekTo avant play. Transcodé : la liste de lecture couvre TOUT le film (vérifié sur le serveur : segments de 10 s numérotés depuis 0,
       // stubs vides de 188 octets avant l'offset, #EXT-X-START:TIME-OFFSET) ; AVPlay compte donc déjà sur la ligne de temps du film (pas de décalage ajouté)
       // et la position de départ se rejoint par seekTo, sinon la lecture commence sur des segments vides (image figée).
@@ -425,6 +425,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number, ch
       try {
         var su = subtitleUrl(c.session, plan!);
         if (su) oo.subtitleUrl = su;
+        else if (sidecarUrl) oo.subtitleUrl = sidecarUrl;
       } catch (e) { fail(e as Error); return; }
       p.open(url, oo, function (err) {
         if (closed || mode === 'error') return;
@@ -441,6 +442,16 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number, ch
     if (plan!.mode === 'direct') {
       var url: string;
       try { url = directPlaybackUrl(c.session, plan!); } catch (e) { fail(e as Error); return; }
+      if (plan!.subtitleMode === 'converted') {
+        // Sous-titre interne non lisible tel quel (ASS) : le serveur le sert en SRT. Sans réponse, la vidéo se lit quand même, sans sous-titres.
+        metaReq = requestSubtitleSidecar(http, identityOf(arg), c.session, plan!, newTranscodeSession(identityOf(arg)), function (err, su) {
+          metaReq = null;
+          if (closed || mode === 'error') return;
+          if (err || !su) { opened(url); return; }
+          opened(url, su);
+        });
+        return;
+      }
       opened(url);
     } else {
       // Une session encore ouverte (relance à un autre offset, changement de piste) est arrêtée d'abord : sinon son arrêt tardif tuerait la nouvelle.
@@ -477,13 +488,13 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number, ch
     if (!doSub) return;
     clearSub();
     var t: Track | null = null;
-    if (plan!.subtitleMode === 'external' && extFailed) {
+    if ((plan!.subtitleMode === 'external' || plan!.subtitleMode === 'converted') && extFailed) {
       setSubs(false);
       state.textContent = 'Sous-titres indisponibles';
       return;
     }
     if (plan!.subtitleMode === 'embedded') t = avplayTrack('text', 3, plan!.subtitle);
-    else if (plan!.subtitleMode === 'external') {
+    else if (plan!.subtitleMode === 'external' || plan!.subtitleMode === 'converted') {
       for (var i = tracks.length - 1; i >= 0 && !t; i--) if (tracks[i].kind === 'text') t = tracks[i];
     }
     if (t) p.selectTrack('text', t.index);
@@ -645,7 +656,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number, ch
       } catch (err) { /* stockage refusé : le choix vaut pour cet épisode */ }
     }
     plan = next;
-    if (cur.mode === 'direct' && next.mode === 'direct' && next.mediaIndex === cur.mediaIndex && cur.subtitleMode !== 'external' && next.subtitleMode !== 'external') {
+    if (cur.mode === 'direct' && next.mode === 'direct' && next.mediaIndex === cur.mediaIndex && cur.subtitleMode !== 'external' && next.subtitleMode !== 'external' && cur.subtitleMode !== 'converted' && next.subtitleMode !== 'converted') {
       applyTracks(p, e.kind === 'audio', e.kind === 'subtitle');
       modeLine.textContent = next.reason;
       return;
