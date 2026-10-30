@@ -577,3 +577,30 @@ n'a testé que l'origine Overseerr), fluidité du défilement, latence du focus.
 (passage de `nav` au chunk). `app.css` inchangé. Rien au démarrage : le chunk n'est chargé qu'à l'ouverture de la tuile.
 
 **Non vérifié sur la Frame** : latence de frappe et de la grille.
+
+## Overseerr : fiche d'un titre et bouton « Demander » (2026-10-30)
+
+**Décision.** Entrée sur une affiche (rangées « du moment » ou résultats de recherche) empile la fiche
+(`packages/overseerr/src/ui/detail.ts`, dans le chunk `overseerr.js`), d'après la maquette validée.
+
+- **Contenu** : affiche, « Film · 1994 » / « Série · 2021 », titre, badge, résumé, tous tirés du `Title` déjà chargé :
+  **aucune requête à l'ouverture**. Pas de durée ni de genres (il faudrait `GET /movie/{id}` ou `/tv/{id}` par fiche).
+  Affiche TMDB `w300` (≈ 22 Ko, 300×450 décodé) en 400×600, libérée en quittant la fiche. Teinte fixe indigo (un dégradé
+  statique) : Overseerr ne donne pas la couleur de l'affiche.
+- **Demander** : bouton seul focalisable, montré seulement si le titre n'a jamais été demandé (`none`). `POST /request`
+  `{mediaType, mediaId}`, plus `seasons: "all"` pour une série (dit à l'écran : « Toutes les saisons »). Une demande à la fois
+  (« Envoi… »). Badge après réponse : le statut de la demande tranche (2 approuvée → « Demandé », 1 → « En attente »), sauf média
+  déjà (partiellement) disponible ; une demande refusée (3) le dit.
+- **Badge sans recharger** : la disponibilité apprise est retenue par type + id TMDB (`rememberAvailability`), lue au rendu de
+  chaque tuile (`currentAvailability`) ; les rangées et la recherche relient leurs tuiles en reprenant la main (`refresh`). Un même
+  titre présent dans la recherche et dans une rangée change donc partout, sans requête.
+- **Erreurs lisibles** : 401 « Clé API refusée : la vérifier dans Réglages > Apps intégrées » ; 403 « Demande refusée par
+  Overseerr (droit ou quota) » ; 409, ou 202 sans demande créée (série dont toutes les saisons sont déjà demandées, d'après le
+  code d'Overseerr, **non observé**) → « Déjà demandé » et badge « Demandé » ; réseau → « Overseerr injoignable : réessayer » ;
+  autre → « Échec de la demande : HTTP n ». Le bouton reste pour réessayer, sauf « Déjà demandé ». La clé n'est dans aucun message.
+- Une demande partie n'est pas abandonnée si l'on quitte la fiche : sa réponse met encore le badge à jour.
+- **Aperçu** : le relais refuse le POST (« Échec de la demande : HTTP 405 ») ; l'état « Demandé » des captures vient d'une
+  réponse simulée dans la page. **La première vraie demande part de la Frame.**
+
+**Poids.** `overseerr.js` 22,1 → **26,4 Ko minifié** (8,3 → **9,3 Ko gzip**), CSS de la fiche compris. `app.js` et `app.css`
+inchangés. Rien au démarrage.
