@@ -399,3 +399,18 @@ D'après la doc Tizen Application API ; **non testé sur la TV** (à confirmer a
 - **Mesures du diagnostic (section Plex)** : `frappe → caractère` (coût synchrone de la frappe), `frappe → 1ers résultats`, `frappe → complément serveur`. Objectifs : < 50 ms et < 800 ms. **Mesure TV à faire par Stéphane.**
 - **Coût** : plex.js +~13 Ko (chunk différé), app.js inchangé, app.css +~1,5 Ko (clavier + recherche), aucune dépendance. `Keyboard.canMove(key)` ajouté à tv-core (faux au bord) pour passer la main aux résultats.
 - **Non fait** : touches de couleur / chiffres du clavier (`handleKeyCode`) pas branchés au routeur (hors carte).
+
+## Logo : piste verre-2, icône de l'app (2026-10-30)
+
+**Décision.** Stéphane retient **verre-2** (`packages/launcher/brand/logo.svg` 2,4 Ko, `tile.svg` 9 Ko : sans
+filtre, texte en tracés). Les sources et explorations restent dans `packages/launcher/brand/` et ne sont jamais
+dans le `.wgt` (testé : `tests/wgt.test.mjs`). Seule l'icône finale y entre.
+
+**Icône.** `apps/tv/icon.png` = `logo.svg` rendu en **117×117** (resvg) puis optimisé (oxipng `-o max --strip all`) :
+5 648 octets (l'ancien aplat : 230 octets). 117×117 est la taille documentée par Samsung pour l'icône
+`config.xml` d'une app TV (l'icône de store de 512 est téléversée à part au Seller Office, hors périmètre).
+Non confirmé sur la TV : si le Smart Hub l'affiche floue, régénérer en 512×512 (même commande, `-w 512 -h 512`).
+
+**Coût.** `.wgt` non signé : 141 648 → 147 150 octets (**+5 502 octets**, +5,4 Ko ; 143,7 Ko / budget 1,5 Mo).
+Aucun effet sur le JS initial ni sur le démarrage (image lue par le Smart Hub, jamais par l'app).
+Afficher le logo dans l'accueil : hors périmètre, à proposer séparément avec son coût.

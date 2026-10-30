@@ -24,6 +24,11 @@ test('fond plein, 2 couleurs + fond au plus, pas de texte ni d’effet', () => {
   }
 });
 
-test('l’icône actuelle de l’app n’est pas touchée', () => {
-  assert.equal(execFileSync('git', ['diff', '--name-only', 'HEAD', '--', 'apps/tv/icon.png', 'apps/tv/config.xml']).toString().trim(), '');
+test("l’icône de l’app est le logo verre-2 : PNG 117×117 optimisé, config.xml inchangé", () => {
+  const p = readFileSync("apps/tv/icon.png");
+  assert.deepEqual([...p.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+  assert.deepEqual([p.readUInt32BE(16), p.readUInt32BE(20)], [117, 117]);
+  assert.ok(p.length > 1000, "plus qu’un aplat uni");
+  assert.ok(p.length < 30 * 1024, `icône ${p.length} o`);
+  assert.match(readFileSync("apps/tv/config.xml", "utf8"), /<icon src="icon\.png"\/>/);
 });
