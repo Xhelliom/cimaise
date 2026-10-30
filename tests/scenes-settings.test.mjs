@@ -44,7 +44,7 @@ const SCENES = [SC('film', 'Film', 'Salon'), SC('lecture', 'Lecture', 'Salon'), 
 function open(ha = {}) {
   const doc = fakeDoc(), log = { cfg: [], chosen: [], loads: 0 };
   const panel = S.createSettings({
-    doc, catalog: [], listInstalledApps: (ok) => ok([]), onChange: () => {}, onClose: () => { log.closed = true; },
+    doc, catalog: [], modules: [{ id: 'plex', name: 'Plex intégré', enabled: true, hasSettings: true }, { id: 'scenes', name: 'Scènes Home Assistant', enabled: true, hasSettings: true }], onModule() {}, onModuleSettings() {}, listInstalledApps: (ok) => ok([]), onChange: () => {}, onClose: () => { log.closed = true; },
     ha: {
       url: '', token: '', chosen: [],
       onConfig: (u, t) => log.cfg.push([u, t]),
@@ -54,20 +54,22 @@ function open(ha = {}) {
     },
   });
   const press = (...ks) => ks.forEach((k) => assert.equal(panel.onKey(k), true, k));
-  // Atteint la ligne « Scènes Home Assistant » (tout en haut) et l'ouvre.
-  const enter = () => { press('up', 'up', 'up', 'enter'); };
+  // Apps intégrées (tout en haut), puis les réglages du module Scènes.
+  const enter = () => { press('up', 'up', 'up', 'enter', 'down', 'right', 'enter'); };
   const field = () => all(panel.el, (e) => e.tag === 'input')[0];
   return { panel, log, press, enter, field };
 }
 
-test('Réglages : la ligne « Scènes Home Assistant » ouvre la section ; Retour ramène à la liste puis ferme', () => {
+test('Réglages : Apps intégrées > Scènes ouvre la section ; Retour ramène aux modules, à la liste puis ferme', () => {
   const { panel, press, enter, log } = open();
-  assert.ok(texts(panel.el).includes('Scènes Home Assistant'));
   enter();
   assert.ok(texts(panel.el).includes('Adresse'));
   assert.ok(texts(panel.el).includes('Jeton'));
   press('back');
-  assert.ok(texts(panel.el).includes('Scènes Home Assistant'));
+  assert.ok(texts(panel.el).includes('Scènes Home Assistant'), 'liste des modules');
+  assert.ok(!log.closed);
+  press('back');
+  assert.ok(texts(panel.el).includes('Découvrir les apps installées'));
   assert.ok(!log.closed);
   press('back');
   assert.ok(log.closed);

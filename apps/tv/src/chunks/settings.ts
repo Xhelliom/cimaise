@@ -1,5 +1,5 @@
 import { Panel } from '../../../../packages/tv-core/src/router/router';
-import { createSettings } from '../../../../packages/launcher/src/settings';
+import { createSettings, ModuleRow } from '../../../../packages/launcher/src/settings';
 import { AppEntry, DiscoveredApp } from '../../../../packages/launcher/src/settings/model';
 import { HomeMode } from '../../../../packages/launcher/src/home/model';
 import { CatalogEntry } from '../../../../packages/launcher/src/catalog/model';
@@ -17,10 +17,13 @@ export interface SettingsArg {
   onTiles?: (n: number) => void;
   onChange: (catalog: CatalogEntry[]) => void;
   ha?: HaSettings;
+  modules?: ModuleRow[];
+  onModule?: (id: string, enabled: boolean) => CatalogEntry[] | void;   // renvoie le catalogue visible à jour
+  onModuleSettings?: (id: string) => void;
   onClose: () => void;
 }
 
-// Modules internes que la découverte de la TV ne peut pas lister (ex. Plex intégré) : proposés dans « Apps intégrées ».
+// Entrées internes du catalogue (ex. Plex intégré) : le type interne survit à l'aller-retour des Réglages.
 function internals(): CatalogEntry[] { return defaultCatalog().filter(function (c) { return c.type === 'interne'; }); }
 
 function toApp(c: CatalogEntry): AppEntry { return { id: c.id, name: c.name, icon: c.icon, tint: c.color }; }
@@ -46,7 +49,6 @@ function createPanel(arg: SettingsArg): Panel {
   var current = arg.catalog;
   return createSettings({
     catalog: current.map(toApp),
-    internalApps: internals().map(toApp),
     // Hors TV l'adaptateur lève (DeviceError) au lieu d'appeler fail : on ramène ça au rappel d'erreur de l'écran.
     listInstalledApps: function (ok, fail) {
       try { arg.listInstalledApps(ok, fail); } catch (e) { fail(e as Error); }
@@ -57,6 +59,14 @@ function createPanel(arg: SettingsArg): Panel {
       arg.onChange(next);
     },
     ha: arg.ha,
+    modules: arg.modules,
+    onModule: arg.onModule && function (id, on) {
+      var next = arg.onModule!(id, on);
+      if (!next) return;
+      current = next;
+      return next.map(toApp);
+    },
+    onModuleSettings: arg.onModuleSettings,
     mode: arg.mode,
     onMode: arg.onMode,
     tiles: arg.tiles,

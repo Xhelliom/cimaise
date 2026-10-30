@@ -574,7 +574,7 @@ test('mesures : Entrée sur Lire → première image (1er onTime après l’ouve
 
 // --- Sous-titres et pistes (HANDOFF §5.3–5.4) ------------------------------------------------------------------
 
-const prefsStore = (store, prefs) => store.setItem('cimaise.v1', JSON.stringify({ version: 3, prefs }));
+const prefsStore = (store, prefs) => store.setItem('cimaise.v1', JSON.stringify({ version: 4, prefs }));
 const storedPrefs = (store) => JSON.parse(store.getItem('cimaise.v1')).prefs;
 const DECISION = JSON.stringify({ MediaContainer: { generalDecisionCode: 1000 } });
 // Serveur factice qui accepte aussi la décision de transcodage (journalisée dans http.calls).

@@ -1,4 +1,5 @@
-
-## Reprise : styles des titres de pièce et scènes choisies
-- Fait : règles CSS `.reglages .ligne.titre` (discret, 64 px, non sélectionnable via pointer-events:none, puce de compteur atténuée) et `.reglages .ligne.choisie` (aplat + liseré gauche, en plus du ✓) dans packages/launcher/src/settings/screen.ts ; test de la feuille de style dans tests/scenes-settings.test.mjs. `npm run check` vert (613 tests).
+## Apps intégrées : registre des modules, interrupteurs Activé / Masqué
+- Fait : registre `packages/launcher/src/modules` (Plex intégré, Scènes Home Assistant : id, nom, tuile, chunk, section de réglages, condition « configuré ») ; Réglages → ligne « Apps intégrées » (distincte du catalogue) avec interrupteur Activé/Masqué et puce « Réglages » par module ; module masqué = ni tuile ni rangée, plex.js jamais chargé, aucune requête Home Assistant ; défauts (Plex activé, Scènes si HA configuré, futurs modules masqués tant que non configurés) ; schéma cimaise.v1 passé en v4 (`prefs.modules`) avec migration (tuile Plex déjà retirée → masqué). Retirer la tuile Plex dans la liste = le masquer. `npm run check` vert (628 tests).
+- Tests : tests/modules.test.mjs (registre, défauts, masquer/réactiver chaque module, migration), settings.test.mjs, scenes-settings.test.mjs, app.test.mjs (chunk non chargé, aucune requête HA).
+- À trancher (Stéphane) : les réglages de Plex (langues) vivent dans plex.js ; la puce « Réglages » d'un Plex masqué charge donc ce chunk, sur demande explicite seulement (jamais depuis l'accueil). Une écriture de stockage refusée n'est pas rattrapée en session (l'état vient du stockage).
 - Non fait : aucun rendu sur la TV réelle (non vérifié physiquement).
