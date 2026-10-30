@@ -95,6 +95,7 @@ function pagedAll(req) {
 }
 const serverRoutes = () => [
   [/\/library\/sections\/\d+\/all/, pagedAll],
+  [/\/library\/sections\/\d+\/firstCharacter/, fx('first-character')],
   [/\/library\/sections$/, fx('sections')],
   [/\/library\/onDeck/, fx('ondeck')],
   [/\/library\/recentlyAdded/, fx('recently-added')],
@@ -318,6 +319,73 @@ test('bibliothèque : ouverture instantanée depuis le cache, avec le total', as
   assert.ok(srcs(p.el).length > 0);
 });
 
+
+// ---- barre alphabétique (index réel de /firstCharacter, anonymisé : 412 titres, pas de X) ----------------------------
+const FC = JSON.parse(fx('first-character')).MediaContainer.Directory;
+const startOf = (label) => { let n = 0; for (const d of FC) { if (d.title === label) return n; n += d.size; } };
+const letters = (p) => byClass(p.el, 'plex-alpha-l');
+const letter = (p, l) => letters(p).find((x) => x.textContent === l);
+const focusTitle = (p) => byClass(byClass(p.el, 'vtile').find((t) => t.classList.contains('focus')), 'vlabel')[0].textContent;
+
+test('barre alphabétique : # et A–Z, les lettres sans titre sont grisées', async () => {
+  const d = deps();
+  const p = ui.createLibraryPanel(d.arg, { key: '1', title: 'Films' });
+  await tick(); await tick();
+  assert.deepEqual(letters(p).map((x) => x.textContent), ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ']);
+  assert.ok(letter(p, 'X').classList.contains('empty'));
+  assert.ok(!letter(p, 'S').classList.contains('empty') && !letter(p, '#').classList.contains('empty'));
+  assert.equal(d.arg.http.calls.filter((c) => /firstCharacter/.test(c.url)).length, 1);
+  assert.ok(d.arg.http.calls.filter((c) => /\/all/.test(c.url)).every((c) => /sort=titleSort/.test(c.url)), 'tri par titre explicite');
+});
+
+test('barre alphabétique : Gauche depuis la première colonne, les lettres vides sont sautées, Entrée saute à la page de la lettre', async () => {
+  const d = deps();
+  const p = ui.createLibraryPanel(d.arg, { key: '1', title: 'Films' });
+  await tick(); await tick();
+  assert.equal(p.onKey('right'), true); assert.equal(p.onKey('left'), true); // colonne 0 → toujours dans la grille
+  assert.equal(byClass(p.el, 'plex-alpha-l').filter((x) => x.classList.contains('focus')).length, 0);
+  assert.equal(p.onKey('left'), true, 'bord gauche de la grille : la barre prend le focus');
+  assert.ok(letter(p, '#').classList.contains('focus'), 'lettre courante (#) focalisée');
+  assert.equal(byClass(p.el, 'vtile').filter((t) => t.classList.contains('focus')).length, 0, 'plus de focus dans la grille');
+  for (let k = 0; k < 23; k++) assert.equal(p.onKey('down'), true); // # → A … W
+  assert.ok(letter(p, 'W').classList.contains('focus'));
+  p.onKey('down');
+  assert.ok(letter(p, 'Y').classList.contains('focus'), 'X (vide) sauté');
+  p.onKey('up');
+  assert.ok(letter(p, 'W').classList.contains('focus'), 'et dans l’autre sens');
+  for (let k = 0; k < 4; k++) p.onKey('up'); // V U T S
+  assert.ok(letter(p, 'S').classList.contains('focus'));
+  const s = startOf('S');
+  const before = d.arg.http.calls.length;
+  assert.equal(p.onKey('enter'), true);
+  await tick(); await tick();
+  const starts = d.arg.http.calls.slice(before).filter((c) => /\/all/.test(c.url)).map((c) => Number(c.headers['X-Plex-Container-Start']));
+  assert.ok(starts.includes(Math.floor(s / 36) * 36), 'page à l’offset de la lettre : ' + starts + ' pour ' + s);
+  assert.equal(focusTitle(p), 'Film ' + s, 'focus sur le premier titre de la lettre');
+  assert.equal(byClass(p.el, 'plex-alpha-l').filter((x) => x.classList.contains('focus')).length, 0, 'retour dans la grille');
+  assert.ok(letter(p, 'S').classList.contains('cur'));
+  assert.equal(p.onKey('down'), true); assert.equal(focusTitle(p), 'Film ' + (s + 6));
+});
+
+test('barre alphabétique : la lettre courante suit le défilement normal ; Droite depuis la barre revient à la grille', async () => {
+  const d = deps();
+  const p = ui.createLibraryPanel(d.arg, { key: '1', title: 'Films' });
+  await tick(); await tick();
+  assert.ok(letter(p, 'A').classList.contains('cur') === false && letter(p, '#').classList.contains('cur'));
+  p.onKey('down');           // index 6 : « A » commence à 5
+  assert.ok(letter(p, 'A').classList.contains('cur') && !letter(p, '#').classList.contains('cur'));
+  assert.equal(byClass(p.el, 'cur').length, 1);
+  for (let k = 0; k < 9; k++) p.onKey('down'); // index 60 : « B » (31 à 62)
+  assert.ok(letter(p, 'B').classList.contains('cur'));
+  await tick(); await tick();
+  p.onKey('left'); // index 60 est en colonne 0
+  assert.ok(letter(p, 'B').classList.contains('focus'));
+  assert.equal(p.onKey('right'), true);
+  assert.equal(focusTitle(p), 'Film 60');
+  assert.equal(p.onKey('left'), true); p.onKey('back');
+  assert.equal(p.onKey('back'), false, 'Retour reste au routeur');
+});
+
 // ---- fiche ---------------------------------------------------------------------------------------------------
 test('fiche film : titre, durée, progression, Reprendre ; Lire ouvre l’écran lecteur', async () => {
   const d = deps();
@@ -403,6 +471,36 @@ test('retour de lecture : la fiche film affiche la nouvelle position (Reprendre,
   assert.equal(byClass(p.el, 'plex-play')[0].textContent, 'Reprendre · 51:22');
   assert.equal(byClass(p.el, 'plex-restart').length, 1);
   assert.equal(bar.style.transform, 'scaleX(0.5)');
+});
+
+test('retour de lecture : la position locale s’affiche tout de suite, et le serveur en retard ne l’écrase pas', async () => {
+  const d = deps();
+  const movie = { ratingKey: '100', type: 'movie', title: 'Titre de film 1', thumb: '/library/metadata/100/thumb/1700000000' };
+  const p = ui.createDetailPanel(d.arg, movie);
+  await flush();
+  p.suspend();
+  sharedData(d).progressed(movie, 600000, false);   // sortie à 10 min ; le serveur répond encore sans position
+  p.resume();
+  assert.equal(byClass(p.el, 'plex-play')[0].textContent, 'Reprendre · 10:00', 'sans attendre le serveur');
+  await flush();
+  assert.equal(byClass(p.el, 'plex-play')[0].textContent, 'Reprendre · 10:00', 'après la réponse du serveur en retard');
+  assert.ok(reqs(d.arg.http, /\/library\/metadata\/100(\?|$)/) >= 2, 'le serveur est tout de même interrogé');
+});
+
+test('retour de lecture : l’épisode quitté propose « Reprendre » sans attendre, même si le serveur est en retard', async () => {
+  const { d } = viewDeps({
+    ondeck: { ratingKey: '2', type: 'episode', index: 2, parentIndex: 1, parentRatingKey: '750', title: 'Ép 2', duration: 1200000 },
+    seasonsOf: [season('750', 1, 2, 1)],
+    eps: { 750: [episode('1', 1, '750', { viewCount: 1 }), episode('2', 2, '750', { duration: 1200000 })] },
+  });
+  const p = ui.createDetailPanel(d.arg, SHOW_DECK);
+  await flush();
+  p.suspend();
+  sharedData(d).progressed({ ratingKey: '2', type: 'episode', parentRatingKey: '750', grandparentRatingKey: '700' }, 600000, false);
+  p.resume();
+  assert.equal(playBtn(p), 'Reprendre S1 E2 · 10:00', 'tout de suite');
+  await flush();
+  assert.equal(playBtn(p), 'Reprendre S1 E2 · 10:00', 'après le serveur en retard');
 });
 
 test('retour de lecture : la fiche série recharge les épisodes de la saison courante', async () => {

@@ -5,13 +5,15 @@ export interface CacheOptions { store?: Storage; ns: string; now?: () => number;
 export interface Cached<T> { value: T; fresh: boolean; }
 export interface Cache {
   get<T>(key: string, ttlMs?: number): Cached<T> | null;
-  set(key: string, value: any): void;
+  // `stale` : valeur affichée tout de suite mais à redemander au serveur (jamais « fraîche »).
+  set(key: string, value: any, stale?: boolean): void;
   remove(key: string): void;
 }
 
 var IDX = 'cimaise.plex.idx';
 var ENT = 'cimaise.plex.e.';
 var DAY = 24 * 3600 * 1000;
+var STALE_GRACE = 60000;   // une entrée marquée périmée reste lisible une minute (le temps de la relire)
 
 interface Index { ns: string; keys: Array<[string, number]>; }
 
@@ -61,12 +63,12 @@ export function createCache(o: CacheOptions): Cache {
       idx.keys = idx.keys.filter(function (k) { return k[0] !== fk; });
       writeIndex(idx);
     },
-    set: function (key: string, value: any): void {
+    set: function (key: string, value: any, stale?: boolean): void {
       var idx = readIndex(), t = now(), fk = full(key);
       idx.keys = idx.keys.filter(function (k) { return k[0] !== fk; });
       idx.keys.push([fk, t]);
       if (idx.keys.length > max) evict(idx, idx.keys.length - max);
-      var body = JSON.stringify({ t: t, v: value });
+      var body = JSON.stringify({ t: stale ? t - staleMs + STALE_GRACE : t, v: value });
       try {
         store().setItem(ENT + fk, body);
       } catch (e1) {

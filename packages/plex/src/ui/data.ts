@@ -1,5 +1,5 @@
-import { Callback, Http, Identity, Item, Page, Section, ServerRef } from '../api/types';
-import { getChildren, getMetadata, getOnDeck, getRecentlyAdded, getSectionItems, getSections } from '../api/library';
+import { Callback, Http, Identity, Item, Letter, Page, Section, ServerRef } from '../api/types';
+import { getChildren, getFirstCharacter, getMetadata, getOnDeck, getRecentlyAdded, getSectionItems, getSections } from '../api/library';
 import { Cache } from './cache';
 
 export type Cancel = () => void;
@@ -8,6 +8,9 @@ type Err = (err: Error) => void;
 
 // Durées de vie (ms) : l'accueil change vite, les bibliothèques et les fiches moins.
 var TTL_HOME = 5 * 60000, TTL_SECTIONS = 3600000, TTL_PAGE = 10 * 60000, TTL_META = 30 * 60000;
+
+// Position quittée au lecteur : le serveur la reçoit avec un léger retard, une réponse plus ancienne ne doit pas la remplacer.
+var LOCAL_MS = 60000;   // gardée dans le cache (clé 'o:'), donc partagée entre les écrans, qui ont chacun leur Data
 
 function noop(): void { /* rien à annuler */ }
 
@@ -29,6 +32,7 @@ export interface Data {
   onDeck(on: On<Item[]>, err?: Err): Cancel;
   recent(on: On<Item[]>, err?: Err): Cancel;
   page(sectionKey: string, start: number, size: number, on: On<Page>, err?: Err): Cancel;
+  letters(sectionKey: string, on: On<Letter[]>, err?: Err): Cancel;
   metadata(ratingKey: string, on: On<Item>, err?: Err, withOnDeck?: boolean): Cancel;
   children(ratingKey: string, on: On<Item[]>, err?: Err): Cancel;
   // Retour de lecture : la fiche est corrigée sur place, « En cours » et les parents (saison, série) sont rechargés.
@@ -53,13 +57,28 @@ export function createData(http: Http, id: Identity, s: ServerRef, cache: Cache)
   }
   function same<T>(v: T): T { return v; }
 
+  function apply(it: Item): Item {
+    var h = cache.get<{ offset: number; watched: boolean }>('o:' + it.ratingKey, LOCAL_MS);
+    if (!h || !h.fresh) return it;
+    var l = h.value;
+    var o: any = {};
+    for (var k in it) if (it.hasOwnProperty(k) && k !== 'viewOffset') o[k] = (it as any)[k];
+    if (l.watched) { if (!o.viewCount) o.viewCount = 1; } else if (l.offset > 0) o.viewOffset = l.offset;
+    return o;
+  }
+  function applyAll(l: Item[]): Item[] { return l.map(apply); }
+  function patch<T>(key: string, fn: (v: T) => T): void {
+    var hit = cache.get<T>(key, 0);
+    if (hit) cache.set(key, fn(hit.value), true);
+  }
+
   return {
     sections: function (on, err) {
       return load<Section[]>('sections', TTL_SECTIONS, function (cb) { return getSections(http, id, s, cb); },
         function (l) { return l.filter(function (x) { return x.type === 'movie' || x.type === 'show'; }); }, on, err);
     },
     onDeck: function (on, err) {
-      return load<Item[]>('ondeck', TTL_HOME, function (cb) { return getOnDeck(http, id, s, cb); }, function (l) { return slimAll(shown(l)); }, on, err);
+      return load<Item[]>('ondeck', TTL_HOME, function (cb) { return getOnDeck(http, id, s, cb); }, function (l) { return applyAll(slimAll(shown(l))); }, on, err);
     },
     recent: function (on, err) {
       return load<Item[]>('recent', TTL_HOME, function (cb) { return getRecentlyAdded(http, id, s, cb); }, function (l) { return slimAll(shown(l)); }, on, err);
@@ -68,23 +87,28 @@ export function createData(http: Http, id: Identity, s: ServerRef, cache: Cache)
       return load<Page>('p:' + key + ':' + start + ':' + size, TTL_PAGE, function (cb) { return getSectionItems(http, id, s, key, start, size, cb); },
         function (p) { return { items: slimAll(p.items), total: p.total, offset: p.offset }; }, on, err);
     },
+    letters: function (key, on, err) {
+      return load<Letter[]>('l:' + key, TTL_PAGE, function (cb) { return getFirstCharacter(http, id, s, key, cb); }, same, on, err);
+    },
     metadata: function (rk, on, err, withOnDeck) {
-      return load<Item>('m:' + rk, TTL_META, function (cb) { return getMetadata(http, id, s, rk, cb, withOnDeck); }, same, on, err);
+      return load<Item>('m:' + rk, TTL_META, function (cb) { return getMetadata(http, id, s, rk, cb, withOnDeck); }, apply, on, err);
     },
     children: function (rk, on, err) {
-      return load<Item[]>('c:' + rk, TTL_META, function (cb) { return getChildren(http, id, s, rk, cb); }, slimAll, on, err);
+      return load<Item[]>('c:' + rk, TTL_META, function (cb) { return getChildren(http, id, s, rk, cb); }, function (l) { return applyAll(slimAll(l)); }, on, err);
     },
     progressed: function (it, offsetMs, watched) {
-      var hit = cache.get<Item>('m:' + it.ratingKey);
-      if (hit) {
-        var m: any = {};
-        for (var k in hit.value) if (hit.value.hasOwnProperty(k) && k !== 'viewOffset') m[k] = (hit.value as any)[k];
-        if (watched) m.viewCount = (m.viewCount || 0) + 1; else if (offsetMs > 0) m.viewOffset = Math.round(offsetMs);
-        cache.set('m:' + it.ratingKey, m);
-      }
-      cache.remove('ondeck');
-      if (it.parentRatingKey) cache.remove('c:' + it.parentRatingKey);
-      if (it.grandparentRatingKey) { cache.remove('m:' + it.grandparentRatingKey); cache.remove('c:' + it.grandparentRatingKey); }
+      cache.set('o:' + it.ratingKey, { offset: Math.round(offsetMs), watched: watched });
+      // Tout est corrigé sur place puis marqué à redemander : l'affichage est immédiat, le serveur reprend la main ensuite.
+      patch<Item>('m:' + it.ratingKey, apply);
+      if (it.parentRatingKey) patch<Item[]>('c:' + it.parentRatingKey, applyAll);
+      patch<Item[]>('ondeck', function (l) {
+        var out = applyAll(l), seen = false;
+        if (watched) return out.filter(function (x) { return x.ratingKey !== it.ratingKey; });
+        for (var i = 0; i < out.length; i++) if (out[i].ratingKey === it.ratingKey) seen = true;
+        if (!seen && offsetMs > 0 && (it.type === 'movie' || it.type === 'episode')) out.unshift(apply(slim(it)));
+        return out;
+      });
+      if (it.grandparentRatingKey) { patch<Item>('m:' + it.grandparentRatingKey, same); patch<Item[]>('c:' + it.grandparentRatingKey, same); }
     }
   };
 }

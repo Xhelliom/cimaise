@@ -60,6 +60,12 @@ test('la taille du .wgt est rapportée', () => {
   assert.match(build.stdout, /Ko/);
 });
 
+test("seule l’icône finale entre dans le .wgt : rien de packages/launcher/brand", () => {
+  const f = zip(readFileSync(WGT));
+  assert.ok(f["icon.png"].equals(readFileSync("apps/tv/icon.png")));
+  assert.deepEqual(Object.keys(f).filter((n) => /brand|verre|tile|logo-\d|^logo\.|\.svg$/.test(n)), []);
+});
+
 test('la page vide de référence : .wgt séparé, identité propre, fond uni, heure, horodatages', () => {
   assert.ok(existsSync(BLANK));
   const f = zip(readFileSync(BLANK));

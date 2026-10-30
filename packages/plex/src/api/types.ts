@@ -55,4 +55,5 @@ export interface Item {
 }
 // Rayon de /hubs ; Metadata n'est présent que pour /hubs/sections/{id}.
 export interface Hub { key: string; title: string; type: string; hubIdentifier: string; size: number; Metadata?: Item[]; }
+export interface Letter { title: string; size: number; }
 export interface Page { items: Item[]; total: number; offset: number; }

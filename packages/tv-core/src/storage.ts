@@ -1,5 +1,5 @@
 export var STORAGE_KEY = 'cimaise.v1';
-export var CURRENT_VERSION = 3;
+export var CURRENT_VERSION = 4;
 
 export interface Stored { version: number; prefs: { [k: string]: any }; }
 
@@ -23,6 +23,18 @@ var migrations: Array<(d: any) => any> = [
     delete prefs.plexAudioLang;
     delete prefs.plexSubLang;
     return { version: 3, prefs: prefs };
+  },
+  // v4 : prefs.modules { [id]: boolean } (Apps intégrées). Une tuile Plex déjà retirée du catalogue passe en « masqué » ;
+  // sans choix enregistré, chaque module garde son défaut (Plex activé, Scènes si Home Assistant est configuré).
+  function (v3) {
+    var prefs = v3.prefs && typeof v3.prefs === 'object' ? v3.prefs : {};
+    var entries = prefs.catalog && prefs.catalog.entries;
+    if (entries && typeof entries.length === 'number' && prefs.modules === undefined) {
+      var plex = false;
+      for (var i = 0; i < entries.length; i++) if (entries[i] && entries[i].id === 'plex' && entries[i].type === 'interne') plex = true;
+      if (!plex) prefs.modules = { plex: false };
+    }
+    return { version: 4, prefs: prefs };
   }
 ];
 

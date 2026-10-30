@@ -32,7 +32,7 @@ function el(tag) {
 }
 const find = (n, cls, out = []) => { if ((n.className || '').split(' ').includes(cls)) out.push(n); n.children.forEach((c) => find(c, cls, out)); return out; };
 
-function boot({ failChunk, stored, launched } = {}) {
+function boot({ failChunk, stored, launched, haReply } = {}) {
   const body = el('body'), head = el('head'), root = el('div');
   const loaded = [];
   head.onAppend = (s) => {
@@ -48,7 +48,7 @@ function boot({ failChunk, stored, launched } = {}) {
   const timers = [];
   const exits = [];
   const store = {};
-  let reads = 0;
+  let reads = 0, xhrSent = 0;
   if (stored) store['cimaise.v1'] = JSON.stringify(stored);
   const document = {
     body, head, createElement: el,
@@ -57,7 +57,11 @@ function boot({ failChunk, stored, launched } = {}) {
   };
   const ctx = vm.createContext({
     document, Date, console, Promise, Error,
-    XMLHttpRequest: function () { this.open = () => {}; this.setRequestHeader = () => {}; this.send = () => {}; this.abort = () => {}; }, // ne répond jamais
+    XMLHttpRequest: function () { // ne répond jamais, sauf si haReply(url) fournit un corps
+      this.open = (m, u) => { this.url = u; }; this.setRequestHeader = () => {};
+      this.send = () => { xhrSent++; if (haReply) Promise.resolve().then(() => { this.status = 200; this.responseText = haReply(this.url); this.onload(); }); };
+      this.abort = () => {};
+    },
     setTimeout: (f, ms) => { timers.push({ f, ms }); return timers.length; },
     clearTimeout: () => {},
     localStorage: { getItem: (k) => { reads++; return k in store ? store[k] : null; }, setItem: (k, v) => { store[k] = v; } },
@@ -69,7 +73,7 @@ function boot({ failChunk, stored, launched } = {}) {
   const keyOn = (keyCode, target) => listeners.forEach((f) => f({ keyCode, target }));
   const tick = () => new Promise((r) => setImmediate(r));
   const flush = () => { const t = timers.splice(0).filter((x) => x.ms === 0); t.forEach((x) => x.f()); }; // minuteries différées (0 ms)
-  return { root, body, loaded, key, keyOn, tick, flush, exits, store, reads: () => reads };
+  return { root, body, loaded, key, keyOn, tick, flush, exits, store, reads: () => reads, xhr: () => xhrSent };
 }
 const LEFT = 37, UP = 38, RIGHT = 39, DOWN = 40, OK = 13, BACK = 10009;
 
@@ -295,4 +299,94 @@ test('0 ou 1 tapé dans un champ de saisie : ni diagnostic ni sonde', () => {
   pressIn(49); pressIn(97);
   assert.equal(find(a.root, 'plex-panel').length, 0);
   assert.ok(a.body.children.find((c) => c.tag === 'pre'), 'diagnostic toujours ouvert, sonde non lancée');
+});
+
+// --- Apps intégrées : modules masqués ou activés depuis les Réglages ---
+const HA = { haUrl: 'http://ha.local:8123', haToken: 'tok', haScenes: ['scene.film'] };
+
+test('Plex masqué : ni tuile ni ouverture, le chunk plex.js n’est jamais chargé', async () => {
+  const a = boot({ stored: { version: 4, prefs: { modules: { plex: false } } } });
+  a.flush();
+  assert.equal(find(a.root, 'tuile').length, 6, 'catalogue par défaut sans Plex intégré');
+  assert.ok(!find(a.root, 'titre').some((n) => n.textContent === 'Plex intégré'));
+  a.key(OK); a.key(RIGHT); a.key(OK); await a.tick();
+  assert.deepEqual(a.loaded, [], 'aucun chunk Plex, ni au démarrage ni à l’usage de l’accueil');
+});
+
+test('Scènes masquées : aucune requête vers Home Assistant ; activées (ou par défaut si configuré) : la requête part', () => {
+  const hidden = boot({ stored: { version: 4, prefs: { ...HA, modules: { scenes: false } } } });
+  hidden.flush();
+  assert.equal(hidden.xhr(), 0, 'module masqué : Home Assistant n’est jamais interrogé');
+  const dflt = boot({ stored: { version: 4, prefs: { ...HA } } });
+  dflt.flush();
+  assert.ok(dflt.xhr() >= 1, 'configuré et non masqué : activé par défaut');
+  const unconfigured = boot();
+  unconfigured.flush();
+  assert.equal(unconfigured.xhr(), 0, 'Home Assistant non configuré : rien à interroger');
+});
+
+test('Réglages > Apps intégrées : masquer Plex retire la tuile sans charger plex.js ; réactiver la rend', async () => {
+  const a = boot();
+  await openSettings(a);
+  a.key(UP); a.key(UP); a.key(UP); a.key(OK);          // Apps intégrées
+  assert.ok(texts(find(a.root, 'reglages')[0]).includes('Activé'));
+  a.key(OK);                                            // Plex intégré : Masqué
+  a.key(BACK); a.key(BACK);
+  assert.equal(find(a.root, 'reglages').length, 0);
+  assert.equal(find(a.root, 'tuile').length, 6);
+  const saved = JSON.parse(a.store['cimaise.v1']);
+  assert.equal(saved.version, 4);
+  assert.equal(saved.prefs.modules.plex, false);
+  assert.ok(saved.prefs.catalog.entries.some((e) => e.id === 'plex'), 'l’entrée reste au catalogue : couleur conservée');
+  a.key(UP); a.key(OK); await a.tick();                 // retour aux Réglages
+  a.key(UP); a.key(UP); a.key(UP); a.key(OK); a.key(OK); // Plex intégré : Activé
+  a.key(BACK); a.key(BACK);
+  assert.equal(find(a.root, 'tuile').length, 7);
+  assert.equal(JSON.parse(a.store['cimaise.v1']).prefs.modules.plex, true);
+  assert.deepEqual(a.loaded, ['settings.js'], 'plex.js n’a jamais été chargé');
+});
+
+test('Réglages > Apps intégrées : activer les Scènes interroge Home Assistant à la fermeture ; les masquer retire la rangée', async () => {
+  const a = boot({ stored: { version: 4, prefs: { ...HA, modules: { scenes: false } } } });
+  a.flush();
+  await openSettings(a);
+  a.key(UP); a.key(UP); a.key(UP); a.key(OK); a.key(DOWN); a.key(OK); // Scènes : Activé
+  assert.equal(a.xhr(), 0);
+  a.key(BACK); a.key(BACK);
+  assert.ok(a.xhr() >= 1, 'la rangée suit l’interrupteur à la fermeture');
+  assert.equal(JSON.parse(a.store['cimaise.v1']).prefs.modules.scenes, true);
+});
+
+test('Réglages > Apps intégrées : masquer les Scènes retire la rangée, sans nouvelle requête vers Home Assistant', async () => {
+  const haReply = (url) => (url.endsWith('/api/states')
+    ? JSON.stringify([{ entity_id: 'scene.film', state: 'scening', attributes: { friendly_name: 'Film' } }])
+    : '[null]');
+  const a = boot({ stored: { version: 4, prefs: { ...HA } }, haReply });
+  a.flush();
+  for (let i = 0; i < 4; i++) await a.tick();
+  assert.equal(find(a.root, 'scene').length, 1, 'rangée affichée : Scènes activées par défaut');
+  const before = a.xhr();
+  a.key(UP); // la rangée de scènes est au-dessus des tuiles : un cran de plus pour atteindre les pastilles
+  await openSettings(a);
+  a.key(UP); a.key(UP); a.key(UP); a.key(OK); a.key(DOWN); a.key(OK); // Scènes : Masqué
+  assert.equal(JSON.parse(a.store['cimaise.v1']).prefs.modules.scenes, false);
+  a.key(BACK); a.key(BACK);
+  await a.tick();
+  assert.equal(find(a.root, 'scene').length, 0, 'la rangée a disparu');
+  assert.equal(a.xhr(), before, 'aucune nouvelle requête Home Assistant');
+});
+
+test('Réglages > Apps intégrées : les réglages de Plex (langues) restent accessibles même masqué', async () => {
+  const a = boot({ stored: { version: 4, prefs: { modules: { plex: false } } } });
+  await openSettings(a);
+  a.key(UP); a.key(UP); a.key(UP); a.key(OK);
+  assert.ok(texts(find(a.root, 'reglages')[0]).includes('Masqué'));
+  a.key(RIGHT); a.key(OK);                              // chip « Réglages » : ouverture explicite
+  assert.deepEqual(a.loaded, ['settings.js'], 'les réglages de Plex masqué ne chargent jamais plex.js');
+  await a.tick();
+  assert.equal(find(a.root, 'plex-settings').length, 1);
+  a.key(BACK);
+  assert.equal(find(a.root, 'reglages').length, 1, 'retour aux Réglages');
+  assert.equal(find(a.root, 'tuile').length, 0);
+  assert.deepEqual(a.loaded, ['settings.js'], 'plex.js jamais chargé, même après le retour');
 });
