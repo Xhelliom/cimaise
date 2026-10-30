@@ -1,28 +1,22 @@
-# Bilan : maquette des finitions Plex à valider à l'œil
+# Bilan : lecteur Plex, icônes ▶ / ❚❚, grand ❚❚ en pause, heure de fin (30/10)
 
 ## Fait
-- **Maquette statique** `packages/plex/mockups/` (accueil, fiche, lecteur + `plex.css`), servie par l'aperçu sous `/mockups/plex/`
-  (route ajoutée dans `scripts/dev/server.mjs`, lien dans l'index des maquettes). Rien dans le module réel ni dans le `.wgt`.
-- **Lecteur** : ▶ / ❚❚ en icônes CSS (bordures, sans image ni glyphe), grand ❚❚ semi-transparent au centre en pause, bouton focalisé
-  indigo `#6366f1`, titre + « finit à HH:MM » sur une ligne au-dessus de la barre, −10 / +10 autour du bouton central.
-- **Accueil** : champ Rechercher en tête, roue dentée (Réglages) à côté, onglets en pilules Accueil · Films · Séries à la place des
-  carrés, puis En cours (progression dans l'affiche) et Ajoutés récemment.
-- **Fiche** : fond flou **calculé par le transcodeur photo de Plex** (`blur=20&opacity=35&background=0b0b0d`, vérifié sur le serveur :
-  3,9 Ko, l'assombrissement est fait par le serveur, donc pas de voile CSS) ; Reprendre / Depuis le début / Marquer vu en pastilles 88 px.
-- **Focus homogène** (anneau blanc 6 px à rayon 0 + `scale(1.06)`, une seule règle) et **indice de débordement** (fondu statique +
-  chevron au bord, « 7 sur 8 » à côté du titre de rangée).
-- **Aucun flou CSS** : ni `filter`, ni `backdrop-filter`, ni `blur()`, ni `text-shadow` (testé dans `tests/plex-mockups.test.mjs`, 7 tests).
-- **Coût noté** dans `packages/plex/mockups/COUTS.md` : CSS de la maquette 6,1 Ko min (1,8 Ko gzip), détail par finition, estimation
-  +1,5 à +2 Ko sur le chunk Plex à l'intégration, app.js/app.css initiaux inchangés ; fond 480×270 (0,5 Mo décodé) au lieu de l'art net
-  (367 Ko JPEG, 8,3 Mo décodé). Entrée dans `docs/decisions.md`.
-- **Captures 1920×1080** : avant (module actuel dans l'aperçu, bibliothèque du homelab) / après (maquette avec les vraies affiches et le
-  vrai fond du transcodeur) pour lecteur, accueil et fiche, plus 4 planches côte à côte : publiées sur la carte, gardées hors git dans
-  `.local/plex-finitions-captures/`. Captures factices de la maquette dans `packages/plex/mockups/captures/` (dans git).
+- `packages/plex/src/ui/player.ts` : bouton lecture / pause en icône (▶ en pause, ❚❚ en lecture), plus aucun mot « Lecture » /
+  « Pause » ; grand ❚❚ semi-transparent au centre pendant la pause (classe `on`, fondu d'opacité), même barre fermée, retiré à la
+  reprise, à l'erreur, en fin de flux et à la relance ; libellé « Pause » ambre supprimé ; « Se termine à 21 h 17 » → « finit à 21:17 ».
+- **Heure de fin juste après un saut** : la position visée par la rafale est peinte (barre, temps, « finit à ») dès que le saut part,
+  y compris en pause où AVPlay n'émet plus de temps ; rafale annulée = rien ne change ; saut refusé = position réelle repeinte.
+  Wrapper AVPlay et logique de lecture non modifiés.
+- `packages/plex/src/plex.css` : disposition de la maquette (titre + « finit à » sur une ligne au-dessus de la barre, ▶/❚❚ rond au
+  centre, pastilles à droite, focus indigo + anneau blanc), icônes en bordures CSS (0 image).
+- Tests : `tests/plex-player.test.mjs` (2 nouveaux : grand ❚❚ ; « finit à » après saut barre fermée, après Entrée sur la barre, inchangé
+  si annulé) et `tests/plex-player-next.test.mjs` adaptés. `npm run check` : 701 tests OK, ES5 OK, CSS OK.
+- Captures 1920×1080 du vrai panneau (vrai CSS, faux AVPlay) publiées sur la carte : `lecteur-plex-lecture.png`,
+  `lecteur-plex-pause.png`, `lecteur-plex-saut.png`.
+- Coût dans `docs/decisions.md` : `app.css` +951 o minifié (+183 o gzip, plex.css est dans la feuille initiale), `plex.js` +318 o.
 
-## Pas fait / à noter
-- **Pas câblé** dans le module Plex : c'est une maquette à valider. Rien essayé sur la Frame (coût des fondus de bord au défilement,
-  roue dentée en SVG inline sur Tizen 5 : à mesurer au câblage).
-- **Lecteur « avant »** : AVPlay n'existe pas dans l'aperçu (le mock lève « Lecture impossible ») ; la capture avant remet la barre telle
-  que `player.ts` la dessine en pause (mêmes classes, libellés « Lecture » / « Pause »), avec l'art de l'œuvre à la place de la vidéo.
-- **Accent** : l'ambre du module devient l'indigo d'Overseerr partout (progression comprise) ; c'est un choix de la maquette, à confirmer.
-- L'onglet « Accueil » a été ajouté devant Films · Séries pour montrer où l'on est : à retirer si non voulu.
+## Pas fait
+- **Rien essayé sur la Frame** : captures dans Chromium headless, pas sur la TV.
+- Boutons −10 / +10 de la maquette : non ajoutés (nouvelle navigation, hors demande).
+- Barre de progression laissée ambre (l'accent indigo partout reste « à confirmer »).
+- Icônes en bordures CSS comme la maquette validée, et non en SVG ni en glyphe : ni l'un ni l'autre n'est une image.

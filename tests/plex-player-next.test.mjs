@@ -145,14 +145,16 @@ const at = (s, ms) => { s.player.pos = ms; s.player.events.onTime(ms); };
 const skip = (s) => byClass(s.panel.el, 'plex-pl-skip')[0];
 const card = (s) => byClass(s.panel.el, 'plex-pl-card')[0];
 const on = (n) => n.classList.contains('on');
-const ctls = (s) => byClass(s.panel.el, 'plex-pl-ctl').map((n) => n.textContent);
+// Bouton lecture / pause : une icône, plus de mot (▶ en pause, ❚❚ pendant la lecture).
+const lbl = (n) => n.textContent || (byClass(n, 'plex-ic-play').length ? '▶' : byClass(n, 'plex-ic-pause').length ? '❚❚' : '');
+const ctls = (s) => byClass(s.panel.el, 'plex-pl-ctl').map(lbl);
 
 // ----- Épisode suivant dans la barre -----
 
 test('barre : « Épisode suivant » pour un épisode qui en a un, activable à la télécommande', async () => {
   const s = await play('501');
   s.panel.onKey('down');
-  assert.deepEqual(ctls(s), ['Pause', 'Audio', 'Sous-titres', 'Épisode suivant']);
+  assert.deepEqual(ctls(s), ['❚❚', 'Audio', 'Sous-titres', 'Épisode suivant']);
   s.panel.onKey('right'); s.panel.onKey('right'); s.panel.onKey('right');
   s.panel.onKey('enter');
   assert.equal(s.pops(), 1);
@@ -173,10 +175,10 @@ test('barre : dernier épisode d’une saison → premier de la saison suivante'
 test('barre : aucun bouton pour un film ni pour le dernier épisode', async () => {
   const f = await play('100');
   f.panel.onKey('down');
-  assert.deepEqual(ctls(f), ['Pause', 'Audio', 'Sous-titres']);
+  assert.deepEqual(ctls(f), ['❚❚', 'Audio', 'Sous-titres']);
   const e = await play('602');
   e.panel.onKey('down');
-  assert.deepEqual(ctls(e), ['Pause', 'Audio', 'Sous-titres']);
+  assert.deepEqual(ctls(e), ['❚❚', 'Audio', 'Sous-titres']);
 });
 
 // ----- Passer l’intro / le générique -----

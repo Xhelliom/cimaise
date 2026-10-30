@@ -181,7 +181,9 @@ test('reprise : sans position transmise, le lecteur démarre à zéro même si l
 });
 
 const ctl = (panel) => byClass(panel.el, 'plex-pl-ctl').filter((n) => !n.classList.contains('plex-pl-next'));
-const focused = (panel) => ctl(panel).filter((n) => n.classList.contains('focus')).map((n) => n.textContent);
+// Bouton lecture / pause : une icône, plus de mot (▶ en pause, ❚❚ pendant la lecture).
+const lbl = (n) => n.textContent || (byClass(n, 'plex-ic-play').length ? '▶' : byClass(n, 'plex-ic-pause').length ? '❚❚' : '');
+const focused = (panel) => ctl(panel).filter((n) => n.classList.contains('focus')).map(lbl);
 const jump = (panel) => byClass(panel.el, 'plex-pl-jump')[0];
 const cursor = (panel) => byClass(panel.el, 'plex-pl-cursor')[0];
 const trackFocused = (panel) => byClass(panel.el, 'plex-pl-track')[0].classList.contains('focus');
@@ -237,19 +239,20 @@ test('barre fermée : Retour pendant la rafale l’annule (sans quitter), Retour
   assert.equal(s.pops(), 1);
 });
 
-test('Entrée = pause + barre visible, focus sur Lecture/Pause ; Entrée sur le bouton reprend', async () => {
+test('Entrée = pause + barre visible, focus sur ▶/❚❚ ; Entrée sur le bouton reprend', async () => {
   const s = await started();
   s.player.ready(); s.player.calls.length = 0;
   s.panel.onKey('enter');
   assert.deepEqual(s.player.calls, ['pause']);
   assert.ok(barOn(s.panel));
-  assert.deepEqual(focused(s.panel), ['Lecture']);
-  assert.deepEqual(ctl(s.panel).map((n) => n.textContent), ['Lecture', 'Audio', 'Sous-titres']);
+  assert.deepEqual(focused(s.panel), ['▶']);
+  assert.deepEqual(ctl(s.panel).map(lbl), ['▶', 'Audio', 'Sous-titres']);
+  assert.ok(!has(s.panel.el, /^(Lecture|Pause)$/), 'plus aucun mot Lecture / Pause');
   s.timers.advance(10000);
   assert.ok(barOn(s.panel), 'en pause la barre reste');
   s.panel.onKey('enter');
   assert.deepEqual(s.player.calls, ['pause', 'play']);
-  assert.deepEqual(ctl(s.panel).map((n) => n.textContent)[0], 'Pause');
+  assert.deepEqual(ctl(s.panel).map(lbl)[0], '❚❚');
 });
 
 test('Haut ou Bas ouvrent la barre, focus sur la rangée de boutons ; pas d’emplacement vide pour « Épisode suivant » (film)', async () => {
@@ -259,7 +262,7 @@ test('Haut ou Bas ouvrent la barre, focus sur la rangée de boutons ; pas d’em
     s.panel.onKey(key);
     assert.ok(barOn(s.panel));
     assert.deepEqual(s.player.calls, [], 'la lecture continue');
-    assert.deepEqual(focused(s.panel), ['Pause']);
+    assert.deepEqual(focused(s.panel), ['❚❚']);
     assert.ok(!trackFocused(s.panel));
     assert.equal(byClass(s.panel.el, 'plex-pl-next').length, 0, 'aucun emplacement vide');
     for (let i = 0; i < 6; i++) s.panel.onKey('right');
@@ -300,7 +303,7 @@ test('barre : masquage après 4 s sans touche, relancé par une touche, jamais p
   assert.ok(!barOn(s.panel), 'sous-menu refermé : le masquage reprend');
 });
 
-test('barre : temps écoulé, restant, « Se termine à HH h MM », progression en transform', async () => {
+test('barre : temps écoulé, restant, « finit à HH:MM », progression en transform', async () => {
   const start = new Date(2026, 0, 1, 20, 0, 0).getTime();
   const s = await started({ arg: { now: () => start } });
   s.player.ready();
@@ -309,7 +312,7 @@ test('barre : temps écoulé, restant, « Se termine à HH h MM », progression 
   assert.ok(has(s.panel.el, /^00:25:41$/), texts(s.panel.el).join('|'));
   assert.ok(has(s.panel.el, /^−01:17:03$/));
   // reste 4 623 s (1 h 17 min 03) → 21 h 17
-  assert.ok(has(s.panel.el, /^Se termine à 21 h 17$/), texts(s.panel.el).join('|'));
+  assert.ok(has(s.panel.el, /^finit à 21:17$/), texts(s.panel.el).join('|'));
 });
 
 test('sous-menu Audio : langue, codec, piste active cochée ; Haut/Bas, Entrée choisit et le ferme', async () => {
@@ -1011,29 +1014,76 @@ test('rafale lancée pendant qu’un saut est en vol : le cumul part de la cible
   assert.equal(byClass(J, 'plex-pl-jump-sum')[0].textContent, '+30 s');
 });
 
-test('barre ouverte en pause : « Se termine à » recalculé chaque minute, arrêté à la reprise et à la fermeture', async () => {
+test('barre ouverte en pause : « finit à » recalculé chaque minute, arrêté à la reprise et à la fermeture', async () => {
   let now = new Date(2026, 0, 1, 20, 0, 0).getTime();
   const s = await started({ arg: { now: () => now } });
   s.player.ready();
   s.player.events.onTime(DUR / 4); // reste 1 h 17 min 03 → 21 h 17
   s.panel.onKey('enter'); // pause + barre
-  assert.ok(has(s.panel.el, /^Se termine à 21 h 17$/));
+  assert.ok(has(s.panel.el, /^finit à 21:17$/));
   now += 60000;
   s.timers.advance(60000);
-  assert.ok(has(s.panel.el, /^Se termine à 21 h 18$/), texts(s.panel.el).join('|'));
+  assert.ok(has(s.panel.el, /^finit à 21:18$/), texts(s.panel.el).join('|'));
   now += 60000;
   s.timers.advance(60000);
-  assert.ok(has(s.panel.el, /^Se termine à 21 h 19$/));
+  assert.ok(has(s.panel.el, /^finit à 21:19$/));
   s.panel.onKey('enter'); // reprise : plus de minuterie
   now += 120000;
   s.timers.advance(120000);
-  assert.ok(!has(s.panel.el, /^Se termine à 21 h 21$/), 'reprise : plus de recalcul');
+  assert.ok(!has(s.panel.el, /^finit à 21:21$/), 'reprise : plus de recalcul');
   s.panel.onKey('enter'); // pause à nouveau, puis fermeture
   s.panel.onKey('back');
   assert.ok(!barOn(s.panel));
   now += 60000;
   s.timers.advance(60000);
-  assert.ok(!has(s.panel.el, /^Se termine à 21 h 22$/), 'barre fermée : minuterie arrêtée');
+  assert.ok(!has(s.panel.el, /^finit à 21:22$/), 'barre fermée : minuterie arrêtée');
+});
+
+const big = (panel) => byClass(panel.el, 'plex-pl-big')[0];
+test('pause : grand ❚❚ au centre (classe on, fondu CSS), disparaît à la reprise, même barre fermée', async () => {
+  const s = await started();
+  s.player.ready();
+  assert.ok(!big(s.panel).classList.contains('on'), 'lecture : rien au centre');
+  assert.equal(byClass(big(s.panel), 'plex-ic-pause').length, 1);
+  s.panel.onKey('enter'); // pause + barre
+  assert.ok(big(s.panel).classList.contains('on'));
+  s.panel.onKey('back'); // barre fermée, toujours en pause
+  assert.ok(!barOn(s.panel) && big(s.panel).classList.contains('on'));
+  s.panel.onKey('enter'); // reprise
+  assert.ok(!big(s.panel).classList.contains('on'));
+  s.panel.onKey('playpause');
+  assert.ok(big(s.panel).classList.contains('on'));
+  s.panel.onKey('play');
+  assert.ok(!big(s.panel).classList.contains('on'));
+});
+
+test('« finit à » à jour dès que le saut part (en pause AVPlay n’émet plus onTime), inchangé si la rafale est annulée', async () => {
+  const now = new Date(2026, 0, 1, 20, 0, 0).getTime();
+  const s = await started({ arg: { now: () => now } });
+  s.player.ready();
+  s.player.events.onTime(DUR / 4); // reste 1 h 17 min 03 → 21:17
+  s.panel.onKey('enter'); // pause + barre
+  assert.ok(has(s.panel.el, /^finit à 21:17$/));
+  // barre fermée : rafale +10 min, le saut part tout seul
+  s.panel.onKey('back');
+  s.player.events.onSeekPending(DUR / 4 + 600000, 10000);
+  assert.ok(has(s.panel.el, /^finit à 21:17$/), 'pas avant que le saut parte');
+  s.player.events.onSeekPending(null);
+  assert.ok(has(s.panel.el, /^finit à 21:07$/), texts(s.panel.el).join('|'));
+  assert.equal(byClass(s.panel.el, 'plex-pl-bar')[0].style.transform, 'scaleX(' + (DUR / 4 + 600000) / DUR + ')');
+  // focus sur la barre de progression : Entrée confirme
+  s.panel.onKey('up'); s.panel.onKey('up');
+  assert.ok(trackFocused(s.panel));
+  s.player.events.onSeekPending(DUR / 4 + 1200000, 10000);
+  s.panel.onKey('enter');
+  assert.ok(s.player.calls.includes('commit'));
+  s.player.events.onSeekPending(null);
+  assert.ok(has(s.panel.el, /^finit à 20:57$/), texts(s.panel.el).join('|'));
+  // Retour annule : l'heure ne bouge pas
+  s.player.events.onSeekPending(DUR / 4 + 1800000, 10000);
+  s.panel.onKey('back');
+  s.player.events.onSeekPending(null);
+  assert.ok(has(s.panel.el, /^finit à 20:57$/), 'rafale annulée : heure inchangée');
 });
 
 // ---- Miniature d'aperçu (index BIF) ----

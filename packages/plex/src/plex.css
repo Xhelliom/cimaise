@@ -72,7 +72,7 @@
 .plex-player.live,html.plex-live,html.plex-live body,html.plex-live .plex-shell{background:transparent}
 .plex-pl-ui{position:absolute;left:0;top:0;width:1920px;height:1080px;opacity:0;transition:opacity .2s;background:linear-gradient(to top,rgba(0,0,0,.75) 0,rgba(0,0,0,0) 320px)}
 .plex-pl-ui.on{opacity:1}
-.plex-pl-title{position:absolute;left:120px;top:800px;width:1500px;font-size:44px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.plex-pl-title{position:absolute;left:120px;top:812px;width:1240px;font-size:44px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .plex-pl-prog{position:absolute;left:120px;top:890px;width:1680px;height:8px}
 .plex-pl-track{position:absolute;left:0;top:0;width:1680px;height:8px;border-radius:4px;background:rgba(255,255,255,.25);overflow:hidden}
 .plex-pl-track.focus{box-shadow:0 0 0 4px rgba(255,255,255,.9)}
@@ -85,12 +85,20 @@
 .plex-pl-cursor-time{position:absolute;left:-90px;top:-48px;width:180px;text-align:center;font-size:30px;font-weight:500;padding:4px 0;border-radius:12px;background:rgba(0,0,0,.7)}
 .plex-pl-elapsed{position:absolute;left:120px;top:912px;font-size:28px;color:rgba(255,255,255,.85)}
 .plex-pl-remaining{position:absolute;left:1500px;top:912px;width:300px;text-align:right;font-size:28px;color:rgba(255,255,255,.85)}
-.plex-pl-end{position:absolute;left:660px;top:912px;width:600px;text-align:center;font-size:28px;color:rgba(255,255,255,.6)}
-.plex-pl-ctls{position:absolute;left:120px;top:968px;width:1200px;height:72px;white-space:nowrap}
-.plex-pl-ctl{display:inline-block;margin-right:24px;height:72px;padding:0 44px;border-radius:36px;line-height:72px;font-size:30px;font-weight:500;background:rgba(255,255,255,.12)}
-.plex-pl-ctl.focus{background:rgba(255,255,255,.9);color:#111}
-.plex-pl-state{position:absolute;left:1500px;top:976px;width:300px;text-align:right;font-size:30px;color:#e5a00d}
-.plex-pl-mode{position:absolute;left:120px;top:1048px;width:1500px;font-size:22px;color:rgba(255,255,255,.55);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.plex-pl-end{position:absolute;left:1400px;top:824px;width:400px;text-align:right;font-size:30px;color:rgba(255,255,255,.85)}
+/* Rangée de boutons (maquette du 30/10) : ▶/❚❚ rond au centre, Audio, Sous-titres (et Épisode suivant) en pastilles à droite ; focus indigo + anneau blanc net */
+.plex-pl-ctls{position:absolute;left:0;top:960px;width:1920px;height:96px;padding-right:120px;box-sizing:border-box;text-align:right;white-space:nowrap}
+.plex-pl-ctl{display:inline-block;vertical-align:top;margin:12px 0 0 20px;height:72px;padding:0 36px;border-radius:36px;line-height:72px;font-size:28px;font-weight:500;background:rgba(0,0,0,.5);box-shadow:inset 0 0 0 2px rgba(255,255,255,.25)}
+.plex-pl-ctl.focus{background:#6366f1;color:#fff;box-shadow:0 0 0 6px #fff;transform:scale(1.06)}
+.plex-pl-pp{position:absolute;left:912px;top:0;margin:0;width:96px;height:96px;padding:0;border-radius:48px;display:flex;align-items:center;justify-content:center}
+.plex-ic{display:block;box-sizing:border-box;flex:none}
+.plex-ic-play{width:0;height:0;margin-left:6px;border-style:solid;border-width:15px 0 15px 26px;border-color:transparent transparent transparent currentColor}
+.plex-ic-pause{width:24px;height:30px;border-style:solid;border-width:0 8px;border-color:currentColor}
+.plex-pl-big{position:absolute;left:860px;top:440px;width:200px;height:200px;border-radius:100px;background:rgba(0,0,0,.45);color:rgba(255,255,255,.85);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .2s}
+.plex-pl-big.on{opacity:1}
+.plex-pl-big .plex-ic-pause{width:76px;height:96px;border-width:0 26px}
+.plex-pl-state{position:absolute;left:120px;top:984px;width:700px;font-size:30px;color:#e5a00d}
+.plex-pl-mode{position:absolute;left:120px;top:1048px;width:760px;font-size:22px;color:rgba(255,255,255,.55);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .plex-pl-skip{position:absolute;left:1380px;top:700px;width:420px;height:96px;border-radius:48px;line-height:96px;text-align:center;font-size:36px;font-weight:500;background:rgba(255,255,255,.9);color:#111;opacity:0;pointer-events:none;transition:opacity .2s}
 .plex-pl-skip.on{opacity:1}
 .plex-pl-card{position:absolute;left:1260px;top:680px;width:540px;padding:28px 36px;box-sizing:border-box;border-radius:28px;background:rgba(0,0,0,.75);opacity:0;pointer-events:none;transition:opacity .2s}
