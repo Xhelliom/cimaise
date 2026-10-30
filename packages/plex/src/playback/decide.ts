@@ -4,8 +4,9 @@ import { chooseTracks, TrackPrefs } from './tracks';
 
 export type ReasonCode = 'multi-part' | 'container' | 'video-codec' | 'video-profile' | 'resolution' | 'hdr' | 'audio-codec' | 'subtitle-format';
 export interface Reason { code: ReasonCode; text: string; }
-// off : aucun sous-titre ; embedded/external : lus par AVPlay ; burned : incrustés par le transcodeur.
-export type SubtitleMode = 'off' | 'embedded' | 'external' | 'burned';
+// off : aucun sous-titre ; embedded/external : lus par AVPlay ; converted : piste interne servie en SRT par le serveur, lue comme un externe ;
+// burned : incrustés par le transcodeur.
+export type SubtitleMode = 'off' | 'embedded' | 'external' | 'converted' | 'burned';
 
 export interface DecideOptions extends TrackPrefs {
   profile?: ClientProfile;
@@ -74,14 +75,15 @@ function evaluate(item: Item, media: Media, mediaIndex: number, opts: DecideOpti
   var acodec = audio ? audio.codec : media.audioCodec;
   if (acodec && !findEntry(profile.audio, acodec)) add('audio-codec', 'audio ' + acodec + ' non pris en charge');
 
-  var supportedSub = false;
+  var supportedSub = false, convertedSub = false;
   if (subtitle) {
     supportedSub = !!findEntry(subtitle.key ? profile.subtitles.external : profile.subtitles.embedded, subtitle.codec);
-    if (!supportedSub) add('subtitle-format', 'sous-titres ' + (subtitle.codec || 'inconnus') + ' : incrustés dans la vidéo par le transcodeur');
+    convertedSub = !supportedSub && !subtitle.key && !!findEntry(profile.subtitles.converted, subtitle.codec);
+    if (!supportedSub && !convertedSub) add('subtitle-format', 'sous-titres ' + (subtitle.codec || 'inconnus') + ' : incrustés dans la vidéo par le transcodeur');
   }
 
   var direct = reasons.length === 0, mode: 'direct' | 'transcode' = direct ? 'direct' : 'transcode';
-  var subtitleMode: SubtitleMode = !subtitle ? 'off' : !direct ? 'burned' : subtitle.key ? 'external' : 'embedded';
+  var subtitleMode: SubtitleMode = !subtitle ? 'off' : !direct ? 'burned' : convertedSub ? 'converted' : subtitle.key ? 'external' : 'embedded';
 
   var reason: string;
   if (direct) {
@@ -89,13 +91,13 @@ function evaluate(item: Item, media: Media, mediaIndex: number, opts: DecideOpti
     if (vs && vs.colorTrc === 'smpte2084') bits.push('HDR10');
     else if (vs && vs.colorTrc === 'arib-std-b67') bits.push('HLG');
     if (acodec) bits.push(acodec);
-    if (subtitle) bits.push('sous-titres ' + subtitle.codec + (subtitle.key ? ' externes' : ' internes'));
+    if (subtitle) bits.push('sous-titres ' + subtitle.codec + (convertedSub ? ' convertis en SRT par le serveur' : subtitle.key ? ' externes' : ' internes'));
     reason = 'Lecture directe : ' + bits.join(', ') + ' (supposés lisibles par la TV)';
   } else {
     var texts: string[] = [];
     for (var i = 0; i < reasons.length; i++) texts.push(reasons[i].text);
     // Sous-titres choisis alors que le transcodage a une autre cause : ils sont incrustés aussi.
-    if (subtitle && supportedSub) texts.push('sous-titres ' + subtitle.codec + ' incrustés avec le reste');
+    if (subtitle && (supportedSub || convertedSub)) texts.push('sous-titres ' + subtitle.codec + ' incrustés avec le reste');
     reason = 'Transcodage : ' + texts.join(' ; ');
   }
   return { ratingKey: item.ratingKey, mode: mode, reasons: reasons, reason: reason, mediaIndex: mediaIndex, media: media, part: part, audio: audio, subtitle: subtitle, subtitleMode: subtitleMode };

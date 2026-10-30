@@ -11,7 +11,8 @@ export interface ClientProfile {
   // Fonctions de transfert acceptées telles quelles (colorTrc de Plex) ; le reste du HDR passe par le transcodeur.
   hdr: Entry[];
   audio: Entry[];
-  subtitles: { embedded: Entry[]; external: Entry[] };
+  // converted : sous-titres internes que le serveur sait servir en SRT (décision `subtitles=sidecar`), lus ensuite comme un SRT externe.
+  subtitles: { embedded: Entry[]; external: Entry[]; converted: Entry[] };
   // Profils Dolby Vision sans base HDR10 que la TV ne sait pas afficher.
   unsupportedDolbyVisionProfiles: number[];
 }
@@ -46,7 +47,9 @@ export var FRAME_2019_PROFILE: ClientProfile = {
   ],
   subtitles: {
     embedded: [e('srt', 'piste interne, sélectionnée par setSelectTrack')],
-    external: [e('srt', 'fichier externe, chargé par setExternalSubtitlePath')]
+    external: [e('srt', 'fichier externe, chargé par setExternalSubtitlePath')],
+    // Vérifié sur le serveur (2026-10-30) : l'ASS sort en SRT par une décision sidecar. mov_text n'y figure pas : la même décision ne renvoie aucune piste.
+    converted: [e('ass', 'SRT servi par le serveur (sidecar), lu comme un SRT externe'), e('ssa', 'idem ass')]
   },
   unsupportedDolbyVisionProfiles: [5]
 };
