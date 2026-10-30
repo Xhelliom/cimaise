@@ -43,7 +43,7 @@ type Mode = 'loading' | 'play' | 'error' | 'ended';
 
 // Écran lecteur (HANDOFF §5.4) : démarre directement à `startMs` (0, RESUME ou une position, choisi par l'appelant), lecture directe par AVPlay (wrapper de tv-core).
 // Pendant la lecture rien à l'écran : Gauche/Droite = sauts (même rafale accélérée partout, indicateur discret du cumul, saut automatique en fin de rafale) ;
-// Entrée = pause + barre ; Haut/Bas = barre, focus sur les boutons (Lecture/Pause, Audio, Sous-titres, sous-menus) ; Haut depuis les boutons = focus sur la barre de
+// Entrée = pause + barre (grand ❚❚ au centre tant que dure la pause) ; Haut/Bas = barre, focus sur les boutons (▶/❚❚, Audio, Sous-titres, sous-menus) ; Haut depuis les boutons = focus sur la barre de
 // progression : même déplacement mais la vidéo continue et rien ne part tout seul (Entrée confirme, Retour annule). Retour ferme la barre, puis quitte le lecteur.
 // Hors TV, le wrapper signale l'absence de webapis : aucune lecture simulée.
 export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number, chainArg?: Chain): Panel {
@@ -74,6 +74,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number, ch
   var jumpSum = el(doc, 'plex-pl-jump-sum', '');
   var jumpTo = el(doc, 'plex-pl-jump-to', '');
   var state = el(doc, 'plex-pl-state', '');
+  var big = el(doc, 'plex-pl-big');         // grand ❚❚ au centre pendant la pause (fondu d'opacité)
   var modeLine = el(doc, 'plex-pl-mode', '');
   var sub = el(doc, 'plex-pl-sub', '');
   var menu = el(doc, 'plex-pl-menu');
@@ -91,9 +92,10 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number, ch
   ui.appendChild(title); ui.appendChild(prog); ui.appendChild(elapsed); ui.appendChild(remaining); ui.appendChild(endsAt);
   ui.appendChild(ctls); ui.appendChild(state); ui.appendChild(modeLine);
   jumpBox.appendChild(jumpSum); jumpBox.appendChild(jumpTo);
+  big.appendChild(el(doc, 'plex-ic plex-ic-pause'));
   dialog.appendChild(text); dialog.appendChild(btns);
   card.appendChild(cardTitle); card.appendChild(cardSub); card.appendChild(cardHint);
-  root.appendChild(sub); root.appendChild(skip); root.appendChild(card); root.appendChild(jumpBox); root.appendChild(ui); root.appendChild(menu); root.appendChild(dialog);
+  root.appendChild(sub); root.appendChild(skip); root.appendChild(card); root.appendChild(jumpBox); root.appendChild(big); root.appendChild(ui); root.appendChild(menu); root.appendChild(dialog);
 
   var mode: Mode = 'loading';
   var closed = false;
@@ -124,6 +126,8 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number, ch
   var markers: Markers = { intro: null, credits: null }, skipKind: 'intro' | 'credits' | null = null;
   var cardOn = false, cardLeft = 0, cardTimer: any = null, cardCancelled = false;
   var barOpen = false, zone: 'track' | 'btns' = 'btns', bi = 0, jumping = false, jumpBase = 0, holding = false;
+  // Position visée par la rafale en cours : peinte dès que le saut part (en pause AVPlay n'émet plus onTime), oubliée si la rafale est annulée.
+  var aimMs = -1;
 
   // Index de prévisualisation (BIF) : chargé seulement quand le focus entre sur la barre de progression, libéré en la quittant (ou en quittant le lecteur).
   // Une seule image vivante à la fois (URL d'objet révoquée au changement) ; sans index, seule l'heure visée est affichée.
@@ -165,7 +169,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number, ch
 
   function setClass(node: HTMLElement, base: string, on: boolean): void { node.className = on ? base + ' on' : base; }
 
-  function clock(t: number): string { var d = new Date(t); return two(d.getHours()) + ' h ' + two(d.getMinutes()); }
+  function clock(t: number): string { var d = new Date(t); return two(d.getHours()) + ':' + two(d.getMinutes()); }
   function ratio(ms: number): number { return durationMs > 0 ? Math.max(0, Math.min(1, ms / durationMs)) : 0; }
   function paintTime(ms: number): void {
     lastMs = ms;
@@ -174,7 +178,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number, ch
     if (durationMs > 0) {
       var left = Math.max(0, durationMs - ms);
       remaining.textContent = '−' + formatTime(left);
-      endsAt.textContent = 'Se termine à ' + clock((arg.now || timers.now)() + left);
+      endsAt.textContent = 'finit à ' + clock((arg.now || timers.now)() + left);
     } else { remaining.textContent = ''; endsAt.textContent = ''; }
   }
   // « +10 s », « +1 min 50 », « −30 s » : cumul de la rafale depuis sa position de départ.
@@ -185,7 +189,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number, ch
   }
 
   var ctlDefs: Array<{ label(): string; run(): void }> = [
-    { label: function () { return paused ? 'Lecture' : 'Pause'; }, run: function () { if (paused) resume(); else pause(); } },
+    { label: function () { return ''; }, run: function () { if (paused) resume(); else pause(); } },
     { label: function () { return 'Audio'; }, run: function () { openMenu('audio'); } },
     { label: function () { return 'Sous-titres'; }, run: function () { openMenu('subtitle'); } }
   ];
@@ -198,13 +202,18 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number, ch
   function paintCtl(): void {
     while (ctls.children.length) ctls.removeChild(ctls.children[0]);
     var defs = ctlList();
-    for (var i = 0; i < defs.length; i++) ctls.appendChild(el(doc, zone === 'btns' && i === bi ? 'plex-pl-ctl focus' : 'plex-pl-ctl', defs[i].label()));
+    for (var i = 0; i < defs.length; i++) {
+      var b = ctls.appendChild(el(doc, 'plex-pl-ctl' + (i === 0 ? ' plex-pl-pp' : '') + (zone === 'btns' && i === bi ? ' focus' : ''), defs[i].label()));
+      // Lecture / pause en icône : ▶ en pause (Entrée reprend), ❚❚ pendant la lecture.
+      if (i === 0) b.appendChild(el(doc, 'plex-ic ' + (paused ? 'plex-ic-play' : 'plex-ic-pause')));
+    }
     track.className = zone === 'track' ? 'plex-pl-track focus' : 'plex-pl-track';
   }
   // Maintien côté lecteur : actif seulement tant que le focus est sur la barre de progression (le quitter abandonne la cible).
   function setHold(on: boolean): void {
     if (holding === on) return;
     holding = on;
+    if (!on) aimMs = -1;
     if (player) player.holdSeek(on);
   }
   // En pause AVPlay n'émet plus onTime : tant que la barre est ouverte, l'heure de fin est recalculée chaque minute.
@@ -311,6 +320,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number, ch
   function fail(err: Error): void {
     if (closed || mode === 'error') return;
     mode = 'error';
+    paintPaused();
     menuOpen = false;
     setClass(menu, 'plex-pl-menu', false);
     if (progress) progress.stop(false);
@@ -356,6 +366,8 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number, ch
       onSeekPending: function (ms, step) {
         if (closed || mode !== 'play') return;
         if (ms === null) {
+          if (aimMs >= 0) paintTime(aimMs); // le saut part : barre, temps et « finit à » à la position visée, sans attendre onTime
+          aimMs = -1;
           jumping = false;
           setClass(jumpBox, 'plex-pl-jump', false);
           setClass(cursor, 'plex-pl-cursor', false);
@@ -364,6 +376,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number, ch
           armHide();
           return;
         }
+        aimMs = ms;
         if (!jumping) { jumping = true; jumpBase = ms - (step || 0); }
         if (barOpen && zone === 'track') {
           cursor.style.transform = 'translateX(' + Math.round(BAR_W * ratio(ms)) + 'px)';
@@ -379,6 +392,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number, ch
       },
       onSeekError: function () {
         if (closed || mode !== 'play') return;
+        if (player) paintTime(player.getPosition());
         state.textContent = 'Déplacement impossible';
         showBar();
       },
@@ -594,6 +608,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number, ch
   function toEnded(pausePlayer: boolean): void {
     if (mode === 'ended') return;
     mode = 'ended';
+    paintPaused();
     if (pausePlayer && player) player.pause();
     if (progress) progress.stop(true);
     closeBar();
@@ -672,6 +687,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number, ch
     state.textContent = '';
     progress!.paused();
     mode = 'loading';
+    paintPaused();
     awaitFrame = false;
     live(false);
     closeBar();
@@ -730,8 +746,10 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number, ch
   }
   function closeMenu(): void { menuOpen = false; setClass(menu, 'plex-pl-menu', false); armHide(); }
 
-  function pause(): void { if (paused) return; paused = true; player!.pause(); progress!.paused(); state.textContent = 'Pause'; paintCtl(); armHide(); }
-  function resume(): void { if (!paused) return; paused = false; player!.play(); progress!.playing(); state.textContent = ''; paintCtl(); armHide(); }
+  function cancelJump(): void { aimMs = -1; player!.cancelSeek(); }
+  function paintPaused(): void { setClass(big, 'plex-pl-big', paused && mode === 'play'); }
+  function pause(): void { if (paused) return; paused = true; player!.pause(); progress!.paused(); state.textContent = ''; paintPaused(); paintCtl(); armHide(); }
+  function resume(): void { if (!paused) return; paused = false; player!.play(); progress!.playing(); state.textContent = ''; paintPaused(); paintCtl(); armHide(); }
 
   function jumpKey(dir: number): void {
     if (dir < 0) player!.rewind(); else player!.forward();
@@ -755,7 +773,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number, ch
     if (k === 'playpause') { if (paused) resume(); else { pause(); openBar('btns'); } return true; }
     if (!barOpen) {
       if (k === 'enter' && skipKind && !jumping) { doSkip(); return true; }
-      if (k === 'back') { if (jumping) player!.cancelSeek(); else leave(false); }
+      if (k === 'back') { if (jumping) cancelJump(); else leave(false); }
       else if (k === 'left') jumpKey(-1);
       else if (k === 'right') jumpKey(1);
       else if (k === 'enter') { if (paused) resume(); else { pause(); openBar('btns'); } }
@@ -766,7 +784,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number, ch
       if (k === 'left') jumpKey(-1);
       else if (k === 'right') jumpKey(1);
       else if (k === 'enter') { if (jumping) player!.commitSeek(); else if (paused) resume(); else pause(); }
-      else if (k === 'back') { if (jumping) player!.cancelSeek(); else closeBar(); }
+      else if (k === 'back') { if (jumping) cancelJump(); else closeBar(); }
       else if (k === 'down') openBar('btns');
       armHide();
       return true;

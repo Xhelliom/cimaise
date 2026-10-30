@@ -618,3 +618,22 @@ Accueil · Films · Séries à la place des carrés des bibliothèques ; fiche a
 Coût : 6,1 Ko de CSS minifié pour la maquette autonome, **+1,5 à +2 Ko estimés** sur le chunk Plex à l'intégration ; app.js et app.css
 initiaux inchangés (fiche : `packages/plex/mockups/COUTS.md`). L'ambre du module devient l'indigo d'Overseerr : **à confirmer**.
 Captures avant/après sur la bibliothèque : hors git (`.local/plex-finitions-captures/`). **En attente de la validation de Stéphane.**
+
+## Lecteur Plex : finitions de la maquette câblées (2026-10-30)
+
+Câblé dans `packages/plex/src/ui/player.ts` d'après la maquette validée : bouton lecture / pause en icône (▶ en pause, ❚❚ en lecture,
+dessinées en bordures CSS comme dans la maquette : ni image, ni glyphe de police, ni SVG) ; grand ❚❚ semi-transparent au centre pendant
+la pause (fondu d'`opacity`, visible même barre fermée) ; bouton focalisé indigo `#6366f1` + anneau blanc net ; titre et « finit à HH:MM »
+sur la même ligne au-dessus de la barre ; ▶/❚❚ rond au centre, Audio / Sous-titres / Épisode suivant en pastilles à droite. Le libellé
+« Pause » en ambre disparaît (la ligne d'état ne sert plus qu'aux erreurs, à gauche).
+
+**Heure de fin juste après un saut.** En pause, AVPlay n'émet plus `oncurrentplaytime` : la page retient la position visée par la rafale
+et peint barre, temps et « finit à » dès que le saut part (rafale terminée ou Entrée sur la barre) ; une rafale annulée (Retour, focus
+qui quitte la barre) ne change rien, un saut refusé repeint la position réelle. Aucune modification du wrapper AVPlay ni de la logique
+de lecture.
+
+**Pas repris** : les boutons −10 / +10 de la maquette (nouveaux boutons = nouvelle navigation, hors demande) ; la barre de progression
+reste ambre (bascule d'accent encore « à confirmer »).
+
+**Poids.** `plex.css` est importé dans `app.css` (feuille unique) : `app.css` 20 122 → **21 073 o** minifié (+951 o, +183 o gzip),
+chargé au démarrage ; `plex.js` 90 374 → **90 692 o** (+318 o, chunk différé). `app.js` inchangé. Aucune image.
