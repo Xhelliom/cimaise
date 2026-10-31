@@ -1,5 +1,5 @@
 import { Callback, Http, Identity, Item, Letter, Page, Section, ServerRef } from '../api/types';
-import { getChildren, getFirstCharacter, getMetadata, getOnDeck, getRecentlyAdded, getSectionItems, getSections } from '../api/library';
+import { getChildren, getFirstCharacter, getMetadata, getOnDeck, getRecentlyAdded, getRecentlyAddedUnwatched, getSectionItems, getSections, LibraryView, TITLE_VIEW, viewQuery } from '../api/library';
 import { Cache } from './cache';
 
 export type Cancel = () => void;
@@ -29,12 +29,20 @@ function shown(l: Item[]): Item[] {
   return l.filter(function (i) { return i.type === 'movie' || i.type === 'show' || i.type === 'episode' || i.type === 'season'; });
 }
 
+// Vu en entier : film ou épisode lu, série ou saison dont tous les épisodes sont lus.
+function seen(it: Item): boolean {
+  return it.leafCount ? (it.viewedLeafCount || 0) >= it.leafCount : (it.viewCount || 0) > 0;
+}
+
 export interface Data {
   sections(on: On<Section[]>, err?: Err): Cancel;
   onDeck(on: On<Item[]>, err?: Err): Cancel;
   recent(on: On<Item[]>, err?: Err): Cancel;
-  page(sectionKey: string, start: number, size: number, on: On<Page>, err?: Err): Cancel;
-  letters(sectionKey: string, on: On<Letter[]>, err?: Err): Cancel;
+  // « Pas encore vus » : ajouts récents non vus (une requête de plus à l'ouverture de l'accueil, même cache que « recent »).
+  unseen(on: On<Item[]>, err?: Err): Cancel;
+  // `view` : tri et filtre (défaut : par titre, tout) ; chaque combinaison a ses propres pages en cache.
+  page(sectionKey: string, start: number, size: number, on: On<Page>, err?: Err, view?: LibraryView): Cancel;
+  letters(sectionKey: string, on: On<Letter[]>, err?: Err, unwatched?: boolean): Cancel;
   metadata(ratingKey: string, on: On<Item>, err?: Err, withOnDeck?: boolean): Cancel;
   children(ratingKey: string, on: On<Item[]>, err?: Err): Cancel;
   // Retour de lecture : la fiche est corrigée sur place, « En cours » et les parents (saison, série) sont rechargés.
@@ -77,11 +85,34 @@ export function createData(http: Http, id: Identity, s: ServerRef, cache: Cache)
   }
 
   // Tout est corrigé sur place puis marqué à redemander : l'affichage est immédiat, le serveur reprend la main ensuite.
+  // Un épisode qui passe vu ou non vu décale de ±1 les compteurs « vus » de sa saison (liste des saisons, fiche) et de sa série.
   function touch(it: Item, local: Local): void {
+    var was = seenNow(it);
     cache.set('o:' + it.ratingKey, local);
+    if (local.watched) patch<Item[]>('unseen', function (l) { return l.filter(function (x) { return x.ratingKey !== it.ratingKey; }); });
     patch<Item>('m:' + it.ratingKey, apply);
     if (it.parentRatingKey) patch<Item[]>('c:' + it.parentRatingKey, applyAll);
-    if (it.grandparentRatingKey) { patch<Item>('m:' + it.grandparentRatingKey, same); patch<Item[]>('c:' + it.grandparentRatingKey, same); }
+    var now = seenNow(it), d = was === null || now === null ? 0 : (now ? 1 : 0) - (was ? 1 : 0);
+    var gp = it.grandparentRatingKey, pk = it.parentRatingKey;
+    function count(x: Item): Item { return d && x.leafCount !== undefined ? counted(x, d) : x; }
+    if (pk) patch<Item>('m:' + pk, count);
+    if (gp) {
+      patch<Item>('m:' + gp, count);
+      patch<Item[]>('c:' + gp, function (l) { return l.map(function (s) { return s.ratingKey === pk ? count(s) : s; }); });
+    }
+  }
+  // Vu d'après le cache (liste de la saison, sinon fiche de l'épisode) ; null si l'épisode n'y est pas.
+  function seenNow(it: Item): boolean | null {
+    var l = it.parentRatingKey ? cache.get<Item[]>('c:' + it.parentRatingKey, 0) : null;
+    if (l) for (var i = 0; i < l.value.length; i++) if (l.value[i].ratingKey === it.ratingKey) return !!l.value[i].viewCount;
+    var m = cache.get<Item>('m:' + it.ratingKey, 0);
+    return m ? !!m.value.viewCount : null;
+  }
+  function counted(x: Item, d: number): Item {
+    var o: any = {};
+    for (var k in x) if (x.hasOwnProperty(k)) o[k] = (x as any)[k];
+    o.viewedLeafCount = Math.max(0, Math.min(x.leafCount || 0, (x.viewedLeafCount || 0) + d));
+    return o;
   }
 
   return {
@@ -95,12 +126,19 @@ export function createData(http: Http, id: Identity, s: ServerRef, cache: Cache)
     recent: function (on, err) {
       return load<Item[]>('recent', TTL_HOME, function (cb) { return getRecentlyAdded(http, id, s, cb); }, function (l) { return slimAll(shown(l)); }, on, err);
     },
-    page: function (key, start, size, on, err) {
-      return load<Page>('p:' + key + ':' + start + ':' + size, TTL_PAGE, function (cb) { return getSectionItems(http, id, s, key, start, size, cb); },
+    // Le serveur filtre déjà (unwatched=1) ; le filtre local couvre ce qui vient d'être vu ici, avant que le serveur le sache.
+    unseen: function (on, err) {
+      return load<Item[]>('unseen', TTL_HOME, function (cb) { return getRecentlyAddedUnwatched(http, id, s, cb); },
+        function (l) { return applyAll(slimAll(shown(l))).filter(function (x) { return !seen(x); }); }, on, err);
+    },
+    page: function (key, start, size, on, err, view) {
+      // Tri par titre sans filtre : clé d'origine (le cache déjà présent reste valable).
+      var v = view || TITLE_VIEW, q = v.sort === TITLE_VIEW.sort && !v.unwatched ? '' : viewQuery(v) + ':';
+      return load<Page>('p:' + key + ':' + q + start + ':' + size, TTL_PAGE, function (cb) { return getSectionItems(http, id, s, key, start, size, cb, v); },
         function (p) { return { items: slimAll(p.items), total: p.total, offset: p.offset }; }, on, err);
     },
-    letters: function (key, on, err) {
-      return load<Letter[]>('l:' + key, TTL_PAGE, function (cb) { return getFirstCharacter(http, id, s, key, cb); }, same, on, err);
+    letters: function (key, on, err, unwatched) {
+      return load<Letter[]>('l:' + key + (unwatched ? ':u' : ''), TTL_PAGE, function (cb) { return getFirstCharacter(http, id, s, key, cb, unwatched); }, same, on, err);
     },
     metadata: function (rk, on, err, withOnDeck) {
       return load<Item>('m:' + rk, TTL_META, function (cb) { return getMetadata(http, id, s, rk, cb, withOnDeck); }, apply, on, err);

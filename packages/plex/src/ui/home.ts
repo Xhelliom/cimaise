@@ -33,7 +33,7 @@ function gear(doc: Document): HTMLElement {
 }
 
 // Accueil (maquette du 30/10) : en-tête « Rechercher un film, une série… » + roue dentée (Réglages Plex), onglets en pilules des
-// bibliothèques (Films · Séries · …), puis les rangées En cours et Ajoutés récemment. Haut depuis la 1re rangée → onglets → en-tête.
+// bibliothèques (Films · Séries · …), puis les rangées En cours, Ajoutés récemment et Pas encore vus. Haut depuis la 1re rangée → onglets → en-tête.
 // Les rangées vides disparaissent ; les rangées à plus d'une rangée du visible (au-dessus comme en dessous) sont libérées ;
 // une rangée partiellement visible garde ses images.
 export function createHomePanel(arg: PlexArg): Panel {
@@ -107,7 +107,7 @@ export function createHomePanel(arg: PlexArg): Panel {
     relayout();
   }
 
-  // `aimed` : seul « En cours » vise l'épisode ; pour « Ajoutés récemment », la fiche choisit elle-même l'épisode à suivre.
+  // `aimed` : seul « En cours » vise l'épisode ; pour les ajouts (récents ou non vus), la fiche choisit elle-même l'épisode à suivre.
   function openItem(it: Item, aimed: boolean): void {
     var target = openable(it);
     if (target) c.nav.push(createDetailPanel(arg, target, aimed && it.type === 'episode' ? it : undefined));
@@ -148,6 +148,7 @@ export function createHomePanel(arg: PlexArg): Panel {
 
   var onDeck = addHub('En cours', function (it, img) { return tileInfo(c.session, it, img); }, function (it) { openItem(it, true); });
   var recent = addHub('Ajoutés récemment', function (it, img) { return tileInfo(c.session, it, img); }, function (it) { openItem(it, false); });
+  var unseen = addHub('Pas encore vus', function (it, img) { return tileInfo(c.session, it, img); }, function (it) { openItem(it, false); });
   setSections([]);
   var deckCancel: (() => void) | null = null;
   function loadDeck(): void {
@@ -159,6 +160,9 @@ export function createHomePanel(arg: PlexArg): Panel {
   var timers = arg.timers || (typeof window !== 'undefined' ? realTimers() : null);
   var indexT: any = timers ? timers.setTimeout(function () { indexT = null; ensureSearch(arg, c).start(); }, INDEX_DELAY) : null;
   cancels.push(c.data.recent(function (l) { setItems(recent, l); }, fail));
+  // Coût : une requête de plus à l'ouverture (/library/recentlyAdded?unwatched=1, ≈ 116 Ko de JSON sur le serveur du homelab,
+  // même ordre que « Ajoutés récemment »), mise en cache 5 min comme elle ; aucune requête si le cache est frais.
+  cancels.push(c.data.unseen(function (l) { setItems(unseen, l); }, fail));
   cancels.push(c.data.sections(setSections, fail));
 
   function go(z: Zone): boolean { zone = z; relayout(); return true; }

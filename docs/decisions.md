@@ -732,3 +732,50 @@ de la maquette était « à confirmer » ; Stéphane préfère le jaune Plex `#e
 jauge de la fiche, onglet « Accueil » courant, bouton focalisé du lecteur. Texte et icônes (▶, ❚❚, qui suivent `currentColor`) en
 noir `#111` sur le jaune, comme l'app Plex : le blanc y serait peu lisible. Le reste du module (barres de progression, coches « vu »)
 était déjà en jaune : un seul accent. Coût : quelques octets.
+
+## Bibliothèque Plex : tri (Ajout récent, Titre, Année) et filtre « Non vus » (2026-10-30)
+
+Deux pilules en haut à droite de la grille, atteintes par **Haut depuis la première ligne** : « Tri : … » (OK fait défiler Ajout
+récent → Titre → Année) et « Non vus » (OK bascule, jaune Plex quand actif). **Tri et filtre faits par le serveur**
+(`sort=addedAt:desc|titleSort|year:desc`, `unwatched=1`) : la pagination virtualisée par `X-Plex-Container-*` est inchangée, la
+grille repart de la page 0 (`VirtualList.reset()`), les requêtes du choix précédent sont annulées. Chaque combinaison a ses
+pages en cache (clé d'origine gardée pour titre sans filtre). Pas de menu déroulant : une pilule qui défile coûte un nœud de moins
+et aucune pile de panneau.
+
+**Vérifié sur le serveur du homelab (30/10)** : 413 films → 259 non vus, 85 séries → 30 (séries = au moins un épisode non vu) ;
+pages de 36 parcourues deux fois pour chaque tri : aucun doublon, ordre stable (à année égale, le serveur départage par titre :
+`year:desc` suffit). `/firstCharacter?unwatched=1` somme exactement au total filtré, dans l'ordre du tri par titre : la **barre
+alphabétique reste active en « Titre + Non vus »** avec cet index filtré ; elle est **masquée** en tri par ajout ou par année
+(ses lettres n'y auraient pas de sens).
+
+Choix mémorisés **par bibliothèque** dans `cimaise.v1` : `prefs.plexLibrary[clé de section] = { sort: 'added'|'title'|'year',
+unwatched }`, champ ajouté sans changer le schéma (absent ou inconnu = titre, tout). Défaut inchangé : tri par titre.
+
+Coût : `plex.js` +2,1 Ko (chargé à la demande), `app.js` +95 o (`reset` de `VirtualList`), `app.css` +476 o ; deux nœuds DOM ;
+une lecture du stockage à l'ouverture d'une bibliothèque, une écriture par changement. Aucune image, aucune minuterie.
+
+## 2026-10-31 — Fiche série : compteur « vus » par saison
+
+Chaque pastille de saison affiche `viewedLeafCount/leafCount vus` sous son titre (badge `VirtualList` existant, rien sans
+`leafCount`). Marquer vu / non vu et le retour de lecture corrigent **le cache** sur place (`data.touch`) : l'épisode qui
+change d'état décale de ±1 le compteur de sa saison (liste des saisons, fiche de saison) et de sa série, une seule fois (état
+« vu » relu dans le cache avant le changement) ; le serveur reprend la main à la réponse suivante. L'ouverture sur la saison et
+l'épisode « à suivre » (OnDeck de la série) existait déjà (4f7e26f) et n'a pas changé.
+
+Coût : `plex.js` +708 o (chargé à la demande), `app.css` +145 o ; un nœud texte par pastille visible ; aucune requête,
+image ni minuterie en plus.
+
+## Accueil Plex : rangée « Pas encore vus » (2026-10-31)
+
+Troisième rangée, **après « Ajoutés récemment »** : les ajouts récents non vus, films et séries. Source :
+`/library/recentlyAdded?unwatched=1`. **Vérifié sur le serveur du homelab (31/10)** : 50 entrées (13 films, 8 saisons, 29 albums),
+**0 vue** (contre 25 sans le filtre) ; une saison commencée reste tant qu'un épisode n'est pas vu ; `type=` est ignoré par cet
+endpoint, la musique est donc écartée côté client comme pour « Ajoutés récemment ». Garde-fou local en plus du serveur : toute
+entrée vue en entier (`viewCount`, ou `viewedLeafCount = leafCount`) est retirée, et un élément marqué vu ou lu jusqu'au bout sur la
+TV quitte la rangée tout de suite (correction du cache, sans attendre le serveur). Rangée **masquée si vide**. Même cache et même
+rafraîchissement que « Ajoutés récemment » (clé `unseen`, 5 min, cache affiché d'abord).
+
+**Coût : une requête de plus à l'ouverture de l'accueil** (aucune si le cache a moins de 5 min), ≈ **116 Ko de JSON** sur notre
+serveur (même ordre que `recentlyAdded`), réduits par `slim` avant le cache. DOM : une rangée virtualisée de plus (chevron
+compris), dont les images ne se chargent que lorsqu'elle est à une rangée du focus. `plex.js` +≈0,6 Ko (chunk différé). Aucune
+minuterie.

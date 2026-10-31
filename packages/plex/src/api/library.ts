@@ -8,10 +8,16 @@ export function getSections(http: Http, id: Identity, s: ServerRef, cb: Callback
   return serverGet(http, id, s, '/library/sections', null, function (err, j) { err ? cb(err) : cb(null, container(j).Directory || []); });
 }
 
+// Tri et filtre faits par le serveur, pagination intacte : `sort` est une valeur Plex (titleSort, addedAt:desc, year:desc ;
+// à égalité le serveur départage par titre), `unwatched` ne garde que les non vus (séries : au moins un épisode non vu).
+export interface LibraryView { sort: string; unwatched: boolean; }
+export var TITLE_VIEW: LibraryView = { sort: 'titleSort', unwatched: false };
+export function viewQuery(v: LibraryView): string { return 'sort=' + v.sort + (v.unwatched ? '&unwatched=1' : ''); }
+
 // Pagination par en-têtes X-Plex-Container-Start / -Size.
-export function getSectionItems(http: Http, id: Identity, s: ServerRef, sectionKey: string, start: number, size: number, cb: Callback<Page>) {
+export function getSectionItems(http: Http, id: Identity, s: ServerRef, sectionKey: string, start: number, size: number, cb: Callback<Page>, view?: LibraryView) {
   var extra = { 'X-Plex-Container-Start': String(start), 'X-Plex-Container-Size': String(size) };
-  return serverGet(http, id, s, '/library/sections/' + encodeURIComponent(sectionKey) + '/all?sort=titleSort', extra, function (err, j) {
+  return serverGet(http, id, s, '/library/sections/' + encodeURIComponent(sectionKey) + '/all?' + viewQuery(view || TITLE_VIEW), extra, function (err, j) {
     if (err) return cb(err);
     var c = container(j), list = items(j);
     cb(null, { items: list, total: typeof c.totalSize === 'number' ? c.totalSize : start + list.length, offset: typeof c.offset === 'number' ? c.offset : start });
@@ -19,8 +25,9 @@ export function getSectionItems(http: Http, id: Identity, s: ServerRef, sectionK
 }
 
 // Index alphabétique : nombre de titres par première lettre, dans l'ordre du tri par titre (# d'abord).
-export function getFirstCharacter(http: Http, id: Identity, s: ServerRef, sectionKey: string, cb: Callback<Letter[]>) {
-  return serverGet(http, id, s, '/library/sections/' + encodeURIComponent(sectionKey) + '/firstCharacter', null, function (err, j) {
+// `unwatched` : même filtre que la grille (vérifié sur le serveur : les tailles somment au total filtré).
+export function getFirstCharacter(http: Http, id: Identity, s: ServerRef, sectionKey: string, cb: Callback<Letter[]>, unwatched?: boolean) {
+  return serverGet(http, id, s, '/library/sections/' + encodeURIComponent(sectionKey) + '/firstCharacter' + (unwatched ? '?unwatched=1' : ''), null, function (err, j) {
     if (err) return cb(err);
     var d = container(j).Directory || [], out: Letter[] = [];
     for (var i = 0; i < d.length; i++) out.push({ title: String(d[i].title), size: Number(d[i].size) || 0 });
@@ -34,6 +41,12 @@ export function getOnDeck(http: Http, id: Identity, s: ServerRef, cb: Callback<I
 
 export function getRecentlyAdded(http: Http, id: Identity, s: ServerRef, cb: Callback<Item[]>) {
   return serverGet(http, id, s, '/library/recentlyAdded', null, function (err, j) { err ? cb(err) : cb(null, items(j)); });
+}
+
+// Ajouts récents non vus (vérifié sur le serveur le 31/10 : 0 élément vu sur 50 ; une saison commencée reste si un épisode n'est pas vu).
+// Même forme que /library/recentlyAdded (films, saisons, albums ; `type` est ignoré) : le tri se fait côté client.
+export function getRecentlyAddedUnwatched(http: Http, id: Identity, s: ServerRef, cb: Callback<Item[]>) {
+  return serverGet(http, id, s, '/library/recentlyAdded?unwatched=1', null, function (err, j) { err ? cb(err) : cb(null, items(j)); });
 }
 
 // Rayons : /hubs (descripteurs seuls) ou /hubs/sections/{id} (avec leurs éléments en ligne).
