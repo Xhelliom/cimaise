@@ -284,3 +284,11 @@ l'intégration `samsungtv`), déclenché par un bouton Zigbee, un widget, un tag
 piste 6 (retour automatique) devient elle aussi possible. À trancher par Stéphane pour la prochaine
 carte : quel déclencheur (bouton physique, widget…), et s'il veut aussi le retour automatique,
 avec quel délai N.
+
+**Non prouvé à ce stade (piste 5)** : (1) le `POST` n'a été essayé que dans un seul état de la TV,
+pas pendant que Netflix ou le Smart Hub est au premier plan ; c'est pourtant le cas d'usage du « bouton
+cimaise ». (2) On ne sait pas si cimaise a été ouverte par l'appel du PC ou par Home Assistant, qui
+s'est manifesté au même moment. Test proposé, avec l'accord de Stéphane : Netflix au premier plan,
+puis le même `POST` depuis le PC, et il dit ce qu'il voit. Rappel : la piste 1 (touches) ne vaut que
+quand cimaise a le focus ; la piste 5 ne dépend pas de cimaise ; la piste 6 demande environ 1 Ko de JS
+dans cimaise, en plus de la 5.
