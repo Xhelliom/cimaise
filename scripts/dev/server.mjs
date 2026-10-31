@@ -30,18 +30,43 @@ const plexSessionScript = async () => {
   return [await plexSession, 'text/javascript'];
 };
 
-// Session Home Assistant de l'aperçu : URL et jeton viennent de .local/ha.env (chemin absolu, ou HA_ENV_FILE), jamais de git
-// ni du build ; le script servi (local seulement) les écrit dans cimaise.v1 sans jamais les afficher.
+// Home Assistant dans l'aperçu : HA refuse le cross-origin (préflight OPTIONS 403, pas de cors_allowed_origins) alors que la TV
+// passe sans souci. Le script servi pointe donc prefs.haUrl sur le relais /__ha/ de CE serveur (même origine) ; le relais ajoute
+// le jeton de .local/ha.env (chemin absolu, ou HA_ENV_FILE) CÔTÉ SERVEUR. Le navigateur ne reçoit jamais le jeton : prefs.haToken
+// n'est qu'un marqueur non secret (le client exige une valeur non vide), et tout Authorization entrant est ignoré.
 const HA_ENV = '/home/swetterwald/git/cimaise/.local/ha.env';
+const readHaEnv = () => {
+  const env = {};
+  for (const l of readFileSync(process.env.HA_ENV_FILE || HA_ENV, 'utf8').split('\n')) { const i = l.indexOf('='); if (i > 0) env[l.slice(0, i).trim()] = l.slice(i + 1).trim(); }
+  if (!env.HA_URL || !env.HA_TOKEN) throw new Error('HA_URL ou HA_TOKEN absent');
+  return { url: env.HA_URL.replace(/\/+$/, ''), token: env.HA_TOKEN };
+};
 const haSessionScript = async () => {
   try {
-    const env = {};
-    for (const l of readFileSync(process.env.HA_ENV_FILE || HA_ENV, 'utf8').split('\n')) { const i = l.indexOf('='); if (i > 0) env[l.slice(0, i).trim()] = l.slice(i + 1).trim(); }
-    if (!env.HA_URL || !env.HA_TOKEN) throw new Error('HA_URL ou HA_TOKEN absent');
-    return [`try{var k='cimaise.v1',d=JSON.parse(localStorage.getItem(k)||'null')||{version:1,prefs:{}};d.prefs=d.prefs||{};d.prefs.haUrl=${JSON.stringify(env.HA_URL)};d.prefs.haToken=${JSON.stringify(env.HA_TOKEN)};localStorage.setItem(k,JSON.stringify(d));}catch(e){}`, 'text/javascript'];
+    readHaEnv();
+    return [`try{var k='cimaise.v1',d=JSON.parse(localStorage.getItem(k)||'null')||{version:1,prefs:{}};d.prefs=d.prefs||{};d.prefs.haUrl=location.origin+'/__ha';d.prefs.haToken='relais-apercu';localStorage.setItem(k,JSON.stringify(d));}catch(e){}`, 'text/javascript'];
   } catch (e) {
     return [`console.warn('[aperçu] pas de session Home Assistant (ha.env illisible ou incomplet)');`, 'text/javascript'];
   }
+};
+const haProxy = (req, res) => {
+  let ha;
+  try { ha = readHaEnv(); } catch { res.writeHead(503).end('ha.env absent'); return; }
+  const path = req.url.slice('/__ha'.length);
+  if (!/^\/api\//.test(path) || path.includes('..')) { res.writeHead(404).end('introuvable'); return; }
+  const chunks = [];
+  req.on('data', (c) => chunks.push(c));
+  req.on('end', () => {
+    const headers = { authorization: 'Bearer ' + ha.token };
+    if (req.headers['content-type']) headers['content-type'] = req.headers['content-type'];
+    const body = chunks.length && req.method !== 'GET' && req.method !== 'HEAD' ? Buffer.concat(chunks) : undefined;
+    fetch(ha.url + path, { method: req.method, headers, body, signal: AbortSignal.timeout(8000) })
+      .then(async (r) => {
+        const out = Buffer.from((await r.text()).split(ha.token).join('…'));
+        res.writeHead(r.status, { 'content-type': r.headers.get('content-type') || 'application/json', 'cache-control': 'no-store' }).end(out);
+      })
+      .catch(() => res.writeHead(502).end("Home Assistant injoignable depuis l'aperçu"));
+  });
 };
 
 // Overseerr dans l'aperçu : adresse et clé viennent de .local/overseerr.env (jamais de git ni du build). Overseerr n'envoie
@@ -139,6 +164,7 @@ export function startDevServer({ port = 5173 } = {}) {
   const srv = createServer(async (req, res) => {
     const url = (req.url ?? '/').split('?')[0];
     if (url.startsWith('/__overseerr/')) { overseerrProxy(req, res); return; }
+    if (url.startsWith('/__ha/')) { haProxy(req, res); return; }
     const route = routes[url] ?? mockupRoute(url) ?? logoRoute(url);
     if (!route) { res.writeHead(404).end('introuvable'); return; }
     try {
