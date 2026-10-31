@@ -207,8 +207,32 @@ de cette carte). **Rien de tout cela ne doit être écrit en retour.**
   (b) plantage au chargement des bibliothèques (rootstrap IoT 5.0 ≠ TV), (c) fenêtre EFL non
   affichée par le compositeur de la TV.
 - **Désinstallation via sdb : refusée** (`closed`) ; suppression manuelle depuis la TV.
-- **Conséquence** : tant qu'aucun code natif ne s'exécute, les étapes suivantes de la Voie B
-  (lecture vconf, etc.) sont sans objet. Prochaine sonde possible, à décider par Stéphane : un
-  binaire sans EFL (par exemple un service-app qui se termine aussitôt), lancé par
-  `tizen.application.launch` depuis cimaise pour récupérer un message d'erreur. Cela permettrait
-  de distinguer (a) de (b)/(c).
+
+### Sonde v2 : sans fenêtre, lancée par un lanceur web (2026-10-31)
+
+But : séparer « le code natif s'exécute-t-il ? » de « la fenêtre s'affiche-t-elle ? ». La sonde
+1.0.1 ne crée aucune fenêtre ; elle doit vivre 60 s puis se fermer seule. Le lanceur web jetable
+`cmzlanceur.Lanceur` la lance par `tizen.application.launch` et relève `getAppsContext`
+(journal photographié par Stéphane, publié sur la carte).
+
+- Le processus est **créé** : le contexte 3140 apparaît 0,5 s après `launch`, et le premier
+  `launch` répond « succès », mais seulement après 5 s.
+- Il **ne se ferme jamais seul** : le même contexte 3140 est encore présent environ 5 min après
+  son lancement (essai 2, jusqu'à t+90 s). La minuterie de 60 s ne s'est donc pas déclenchée, et
+  le code applicatif n'atteint pas sa boucle d'événements. Un second `launch` sur ce processus
+  bloqué → `UnknownError : Unknown error.`
+- **Ce que cela tranche pour la v1** : le chargement infini ne venait pas de l'affichage de la
+  fenêtre EFL (hypothèse c), puisque la v2 sans fenêtre se bloque pareil. Restent (a) un refus
+  d'exécution du natif signé par un certificat public, appliqué en laissant le processus en
+  suspens, ou (b) un blocage au chargement ou à l'initialisation (appfw/ecore du rootstrap IoT 5.0
+  ≠ TV). Ces deux causes ne sont pas départageables sans logs.
+- Réserve : tout repose sur `getAppsContext` (le contexte existe), pas sur une trace de
+  l'exécution du code.
+
+**Conséquence pour la Voie B** : sur cette Frame, avec notre certificat public, **aucun code natif
+n'a été vu s'exécuter**. Les étapes suivantes (lecture de vconf, `app_operation_*`) supposent un
+code qui tourne : elles sont **bloquées**. Pour aller plus loin, il faudrait une sonde qui prouve
+l'exécution par un effet observable sans logs, par exemple un binaire libc seul qui se termine
+aussitôt (le contexte doit alors disparaître). Même en cas de succès, (a) reste plausible pour
+tout ce qui touche à l'UI ou aux bibliothèques TV. À décider par Stéphane ; recommandation :
+**clore la Voie B** et garder les voies officielles (autorun et réouverture depuis l'arrière-plan).

@@ -1,17 +1,21 @@
 # Bilan — Essai B, étape 1 : app native vide sur la Frame
 
-**Résultat : installation ACCEPTÉE, lancement NON abouti.**
+**Résultat : installation ACCEPTÉE ; le code natif ne s'exécute pas (le processus est créé, puis reste bloqué).**
 
-Fait :
-- Chaîne native Tizen 5.0 ajoutée à l'image Docker : rootstrap IoT-Headed 5.0 armel + GCC 6.2 + NativeCLI. Il n'existe pas de rootstrap TV public. Coût : +1,35 Go de SDK, image de 9,80 à 11,92 Go. Prérequis apt : python2.7, libpython2.7, libncurses5, make.
-- Sonde `apps/native-probe/` (`org.cimaise.sondenative`, C, aucun privilège, ni vconf ni dlopen) et script `scripts/tizen/native-probe.sh`. Le `.tpk` (29,7 Ko) est signé avec les mêmes certificats que cimaise (empreintes vérifiées).
-- Sur la Frame : install « completed » (`pkg_type[tpk]`) et app **vue par Stéphane**. Au lancement, `was_execute` répond « resumed » et l'écran **charge à l'infini** (vu par Stéphane) : le texte n'apparaît jamais. Stéphane est sorti avec Home ou Retour.
-- Désinstallation : `sdb uninstall` et `0 vd_appuninstall` → `closed`. **Stéphane a supprimé la sonde depuis le menu de la TV**, et `applist` confirme son absence. cimaise001.Cimaise est intact.
-- Consigné : `docs/tv-status.md` (observé / SDK / non testé), `docs/decisions.md`, `docs/home-button.md` (résultat de l'étape 1).
+Critères :
+- Résultat clair : un `.tpk` natif signé avec notre profil (certificats auteur et distributeur inchangés, empreintes identiques à celles de cimaise) **s'installe** (« install completed », `pkg_type[tpk]`, app vue par Stéphane dans Apps).
+- Lancement vu par Stéphane : **oui, mais en échec**. v1 (avec fenêtre) : chargement infini, texte jamais affiché. v2 (sans fenêtre, lancée par un lanceur web) : Stéphane a photographié le journal. Le processus est créé (`contextId 3140`) mais ne s'arrête jamais seul : il est encore vivant environ 5 min après le lancement, alors que le code se ferme à 60 s. Le second `launch` → `UnknownError`.
+- Désinstallation : faite par **Stéphane depuis le menu de la TV**, car `sdb uninstall` et `0 vd_appuninstall` répondent `closed`. `native-probe.sh list` confirme ensuite : sonde et lanceur absents, `cimaise001.Cimaise` présent.
+- Aucun réglage TV écrit. Aucune commande sdb hors de la liste du script. cimaise intacte.
 
-Non fait / à noter :
-- Cause du chargement infini non départagée, faute de logs (`logcat` et `appinfo` sont `closed`) : refus d'exécution du natif signé public, ABI des bibliothèques EFL, ou fenêtre. Une sonde suivante est proposée dans `docs/home-button.md` ; elle est à décider.
-- Stéphane a aussi supprimé **cimaise-blank** (`cimaiseblk.Blank`) en même temps (il l'a confirmé). À réinstaller pour la mesure plancher M1.
-- L'install a été envoyée deux fois par erreur (la 2ᵉ est une mise à jour, sans effet).
-- L'image a été construite sous le tag `cimaise-tizen:5.6-native` pour ne pas gêner les autres sessions. Le tag par défaut `cimaise-tizen:5.6` sera reconstruit par `build-image.sh` après la fusion.
-- Aucun réglage TV écrit, aucune commande sdb hors de la liste du script.
+Ce que ça tranche : le chargement infini de la v1 ne venait pas de l'affichage de la fenêtre. Restent deux causes possibles, non départageables sans logs : la TV refuse d'exécuter un natif signé par un certificat public, ou l'initialisation d'appfw/ecore bloque (rootstrap IoT 5.0 différent de la TV). Les étapes suivantes de la Voie B (vconf, app_operation) sont **bloquées**. Recommandation consignée dans `docs/home-button.md` : clore la Voie B. Décision à prendre par Stéphane.
+
+Livré :
+- Image Docker : chaîne native Tizen 5.0 (rootstrap IoT-Headed 5.0 armel + GCC 6.2 + NativeCLI ; apt : python2.7, libpython2.7, libncurses5, make). Coût : +1,35 Go de SDK, image de 9,80 à 11,92 Go. Pas de rootstrap TV public. Construite sous le tag `cimaise-tizen:5.6-native` ; `build-image.sh` reconstruira `cimaise-tizen:5.6` après la fusion.
+- `apps/native-probe/` (sonde v2, la v1 reste dans le commit bf1a1a6), `apps/native-launcher/` (lanceur jetable avec deux privilèges publics, application.launch et application.info), `scripts/tizen/native-probe.sh`. `lib.sh` monte `.local` quand il est hors du dépôt (cas d'un worktree).
+- Consigné : `docs/tv-status.md` (observé, SDK, non testé), `docs/home-button.md`, `docs/decisions.md`. Photos des deux journaux publiées sur la carte.
+
+À noter :
+- Stéphane a aussi supprimé **cimaise-blank** lors de la première suppression. À réinstaller pour la mesure plancher M1.
+- La v1 a été installée deux fois par erreur (la seconde est une mise à jour, sans effet).
+- Une réponse intermédiaire (« avant : sonde absente ») contredit la photo de l'essai 2 ; c'est la photo qui est retenue.

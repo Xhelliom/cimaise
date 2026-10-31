@@ -1,12 +1,14 @@
 /*
- * Sonde native « Voie B », étape 1 (docs/home-button.md).
- * Ne fait RIEN d'autre que : ouvrir une fenêtre plein écran, afficher un texte, se fermer seule
- * après DUREE_S secondes. Aucun appel vconf, aucun dlopen, aucun privilège, aucune écriture.
+ * Sonde native « Voie B » (docs/home-button.md).
+ * v1 (commit bf1a1a6) : fenêtre EFL + texte → chargement infini sur la Frame, texte jamais vu.
+ * v2 (ici) : AUCUNE fenêtre. Le seul but est de savoir si ce code s'exécute : l'app démarre, reste
+ * vivante DUREE_S secondes (visible dans tizen.application.getAppsContext côté lanceur web), puis
+ * se ferme seule. Aucun appel vconf, aucun dlopen, aucun privilège, aucune écriture.
  */
 #include <app.h>
-#include <Elementary.h>
+#include <Ecore.h>
 
-#define DUREE_S 30.0
+#define DUREE_S 60.0
 
 static Eina_Bool
 fermer(void *data)
@@ -15,37 +17,9 @@ fermer(void *data)
 	return ECORE_CALLBACK_CANCEL;
 }
 
-static void
-demande_fermeture(void *data, Evas_Object *obj, void *event_info)
-{
-	ui_app_exit();
-}
-
 static bool
 app_create(void *data)
 {
-	Evas_Object *win, *fond, *texte;
-
-	win = elm_win_util_standard_add("sondenative", "Sonde native");
-	elm_win_autodel_set(win, EINA_TRUE);
-	evas_object_smart_callback_add(win, "delete,request", demande_fermeture, NULL);
-
-	fond = evas_object_rectangle_add(evas_object_evas_get(win));
-	evas_object_color_set(fond, 20, 24, 32, 255);
-	evas_object_size_hint_weight_set(fond, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
-	elm_win_resize_object_add(win, fond);
-	evas_object_show(fond);
-
-	texte = elm_label_add(win);
-	elm_object_text_set(texte,
-		"<align=center><font_size=64><color=#FFFFFF>cimaise — sonde native OK</color></font_size><br/>"
-		"<font_size=36><color=#B0B8C8>App C (.tpk) signée avec le profil cimaise.<br/>"
-		"Fermeture automatique dans 30 s.</color></font_size></align>");
-	evas_object_size_hint_weight_set(texte, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
-	elm_win_resize_object_add(win, texte);
-	evas_object_show(texte);
-
-	evas_object_show(win);
 	ecore_timer_add(DUREE_S, fermer, NULL);
 	return true;
 }
