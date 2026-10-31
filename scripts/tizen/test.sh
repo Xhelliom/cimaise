@@ -18,6 +18,7 @@ trap cleanup EXIT
 FAILS=0
 ok()   { echo "ok   - $1"; }
 fail() { echo "FAIL - $1"; FAILS=$((FAILS+1)); }
+skip() { echo "skip - $1"; }
 check() { local name="$1"; shift; if "$@" >/dev/null 2>&1; then ok "$name"; else fail "$name"; fi; }
 
 # Faux docker : journalise chaque `docker run` sous un numéro. Un `bash -c` est exécuté
@@ -191,6 +192,8 @@ check "web-session.sh syntaxe" bash -n "$HERE/web-session.sh"
 check "web-session.sh n'expose pas CIMAISE_VNC_PW en ligne de commande" bash -c "! grep -E '(storepasswd|-passwd [^f]|-rfbauth)' '$HERE/web-session.sh' && ! grep -E '^[^#]*(x11vnc|websockify|openbox|Xvfb)[^&]*CIMAISE_VNC_PW' '$HERE/web-session.sh'"
 check "cert-manager (hôte) lance le Certificate Manager hors dépôt (pas de workspace/)" grep -q 'cd "$(mktemp -d)"' "$HERE/cert-manager.sh"
 check "web-session.sh lance le Certificate Manager hors dépôt" grep -q 'cd "$D" && /home/tizen' "$HERE/web-session.sh"
+# Le mode hôte monte /tmp/.X11-unix : sans serveur X11/XWayland (CI, machine sans session graphique), on saute.
+if [ -d /tmp/.X11-unix ]; then
 : > "$TMP/docker.log"
 mkdir -p "$TMP/local/SamsungCertificate/cimaise"
 echo fake > "$TMP/local/SamsungCertificate/cimaise/author.p12"
@@ -218,6 +221,9 @@ rm -rf "$TMP/local/certs" "$TMP/local/SamsungCertificate/cimaise"; mkdir -p "$TM
 mkdir -p "$TMP/local/SamsungCertificate/cimaise"; echo samsung-dist > "$TMP/local/SamsungCertificate/cimaise/distributor.p12"
 DISPLAY=:0 XAUTHORITY="$TMP/xauth" "$HERE/cert-manager.sh" >/dev/null 2>&1
 [ ! -e "$TMP/local/certs/author.p12" ] && ok "cert-manager : pas d'auteur du keystore quand un distributeur Samsung est présent" || fail "cert-manager : pas d'auteur du keystore sans paire Samsung"
+else
+  skip "cert-manager (affichage X11), cas 8 bis/ter : /tmp/.X11-unix absent"
+fi
 
 # 9. rien de secret versionné
 cd "$REPO" && ! git ls-files | grep -Eq '\.(p12|pfx|key|pem)$|(^|/)\.local/' && ok "aucun secret suivi par git" || fail "aucun secret suivi par git"
