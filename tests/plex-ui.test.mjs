@@ -57,6 +57,7 @@ const byClass = (n, cls) => { const o = []; walk(n, (x) => { if (x.classList && 
 const count = (n) => { let k = 0; walk(n, () => k++); return k; };
 const srcs = (n) => ui_imgs(n).map((i) => i.getAttribute('src')).filter(Boolean);
 const ui_imgs = (n) => n.getElementsByTagName('img');
+const shownTitles = (p) => byClass(p.el, 'plex-hub').filter((w) => w.style.display !== 'none').map((w) => w.children[0].textContent);
 const texts = (n) => { const o = []; walk(n, (x) => { if (x.textContent) o.push(x.textContent); }); return o; };
 
 // ---- transport factice : routes = [[regex, corps | fonction]] ; `silent` = ne répond jamais -------------------------
@@ -93,11 +94,14 @@ function pagedAll(req) {
   }
   return JSON.stringify({ MediaContainer: { size: items.length, totalSize: 412, offset: start, Metadata: items } });
 }
+const EMPTY = JSON.stringify({ MediaContainer: { size: 0 } });
 const serverRoutes = () => [
   [/\/library\/sections\/\d+\/all/, pagedAll],
   [/\/library\/sections\/\d+\/firstCharacter/, fx('first-character')],
   [/\/library\/sections$/, fx('sections')],
   [/\/library\/onDeck/, fx('ondeck')],
+  // « Pas encore vus » vide par défaut : la rangée est masquée, les tests de l'accueil gardent leurs deux rangées.
+  [/\/library\/recentlyAdded\?unwatched=1/, EMPTY],
   [/\/library\/recentlyAdded/, fx('recently-added')],
   [/\/library\/metadata\/100\/children/, fx('children')],
   [/\/library\/metadata\/\d+\/children/, fx('children')],
@@ -173,13 +177,47 @@ test('accueil : deux rangées et des onglets de bibliothèques, affichage imméd
   // second affichage : le serveur ne répond plus, tout vient du cache, synchrone
   const cold = deps({ store, http: fakeHttp([], { silent: true }) });
   const p = ui.createHomePanel(cold.arg);
-  const titles = byClass(p.el, 'plex-hub-title').map((n) => n.textContent);
-  assert.deepEqual(titles, ['En cours', 'Ajoutés récemment']);
+  assert.deepEqual(shownTitles(p), ['En cours', 'Ajoutés récemment'], '« Pas encore vus » vide : masquée');
   assert.deepEqual(byClass(p.el, 'plex-tab').map((n) => n.textContent), ['Accueil', 'Films', 'Séries'], 'onglets depuis le cache (bibliothèques vidéo seulement)');
   assert.ok(texts(p.el).some((t) => /Titre de série 1/.test(t)), 'tuiles de la rangée En cours déjà là');
   const s = srcs(p.el);
   assert.ok(s.length > 0);
   for (const u of s) assert.ok(u.startsWith(SERVER.uri + '/photo/:/transcode?') && /width=240&height=360/.test(u), u);
+});
+
+test('accueil : « Pas encore vus » après « Ajoutés récemment », sans aucun élément vu ; masquée si vide ; une requête, mise en cache', async () => {
+  const unseen = JSON.stringify({ MediaContainer: { size: 6, Metadata: [
+    { ratingKey: '901', type: 'movie', title: 'Film neuf' },
+    { ratingKey: '902', type: 'movie', title: 'Film déjà vu', viewCount: 1 },
+    { ratingKey: '903', type: 'season', title: 'Saison 2', parentRatingKey: '950', parentTitle: 'Série commencée', leafCount: 8, viewedLeafCount: 3 },
+    { ratingKey: '904', type: 'season', title: 'Saison 1', parentRatingKey: '960', parentTitle: 'Série finie', leafCount: 6, viewedLeafCount: 6 },
+    { ratingKey: '905', type: 'album', title: 'Album' },
+    { ratingKey: '906', type: 'show', title: 'Série neuve', leafCount: 10, viewedLeafCount: 0 },
+  ] } });
+  const store = memStore();
+  const d = deps({ store, http: fakeHttp([[/\/library\/recentlyAdded\?unwatched=1/, unseen], ...serverRoutes()]) });
+  const p = ui.createHomePanel(d.arg);
+  await tick(); await tick();
+  assert.deepEqual(byClass(p.el, 'plex-hub-title').map((n) => n.textContent), ['En cours', 'Ajoutés récemment', 'Pas encore vus']);
+  assert.equal(d.arg.http.calls.filter((c) => /\/library\/recentlyAdded\?unwatched=1/.test(c.url)).length, 1, 'une seule requête de plus');
+  const row = byClass(p.el, 'plex-hub')[2];
+  assert.notEqual(row.style.display, 'none');
+  const shown = texts(row).join(' | ');
+  for (const t of ['Film neuf', 'Série commencée', 'Série neuve']) assert.ok(shown.includes(t), t + ' : ' + shown);
+  for (const t of ['Film déjà vu', 'Série finie', 'Album']) assert.ok(!shown.includes(t), t + ' ne doit pas apparaître : ' + shown);
+  p.destroy();
+  // réouverture dans les 5 min : cache, aucune requête
+  const again = deps({ store, http: fakeHttp([], { silent: true }) });
+  const p2 = ui.createHomePanel(again.arg);
+  assert.deepEqual(byClass(p2.el, 'plex-hub-title').map((n) => n.textContent).slice(-1), ['Pas encore vus']);
+  assert.equal(again.arg.http.calls.length, 0, 'cache frais : aucune requête');
+  p2.destroy();
+  // vide : masquée
+  const e = deps();
+  const p3 = ui.createHomePanel(e.arg);
+  await tick(); await tick();
+  assert.equal(byClass(p3.el, 'plex-hub')[2].style.display, 'none');
+  p3.destroy();
 });
 
 test('accueil : télécommande — droite/bas déplacent le focus, Haut depuis la 1re rangée → onglets, Entrée ouvre la bibliothèque', async () => {
@@ -247,7 +285,7 @@ test('accueil : seules les rangées visibles et la suivante chargent leurs image
   const p = ui.createHomePanel(d.arg);
   await tick(); await tick();
   const rows = byClass(p.el, 'plex-row');
-  assert.equal(rows.length, 2);
+  assert.equal(rows.length, 3, 'la 3e (Pas encore vus, vide) est masquée');
   const loaded = (r) => srcs(r).length;
   assert.ok(loaded(rows[0]) > 0 && loaded(rows[1]) > 0);
 });
@@ -809,7 +847,7 @@ test('réouverture : token et session stockés → accueil Plex directement, auc
   const p = ui.createPlexPanel(d.arg);
   await tick(); await tick();
   assert.equal(byClass(p.el, 'plex-login').length, 0);
-  assert.deepEqual(byClass(p.el, 'plex-hub-title').map((n) => n.textContent), ['En cours', 'Ajoutés récemment']);
+  assert.deepEqual(shownTitles(p), ['En cours', 'Ajoutés récemment']);
   assert.ok(!d.arg.http.calls.some((c) => /plex\.tv/.test(c.url)));
 });
 
@@ -893,7 +931,7 @@ test('accueil : verticalement, la rangée active et son titre tiennent dans 0–
   const tileTop = rowTop + layerMargin, tileBottom = tileTop + 360 + 72; // affiche + étiquette
   const ty = (e) => { const m = /translate3d\(0,\s*(-?[\d.]+)px/.exec(e.style.transform || ''); return m ? +m[1] : 0; };
   const layer = byClass(p.el, 'plex-hubs')[0];
-  const wraps = byClass(p.el, 'plex-hub');
+  const wraps = byClass(p.el, 'plex-hub').filter((w) => w.style.display !== 'none');
   assert.equal(wraps.length, 2);
   for (let a = 0; a < 2; a++) {
     const y = (i) => ty(layer) + ty(wraps[i]);
@@ -1481,7 +1519,7 @@ test('indice de débordement : un chevron par rangée de l’accueil, caché qua
   const p = ui.createHomePanel(d.arg);
   await tick(); await tick();
   const more = byClass(p.el, 'plex-more');
-  assert.equal(more.length, 2, 'un par rangée');
+  assert.equal(more.length, 3, 'un par rangée (la 3e, vide, est masquée avec sa rangée)');
   assert.ok(more.every((m) => !m.classList.contains('on')), 'pas la classe « on » des zones actives');
   assert.ok(more.every((m) => !m.classList.contains('shown')), '2 et 3 éléments tiennent à l’écran : pas d’indice');
 });

@@ -43,6 +43,12 @@ export function getRecentlyAdded(http: Http, id: Identity, s: ServerRef, cb: Cal
   return serverGet(http, id, s, '/library/recentlyAdded', null, function (err, j) { err ? cb(err) : cb(null, items(j)); });
 }
 
+// Ajouts récents non vus (vérifié sur le serveur le 31/10 : 0 élément vu sur 50 ; une saison commencée reste si un épisode n'est pas vu).
+// Même forme que /library/recentlyAdded (films, saisons, albums ; `type` est ignoré) : le tri se fait côté client.
+export function getRecentlyAddedUnwatched(http: Http, id: Identity, s: ServerRef, cb: Callback<Item[]>) {
+  return serverGet(http, id, s, '/library/recentlyAdded?unwatched=1', null, function (err, j) { err ? cb(err) : cb(null, items(j)); });
+}
+
 // Rayons : /hubs (descripteurs seuls) ou /hubs/sections/{id} (avec leurs éléments en ligne).
 export function getHubs(http: Http, id: Identity, s: ServerRef, sectionKey: string | null, cb: Callback<Hub[]>) {
   var path = sectionKey === null ? '/hubs' : '/hubs/sections/' + encodeURIComponent(sectionKey);

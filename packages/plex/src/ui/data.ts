@@ -1,5 +1,5 @@
 import { Callback, Http, Identity, Item, Letter, Page, Section, ServerRef } from '../api/types';
-import { getChildren, getFirstCharacter, getMetadata, getOnDeck, getRecentlyAdded, getSectionItems, getSections, LibraryView, TITLE_VIEW, viewQuery } from '../api/library';
+import { getChildren, getFirstCharacter, getMetadata, getOnDeck, getRecentlyAdded, getRecentlyAddedUnwatched, getSectionItems, getSections, LibraryView, TITLE_VIEW, viewQuery } from '../api/library';
 import { Cache } from './cache';
 
 export type Cancel = () => void;
@@ -29,10 +29,17 @@ function shown(l: Item[]): Item[] {
   return l.filter(function (i) { return i.type === 'movie' || i.type === 'show' || i.type === 'episode' || i.type === 'season'; });
 }
 
+// Vu en entier : film ou épisode lu, série ou saison dont tous les épisodes sont lus.
+function seen(it: Item): boolean {
+  return it.leafCount ? (it.viewedLeafCount || 0) >= it.leafCount : (it.viewCount || 0) > 0;
+}
+
 export interface Data {
   sections(on: On<Section[]>, err?: Err): Cancel;
   onDeck(on: On<Item[]>, err?: Err): Cancel;
   recent(on: On<Item[]>, err?: Err): Cancel;
+  // « Pas encore vus » : ajouts récents non vus (une requête de plus à l'ouverture de l'accueil, même cache que « recent »).
+  unseen(on: On<Item[]>, err?: Err): Cancel;
   // `view` : tri et filtre (défaut : par titre, tout) ; chaque combinaison a ses propres pages en cache.
   page(sectionKey: string, start: number, size: number, on: On<Page>, err?: Err, view?: LibraryView): Cancel;
   letters(sectionKey: string, on: On<Letter[]>, err?: Err, unwatched?: boolean): Cancel;
@@ -82,6 +89,7 @@ export function createData(http: Http, id: Identity, s: ServerRef, cache: Cache)
   function touch(it: Item, local: Local): void {
     var was = seenNow(it);
     cache.set('o:' + it.ratingKey, local);
+    if (local.watched) patch<Item[]>('unseen', function (l) { return l.filter(function (x) { return x.ratingKey !== it.ratingKey; }); });
     patch<Item>('m:' + it.ratingKey, apply);
     if (it.parentRatingKey) patch<Item[]>('c:' + it.parentRatingKey, applyAll);
     var now = seenNow(it), d = was === null || now === null ? 0 : (now ? 1 : 0) - (was ? 1 : 0);
@@ -117,6 +125,11 @@ export function createData(http: Http, id: Identity, s: ServerRef, cache: Cache)
     },
     recent: function (on, err) {
       return load<Item[]>('recent', TTL_HOME, function (cb) { return getRecentlyAdded(http, id, s, cb); }, function (l) { return slimAll(shown(l)); }, on, err);
+    },
+    // Le serveur filtre déjà (unwatched=1) ; le filtre local couvre ce qui vient d'être vu ici, avant que le serveur le sache.
+    unseen: function (on, err) {
+      return load<Item[]>('unseen', TTL_HOME, function (cb) { return getRecentlyAddedUnwatched(http, id, s, cb); },
+        function (l) { return applyAll(slimAll(shown(l))).filter(function (x) { return !seen(x); }); }, on, err);
     },
     page: function (key, start, size, on, err, view) {
       // Tri par titre sans filtre : clé d'origine (le cache déjà présent reste valable).
