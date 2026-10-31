@@ -1524,6 +1524,25 @@ test('indice de débordement : un chevron par rangée de l’accueil, caché qua
   assert.ok(more.every((m) => !m.classList.contains('shown')), '2 et 3 éléments tiennent à l’écran : pas d’indice');
 });
 
+test('fiche film : pastilles techniques sous le titre (texte seul), la dernière dit le mode du lecteur ; aucune sans pistes', async () => {
+  const samples = JSON.parse(readFileSync('tests/fixtures/plex/media-samples.json', 'utf8'));
+  const dts = samples.find((x) => x.name === 'mkv-h264-dts');
+  const routes = serverRoutes().map((r) => (String(r[0]) === String(/\/library\/metadata\/\d+$/) ? [r[0], JSON.stringify(dts)] : r));
+  const d = deps({ http: fakeHttp(routes) });
+  const p = ui.createDetailPanel(d.arg, { ratingKey: '100', type: 'movie', title: 'Film' });
+  assert.equal(byClass(p.el, 'plex-badge').length, 0, 'rien tant que la fiche complète n’est pas arrivée');
+  await tick(); await tick();
+  const pills = byClass(p.el, 'plex-badge');
+  assert.deepEqual(pills.map((x) => x.textContent), ['1080p', '5.1', 'Audio EN', 'Sous-titres EN · FR', 'Transcodé']);
+  assert.ok(pills[pills.length - 1].classList.contains('transcode'));
+  assert.equal(pills.filter((x) => x.tag === 'img').length, 0);
+  p.destroy();
+  const plain = ui.createDetailPanel(deps().arg, { ratingKey: '100', type: 'movie', title: 'Film' });
+  await tick(); await tick();
+  assert.equal(byClass(plain.el, 'plex-badge').length, 0, 'fiche sans Stream : aucune pastille');
+  plain.destroy();
+});
+
 // ---- fiche série : compteur « vus » par saison --------------------------------------------------------------------
 const countOf = (p, re) => { const t = tileByLabel(p, 'plex-seasons', re); const b = byClass(t, 'vbadge'); return b.length ? b[0].textContent : null; };
 

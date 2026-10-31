@@ -1,22 +1,32 @@
-# Bilan : bibliothèque Plex, tri et filtre « Non vus » (30/10)
+# Bilan : badges techniques de la fiche Plex (30/10)
+
+Rien de tout ça n'existait sur la base (a90b55f).
 
 ## Fait
-- **Pilules** en haut à droite de la grille (Haut depuis la première ligne) : « Tri : Ajout récent / Titre / Année » (OK fait
-  défiler) et « Non vus » (OK bascule, jaune quand actif). Gauche/Droite entre elles, Bas revient à la grille.
-- **Côté serveur** : `sort=addedAt:desc|titleSort|year:desc` et `unwatched=1` ; pagination `X-Plex-Container-*` intacte,
-  grille remise en haut (`VirtualList.reset()`), requêtes de l'ancien choix annulées, cache distinct par combinaison.
-- **Barre alphabétique cohérente** : en tri par titre, index `/firstCharacter` filtré comme la grille (`?unwatched=1`) ;
-  masquée en tri par ajout ou par année.
-- **Mémorisé par bibliothèque** dans `cimaise.v1` (`prefs.plexLibrary`), retrouvé à la réouverture ; défaut : titre, tout.
-- Compteur « N non vus » ; « Tout a été vu. » si le filtre ne laisse rien.
-- **Vérifié sur le vrai serveur** : 413 → 259 films non vus, 85 → 30 séries ; tous les tris parcourus page par page sans
-  doublon ; index filtré = total filtré. Détails et coûts dans `docs/decisions.md`.
-- Tests : +3 dans `plex-ui.test` (tri/filtre/pagination/barre, réponse abandonnée, mémorisation) ; `npm run check` OK (713).
-- Poids : `plex.js` +2,1 Ko, `app.js` +95 o, `app.css` +476 o.
-- Aperçu navigateur sur la vraie bibliothèque : 5 captures publiées sur la carte (`tri-*.jpg`), recette écrite.
+- `packages/plex/src/playback/badges.ts` : `techBadges(item, prefs)` lit Media/Stream et appelle **`decidePlayback`** avec les
+  **mêmes réglages de langue que le lecteur** (`langPrefsFor`) : même version, même piste audio, mêmes sous-titres, donc
+  « Lecture directe » / « Transcodé » est ce que fera Lire, par construction. Pilules : définition (4K/1080p/720p/SD),
+  Dolby Vision / HDR10 / HLG, canaux de la piste audio retenue (Mono, Stéréo, 5.1, 7.1), « Audio FR · EN », « Sous-titres FR · EN +N »
+  (3 langues max), puis le mode (vert direct, ambre transcodé).
+- `ui/detail.ts` : ligne méta + pilules sous le titre, recalculées à l'arrivée de la fiche complète seulement (pas à chaque touche).
+  Rien pour une série ou une fiche sans Stream. Texte seul, **aucune image**.
+- Coût : plex.js +1,7 Ko (chunk différé), app.css +0,4 Ko, JS initial inchangé.
+- Tests : 3 dans `tests/plex-playback.test.mjs` (fiches réelles anonymisées), 1 dans `tests/plex-ui.test.mjs`. `npm test` : 717/717.
 
-## Pas fait
-- **Pas vu sur la Frame** : ni empaqueté ni installé (non demandé ici). Latence non remesurée (aucune minuterie ni travail
-  ajouté par appui dans la grille ; seul un changement de tri recharge).
-- Les pages en cache (10 min) ne sont pas invalidées quand on marque un titre vu : en « Non vus », il peut rester affiché
-  jusqu'à l'expiration ou au prochain changement de choix (même comportement que la coche « vu » existante).
+## Vérifié sur le vrai serveur (`node scripts/plex/verify-badges.mjs`, lecture seule)
+| Cas | Faits | Pilules | Lecteur |
+|---|---|---|---|
+| 4K HDR (10 Things I Hate About You) | 3840×2076, HEVC smpte2084, AC3 6 ch, sous-titres PGS seuls | 4K · HDR10 · 5.1 · Audio EN · Sous-titres EN · AR · BG +6 · **Transcodé** | Transcodage : PGS incrustés |
+| 4K Dolby Vision (28 Years Later) | 3840×1392, HEVC DOVI p8, DTS/TrueHD/AC3, SRT | 4K · Dolby Vision · 5.1 · Audio FR · EN · Sous-titres FR · EN · **Lecture directe** | Direct : piste AC3 choisie |
+| DTS (Ad Astra) | H.264 1080p, DTS seul 6 ch, SRT | 1080p · 5.1 · Audio EN · Sous-titres EN · FR · **Transcodé** | Transcodage : audio dca |
+| SRT (21) | HEVC 1080p, AC3, SRT externe | 1080p · 5.1 · Audio EN · Sous-titres EN · NL · CS +9 · **Lecture directe** | Direct |
+
+Captures (aperçu navigateur, vrai serveur) publiées sur la carte : `fiche-4k-hdr10-pgs`, `fiche-4k-dolby-vision-direct`,
+`fiche-dts-transcode`, `fiche-srt-direct`.
+
+## Pas fait / limites
+- **Pas vu sur la Frame** : vérifié dans l'aperçu Chromium uniquement.
+- Un fichier qui a une piste DTS **et** une piste lisible (28 Years Later) est annoncé « Lecture directe » : c'est ce que fait
+  le lecteur (il prend la piste AC3). La pilule « 5.1 » est celle de la piste retenue, pas forcément la meilleure du fichier.
+- Dolby Vision profil 8 affiché « Dolby Vision » alors que la TV lira la base HDR10 : la pilule décrit le fichier, pas l'affichage.
+- Série : pas de pilules (la liste des épisodes n'a pas les Stream ; les demander coûterait une requête par épisode).
