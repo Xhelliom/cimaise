@@ -1,5 +1,5 @@
 # Image Tizen Studio CLI pour cimaise (voir docs/decisions.md, « SDK Tizen via Docker »).
-# Contient `tizen` et `sdb` ; aucune interface graphique, aucun secret.
+# Contient `tizen` et `sdb` ; aucun secret. Les paquets graphiques (Xvfb, openbox, x11vnc, noVNC) servent au seul Certificate Manager (cert-manager.sh).
 FROM ubuntu:22.04
 
 ARG DEBIAN_FRONTEND=noninteractive
