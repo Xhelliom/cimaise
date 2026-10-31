@@ -236,3 +236,36 @@ l'exécution par un effet observable sans logs, par exemple un binaire libc seul
 aussitôt (le contexte doit alors disparaître). Même en cas de succès, (a) reste plausible pour
 tout ce qui touche à l'UI ou aux bibliothèques TV. À décider par Stéphane ; recommandation :
 **clore la Voie B** et garder les voies officielles (autorun et réouverture depuis l'arrière-plan).
+
+## Autres pistes après la Voie B (2026-10-31)
+
+> Point de départ : la réaffectation du bouton Home est impossible sur cette Frame (canal sdb fermé,
+> Voie B bloquée : le natif signé avec un certificat public ne s'exécute pas). Restent des pistes
+> **sans code natif ni réglage écrit**. Rien n'a été exécuté sur la TV pour cette liste : chaque
+> « à tester » est une manipulation à faire par Stéphane ou une future carte.
+
+| # | Piste | Faisable (Frame 2019, Tizen 5.0, certificat public) ? | Coût | À tester sur la TV |
+|---|---|---|---|---|
+| 1 | **Touches de la télécommande enregistrées par cimaise** (`tizen.tvinputdevice.registerKey` : touches de couleur, chiffres, ChannelUp/Down, etc.) | **Oui, mais seulement quand cimaise a le focus.** La touche ne parvient à l'app qu'au premier plan : elle ne peut pas *ramener* à cimaise depuis le Smart Hub ou Netflix. Utile comme raccourci *dans* cimaise (par exemple Rouge = Plex). Home, Retour, Volume et les touches dédiées (Netflix, Prime…) ne sont pas enregistrables. | Quasi nul (privilège `tv.inputdevice` déjà déclaré, quelques lignes de JS) | Liste réelle des touches avec `getSupportedKeys()` sur la Frame |
+| 2 | **Position épinglée dans la barre du Smart Hub** (appui long sur la tuile cimaise → Déplacer, en première position) | **Oui**, réglage utilisateur officiel. Au mieux Home → OK (deux appuis), si le focus se pose sur la première tuile à l'ouverture de la barre. | Nul | Où se pose le focus quand on presse Home : première tuile, dernière app ou « Source » ? |
+| 3 | **Autorun au démarrage** (« Exécution automatique de la dernière application », déjà retenu §2) | **Oui**, réglage officiel. Agit à l'allumage seulement, pas sur le bouton Home. | Nul | HANDOFF §11 Q5 : cimaise revient-il après le mode Art, et après une coupure de courant ? |
+| 4 | **Home une seconde fois / Retour depuis le Smart Hub** | **Probable** : sur Tizen, la barre Home s'affiche *par-dessus* l'app courante. Un second Home ou Retour la referme et laisse cimaise au premier plan, si cimaise était l'app en cours et qu'elle est restée en mémoire (Q8). Ce n'est pas un « aller à cimaise » depuis une autre app, mais un retour quasi instantané si on a pressé Home par erreur. | Nul | Depuis cimaise : Home, puis Home (ou Retour) → cimaise revient-elle, et en combien de temps ? Même essai après avoir lancé Netflix depuis cimaise |
+| 5 | **Lancement par le réseau via Home Assistant** (API Smart View de Samsung, `POST http://<TV>:8001/api/v2/applications/<appId>`, ou intégration `samsungtv` / `samsungtvws`) | **Plausible, non vérifié** pour une app installée en mode développeur. Si cela fonctionne, *n'importe quel* déclencheur devient un « bouton cimaise » : bouton Zigbee à côté de la télécommande, widget sur le téléphone, tag NFC, assistant vocal via HA. | Côté homelab seulement ; rien dans cimaise | Un seul appel depuis le PC (autorisation de l'appareil à accepter une fois à l'écran), puis Stéphane dit si cimaise s'ouvre |
+| 6 | **Retour automatique via HA** (cimaise signale « masquée » ; après N s sans lancement volontaire, HA relance cimaise par la piste 5) | **Dépend de la piste 5.** Ressenti : Home → Smart Hub → cimaise revient seule après N s. HA ne voit pas les touches : N trop court gêne la navigation dans le Smart Hub (Q-B, choix de N : 3-5 s ou 15 s). | Environ 1 Ko de JS (événements ponctuels), pas de minuterie permanente ; une automatisation HA | La piste 5, puis vérifier que l'événement « masquée » part bien (persistance Q8) |
+| 7 | **Bixby, à la voix** (« Ouvre cimaise ») | **Incertain** : Bixby TV ouvre les apps installées par leur nom, mais une app développeur n'est peut-être pas indexée. La disponibilité de Bixby en français sur ce modèle est aussi à confirmer. | Nul | Dire « Ouvre cimaise » au micro de la télécommande |
+| 8 | **SmartThings : routine ou scène qui lance l'app** | **Incertain** : l'app SmartThings sait lancer des apps sur la TV, probablement celles du Store seulement. Une routine pourrait être déclenchée par un bouton SmartThings. | Nul (compte Samsung) | Dans l'app SmartThings : la fiche de la TV liste-t-elle cimaise parmi les apps lançables ? |
+| 9 | **HDMI-CEC depuis un autre appareil** (par exemple un Raspberry Pi relié en HDMI) | **Non utile** : CEC sait allumer la TV, changer de source et envoyer des touches, mais pas lancer une app Tizen. Une suite de touches simulées (Home, flèches, OK) est fragile, car elle dépend de l'ordre de la barre. | Matériel en plus, fragile | — (écarté) |
+| 10 | **Télécommande IR universelle, Flirc, touches dédiées** | **Non** : les codes IR ont une fonction fixe dans le firmware, et les touches Netflix, Prime, etc. ne sont pas réaffectables officiellement. | — | — (écarté) |
+
+**Lecture d'ensemble.**
+- Pour un vrai « bouton qui amène à cimaise » depuis n'importe où, la seule piste sérieuse est la
+  **5** (bouton physique ou vocal via HA), éventuellement prolongée par la **6** (retour automatique).
+  Les deux dépendent d'un test unique et inoffensif : la TV accepte-t-elle le lancement réseau d'une
+  app développeur ?
+- Sans homelab, le mieux qu'on puisse avoir : **2 + 3 + 4** (cimaise en tête de barre, autorun,
+  retour par Home ou Retour), tous gratuits et officiels, à vérifier à la main.
+- La **1** améliore l'usage *dans* cimaise, pas le retour à cimaise.
+
+**Choix de la prochaine carte : à Stéphane.** Candidates : (a) test du lancement réseau (piste 5),
+(b) essais manuels 2 + 3 + 4 + 7 + 8 consignés dans `docs/tv-status.md`, (c) raccourcis de touches
+dans cimaise (piste 1).

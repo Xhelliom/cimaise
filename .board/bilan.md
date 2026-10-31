@@ -19,3 +19,7 @@ Livré :
 - Stéphane a aussi supprimé **cimaise-blank** lors de la première suppression. À réinstaller pour la mesure plancher M1.
 - La v1 a été installée deux fois par erreur (la seconde est une mise à jour, sans effet).
 - Une réponse intermédiaire (« avant : sonde absente ») contredit la photo de l'essai 2 ; c'est la photo qui est retenue.
+
+## Suite : autres pistes pour le bouton Home (question de Stéphane)
+
+Ajouté à `docs/home-button.md`, section « Autres pistes après la Voie B » : dix pistes non natives, avec pour chacune la faisabilité sur la Frame 2019, le coût et ce qu'il faudrait tester. Rien n'a été exécuté sur la TV et aucun réglage n'a été écrit. Seule piste vers un vrai « bouton cimaise » depuis n'importe où : le lancement réseau via Home Assistant (piste 5), éventuellement avec retour automatique (piste 6). Il faut d'abord vérifier que la TV accepte de lancer une app développeur par le réseau. Sans homelab : cimaise en tête de barre, autorun, retour par Home ou Retour (pistes 2, 3, 4). Prochaine carte à choisir par Stéphane : (a) test réseau, (b) essais manuels, (c) raccourcis de touches dans cimaise.
