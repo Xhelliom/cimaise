@@ -37,6 +37,7 @@ export var KNOWN_APPS: KnownApp[] = [
   { logo: 'rakuten.png', bg: '#bf0000', ink: '#ffffff', names: ['rakutentv'], desc: 'Films et séries en location, avec des chaînes gratuites.' },
   { logo: 'max.png', bg: '#002be7', ink: '#ffffff', names: ['max', 'hbomax', 'ocs'], desc: 'Séries HBO, films et programmes originaux.' },
   { logo: 'paramount.png', bg: '#0064ff', ink: '#ffffff', names: ['paramountplus'], desc: 'Films, séries et programmes Paramount, Nickelodeon et MTV.' },
+  { logo: 'overseerr.png', bg: '#4f65f5', ink: '#ffffff', names: ['overseerr'], desc: 'Demandes de films et séries à ajouter à la médiathèque Plex.' },
   { bg: '#1428a0', ink: '#ffffff', names: ['smarthub', 'smarthubsamsung', 'modeart', 'artmode'], desc: 'Retour à l’accueil Samsung et au mode Art de la Frame.' }
 ];
 

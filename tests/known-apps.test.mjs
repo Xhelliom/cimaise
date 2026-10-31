@@ -84,6 +84,8 @@ test('fond de tuile : la couleur forte de la marque (carte « couleur de marque 
   assert.equal(bg('Molotov'), '#fecf21', 'Molotov : jaune du logo fourni');
   assert.equal(bg('Plex officiel'), '#000000', 'Plex officiel inchangé');
   assert.equal(bg('Plex intégré'), '#e5a00d', 'Plex intégré : jaune Plex');
+  assert.equal(bg('Overseerr'), '#4f65f5', 'Overseerr : bleu-violet de la pastille du logo');
+  assert.equal(C.knownApp('Overseerr').logoUrl, 'logos/overseerr.png', 'Overseerr : logo sur la tuile du Dock');
   assert.equal(bg('Smart Hub'), '#1428a0', 'Smart Hub : bleu Samsung');
 });
 

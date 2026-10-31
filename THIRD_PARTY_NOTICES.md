@@ -33,5 +33,8 @@ Dossier : `packages/launcher/src/catalog/known-apps/logos/` (copié tel quel dan
 | `rakuten.png` | Rakuten TV logo.svg | Public domain ; marque déposée | <https://commons.wikimedia.org/wiki/File%3ARakuten_TV_logo.svg> |
 | `max.png` | HBO Max (2025).svg | Public domain ; marque déposée | <https://commons.wikimedia.org/wiki/File%3AHBO_Max_(2025).svg> |
 | `paramount.png` | Paramount+ logo.svg | Public domain ; marque déposée | <https://commons.wikimedia.org/wiki/File%3AParamount%2B_logo.svg> |
+| `overseerr.png` | Projet Overseerr (sct/overseerr), `public/logo_full.svg`, branche `develop` au commit `98ea135`, relevé le 2026-10-31 | MIT (Copyright (c) 2020 sct) | <https://github.com/sct/overseerr/blob/develop/public/logo_full.svg> |
+
+`overseerr.png` (hors Commons) : SVG 456 × 96 du projet Overseerr, sous licence MIT ; texte de la licence : <https://github.com/sct/overseerr/blob/develop/LICENSE>. Recoloré en une encre blanche (pastille en dégradé passée en blanc, ombre portée et reflet de l'arc retirés, formes intactes), rastérisé à 320 × 68 px (rsvg-convert), PNG 8 bits à palette (pngquant, 64 couleurs) : **2 878 octets**. Fond de tuile `#4f65f5`, couleur de fin du dégradé du logo.
 
 Smart Hub n'a pas de logo : sa tuile affiche son nom (pictogramme maison original retiré, `smarthub.png` supprimé).
