@@ -55,3 +55,26 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends xvfb openbox x11vnc novnc websockify \
  && rm -rf /var/lib/apt/lists/*
 USER tizen
+
+# Connexion au compte Samsung (étape « Author/Distributor Certificate » du Certificate Manager) :
+# il appelle `xdg-open` (Runtime.exec) pour ouvrir le navigateur. Sans xdg-open ni navigateur :
+# « Cannot run program xdg-open », pas de fenêtre, puis BindException sur le port 4794.
+# Firefox vient du dépôt APT officiel de Mozilla (clé signée) : le paquet `firefox` d'Ubuntu 22.04
+# n'est qu'un renvoi vers snap, inutilisable dans un conteneur. Le bac à sable de Firefox reste
+# ACTIF (ne jamais poser MOZ_DISABLE_*SANDBOX) ; il affiche « CanCreateUserNamespace() clone()
+# failure: EPERM » mais s'ouvre. La priorité 1000 impose le paquet Mozilla au paquet Ubuntu.
+USER root
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends xdg-utils gnupg \
+ && install -d -m 0755 /etc/apt/keyrings \
+ && curl -fsSL https://packages.mozilla.org/apt/repo-signing-key.gpg -o /etc/apt/keyrings/packages.mozilla.org.asc \
+ && echo "deb [signed-by=/etc/apt/keyrings/packages.mozilla.org.asc] https://packages.mozilla.org/apt mozilla main" > /etc/apt/sources.list.d/mozilla.list \
+ && printf 'Package: *\nPin: origin packages.mozilla.org\nPin-Priority: 1000\n' > /etc/apt/preferences.d/mozilla \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends firefox \
+ && rm -rf /var/lib/apt/lists/*
+# xdg-open sans environnement de bureau retombe sur $BROWSER.
+ENV BROWSER=firefox
+# Dernière instruction : tout doit tourner en `tizen` (sinon le Certificate Manager écrirait dans
+# /root/SamsungCertificate, non monté). Ne rien ajouter après sans rétablir USER tizen.
+USER tizen

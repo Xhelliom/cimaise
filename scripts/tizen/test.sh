@@ -191,6 +191,10 @@ grep -q -- "^DOCKER run .*web-session.sh" "$TMP/docker.log" && ok "mode web lanc
 check "web-session.sh syntaxe" bash -n "$HERE/web-session.sh"
 check "web-session.sh n'expose pas CIMAISE_VNC_PW en ligne de commande" bash -c "! grep -E '(storepasswd|-passwd [^f]|-rfbauth)' '$HERE/web-session.sh' && ! grep -E '^[^#]*(x11vnc|websockify|openbox|Xvfb)[^&]*CIMAISE_VNC_PW' '$HERE/web-session.sh'"
 check "cert-manager (hôte) lance le Certificate Manager hors dépôt (pas de workspace/)" grep -q 'cd "$(mktemp -d)"' "$HERE/cert-manager.sh"
+DF="$HERE/docker/Dockerfile"
+check "Dockerfile : Firefox du dépôt Mozilla signé + xdg-utils" bash -c "grep -q 'packages.mozilla.org/apt' '$DF' && grep -q 'signed-by=' '$DF' && grep -Eq 'install .*firefox' '$DF' && grep -q 'xdg-utils' '$DF'"
+check "Dockerfile : bac à sable de Firefox non désactivé" bash -c "! grep -Ev '^[[:space:]]*#' '$DF' | grep -Eiq 'MOZ_[A-Z_]*SANDBOX|no-sandbox'"
+check "Dockerfile : termine sur USER tizen (pas de Certificate Manager en root)" bash -c "[ \"\$(grep -E '^USER ' '$DF' | tail -n1)\" = 'USER tizen' ]"
 check "web-session.sh lance le Certificate Manager hors dépôt" grep -q 'cd "$D" && /home/tizen' "$HERE/web-session.sh"
 # Le mode hôte monte /tmp/.X11-unix : sans serveur X11/XWayland (CI, machine sans session graphique), on saute.
 if [ -d /tmp/.X11-unix ]; then
