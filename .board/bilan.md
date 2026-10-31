@@ -1,32 +1,25 @@
-# Bilan : badges techniques de la fiche Plex (30/10)
+# Bilan — défilement animé des rangées (grille Films/Séries) (31/10)
 
-Rien de tout ça n'existait sur la base (a90b55f).
+Rien de tout ça n'existait sur la base (741f527) : la couche était déplacée sans transition.
 
 ## Fait
-- `packages/plex/src/playback/badges.ts` : `techBadges(item, prefs)` lit Media/Stream et appelle **`decidePlayback`** avec les
-  **mêmes réglages de langue que le lecteur** (`langPrefsFor`) : même version, même piste audio, mêmes sous-titres, donc
-  « Lecture directe » / « Transcodé » est ce que fera Lire, par construction. Pilules : définition (4K/1080p/720p/SD),
-  Dolby Vision / HDR10 / HLG, canaux de la piste audio retenue (Mono, Stéréo, 5.1, 7.1), « Audio FR · EN », « Sous-titres FR · EN +N »
-  (3 langues max), puis le mode (vert direct, ambre transcodé).
-- `ui/detail.ts` : ligne méta + pilules sous le titre, recalculées à l'arrivée de la fiche complète seulement (pas à chaque touche).
-  Rien pour une série ou une fiche sans Stream. Texte seul, **aucune image**.
-- Coût : plex.js +1,7 Ko (chunk différé), app.css +0,4 Ko, JS initial inchangé.
-- Tests : 3 dans `tests/plex-playback.test.mjs` (fiches réelles anonymisées), 1 dans `tests/plex-ui.test.mjs`. `npm test` : 717/717.
+- `packages/tv-core/src/virtual/list.ts` : la couche glisse (`transform` seul, `translate3d`, 180 ms ease-out, `SLIDE_MS`)
+  quand le focus pousse la fenêtre d'une ligne. Vaut pour la grille verticale **et** les rangées horizontales
+  (accueil Plex, fiche, recherche, Overseerr), puisque tout passe par `VirtualList`.
+- Touche maintenue : la durée est ramenée à 60 % de l'intervalle entre deux répétitions, et coupée sous 50 ms.
+  Chaque glissement finit avant le suivant : pas de retard cumulé, et le décalage visible ne dépasse jamais une ligne.
+- Pas de trou : la marge de virtualisation ±1 garde la ligne entrante (avec son image) et la ligne sortante dans le DOM.
+- Sauts sans animation : barre alphabétique (`jumpTo`), `setFocus`, `reset`, `setCount`. La barre alphabétique ne change pas.
+- La transition et le transform de la couche ne sont réécrits que lorsqu'ils changent. Coût : quelques lignes de JS, aucun asset.
+- Tests ajoutés dans `tests/virtual.test.mjs` : glissement au pas, ligne entrante rendue, touche maintenue
+  (raccourci, puis coupé), sauts sans animation, rangée horizontale. `npm run check` passe (728 tests, ES5, budgets).
+- Vérifié dans l'aperçu navigateur (`/demo/virtual`) : une transition CSS de 180 ms est créée au pas,
+  de 62 ms à une répétition toutes les 100 ms, et aucune à une répétition toutes les 30 ms.
 
-## Vérifié sur le vrai serveur (`node scripts/plex/verify-badges.mjs`, lecture seule)
-| Cas | Faits | Pilules | Lecteur |
-|---|---|---|---|
-| 4K HDR (10 Things I Hate About You) | 3840×2076, HEVC smpte2084, AC3 6 ch, sous-titres PGS seuls | 4K · HDR10 · 5.1 · Audio EN · Sous-titres EN · AR · BG +6 · **Transcodé** | Transcodage : PGS incrustés |
-| 4K Dolby Vision (28 Years Later) | 3840×1392, HEVC DOVI p8, DTS/TrueHD/AC3, SRT | 4K · Dolby Vision · 5.1 · Audio FR · EN · Sous-titres FR · EN · **Lecture directe** | Direct : piste AC3 choisie |
-| DTS (Ad Astra) | H.264 1080p, DTS seul 6 ch, SRT | 1080p · 5.1 · Audio EN · Sous-titres EN · FR · **Transcodé** | Transcodage : audio dca |
-| SRT (21) | HEVC 1080p, AC3, SRT externe | 1080p · 5.1 · Audio EN · Sous-titres EN · NL · CS +9 · **Lecture directe** | Direct |
-
-Captures (aperçu navigateur, vrai serveur) publiées sur la carte : `fiche-4k-hdr10-pgs`, `fiche-4k-dolby-vision-direct`,
-`fiche-dts-transcode`, `fiche-srt-direct`.
-
-## Pas fait / limites
-- **Pas vu sur la Frame** : vérifié dans l'aperçu Chromium uniquement.
-- Un fichier qui a une piste DTS **et** une piste lisible (28 Years Later) est annoncé « Lecture directe » : c'est ce que fait
-  le lecteur (il prend la piste AC3). La pilule « 5.1 » est celle de la piste retenue, pas forcément la meilleure du fichier.
-- Dolby Vision profil 8 affiché « Dolby Vision » alors que la TV lira la base HDR10 : la pilule décrit le fichier, pas l'affichage.
-- Série : pas de pilules (la liste des épisodes n'a pas les Stream ; les demander coûterait une requête par épisode).
+## Pas fait
+- **Latence touche→frame sur la Frame (avant/après), à mesurer par Stéphane** : diagnostic (touche 0), descendre
+  et remonter dans une bibliothèque, relever le max. Si le max dépasse 100 ms, baisser `SLIDE_MS`.
+  Je n'ai pas accès à la TV, donc ce critère reste ouvert. Le glissement lui-même reste à constater sur la TV.
+- Pas de rendu publié : une capture fixe ne montre pas un glissement de 180 ms, et les transitions ne s'animent pas
+  dans un onglet en arrière-plan.
+- Pas de commit : les modifications sont dans l'arbre de travail de la branche.

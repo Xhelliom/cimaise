@@ -209,3 +209,58 @@ test('indice de débordement : « shown » sur edge tant que des éléments suiv
   r.handleKey('left'); r.handleKey('left'); r.handleKey('left'); r.handleKey('left');
   assert.equal(edge.classList.contains('shown'), true, 'retour au début : l’indice revient');
 });
+
+// Glissement : horloge simulée pour distinguer appuis espacés et touche maintenue.
+function withClock(fn) {
+  const real = Date.now;
+  let t = 1e6;
+  Date.now = () => t;
+  try { return fn((ms) => { t += ms; }); } finally { Date.now = real; }
+}
+
+test('descente d\'une ligne au pas : la couche glisse (transform 180 ms ease-out), rangée entrante déjà rendue', () => withClock((tick) => {
+  const { g, layer } = grid();
+  for (let k = 0; k < 2; k++) { tick(500); g.handleKey('down'); }   // focus sur la dernière ligne pleine (3 pleines)
+  assert.equal(layerY(layer), 0);
+  // La ligne qui va entrer (top + 3 visibles + partielle) est déjà dans le DOM avec son image.
+  const incoming = layer.children.filter((c) => xy(c)[1] === 4 * 320);
+  assert.equal(incoming.length, 5);
+  assert.ok(incoming.every((c) => c.children[0].getAttribute('src')));
+  tick(500); g.handleKey('down');
+  assert.equal(layerY(layer), -320);
+  assert.equal(layer.style.transition, 'transform 180ms ease-out');
+  // Pendant le glissement, l'ancienne ligne du haut (désormais top - 1) reste rendue : pas de trou.
+  assert.equal(layer.children.filter((c) => xy(c)[1] === 0).length, 5);
+}));
+
+test('touche maintenue : glissement raccourci sous l\'intervalle de répétition, coupé sous 50 ms', () => withClock((tick) => {
+  const { g, layer } = grid();
+  for (let k = 0; k < 3; k++) { tick(500); g.handleKey('down'); }
+  tick(100); g.handleKey('down');
+  assert.equal(layer.style.transition, 'transform 60ms ease-out');   // finit avant la répétition suivante
+  tick(40); g.handleKey('down');
+  assert.equal(layer.style.transition, 'none');
+  assert.equal(layerY(layer), -3 * 320);
+}));
+
+test('saut (barre alphabétique), setFocus, reset : aucun glissement', () => withClock((tick) => {
+  const { g, layer } = grid();
+  for (let k = 0; k < 3; k++) { tick(500); g.handleKey('down'); }
+  assert.notEqual(layer.style.transition, 'none');
+  g.jumpTo(2500);
+  assert.equal(layer.style.transition, 'none');
+  tick(500); g.handleKey('down'); g.setFocus(10);
+  assert.equal(layer.style.transition, 'none');
+  tick(500); g.handleKey('down'); g.handleKey('down'); g.handleKey('down'); g.reset();
+  assert.equal(layer.style.transition, 'none');
+}));
+
+test('rangée horizontale : même glissement sur l\'axe x', () => withClock((tick) => {
+  const log = [], doc = fakeDoc(log), container = doc.createElement('div');
+  const r = core.createRow({ container, doc, count: 40, itemW: 240, itemH: 360, gap: 24, viewportW: 1800, viewportH: 400, render: (i) => ({ title: 't' + i }) });
+  r.update();
+  const layer = container.children[0];
+  for (let k = 0; k < 6; k++) { tick(500); r.handleKey('right'); }
+  assert.match(layer.style.transform, /translate3d\(-264px,0,0\)/);
+  assert.equal(layer.style.transition, 'transform 180ms ease-out');
+}));
