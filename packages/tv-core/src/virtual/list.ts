@@ -23,6 +23,11 @@ export interface VirtualOptions {
   doc?: Document;
 }
 
+// Glissement de la couche quand le focus pousse la fenêtre d'une ligne (transform seul, composité).
+// Touche maintenue : durée ramenée à 60 % de l'intervalle entre deux répétitions, coupée sous 50 ms, pour que
+// chaque glissement finisse avant le suivant (aucun retard cumulé, décalage visible ≤ 1 ligne = la marge).
+export var SLIDE_MS = 180;
+
 interface Tile { el: HTMLElement; img: HTMLImageElement; label: HTMLElement; bar: HTMLElement | null; badge: HTMLElement | null; index: number; src: boolean; }
 
 // Liste/grille virtualisée : au plus (lignes visibles, partielles comprises, + 2 × marge) × colonnes nœuds, tous
@@ -45,6 +50,10 @@ export class VirtualList {
   private on = true;       // liste active : seule sa tuile sélectionnée porte « focus » (sinon « mark », repère discret)
   private held = false;      // écran quitté : aucune image tant que restore() n'a pas été appelé
   private more = false;      // état posé sur o.edge : sa classe n'est touchée que lorsqu'il change
+  private off = -1;          // décalage posé sur la couche : réécrit seulement s'il change
+  private trans = '';        // transition posée sur la couche : réécrite seulement si elle change
+  private slide = 0;         // durée du prochain glissement (ms) ; 0 = saut immédiat (barre alphabétique, reset, setFocus)
+  private lastMove = 0;      // dernier déplacement au clavier (détection de la touche maintenue)
 
   constructor(o: VirtualOptions) {
     this.o = o;
@@ -152,6 +161,10 @@ export class VirtualList {
     if (key === 'enter') { if (this.o.onSelect && this.o.count > 0) this.o.onSelect(this.focus.index); return true; }
     if (key !== 'left' && key !== 'right' && key !== 'up' && key !== 'down') return false;
     if (!this.focus.move(key)) return false;
+    var now = Date.now(), dt = now - this.lastMove;
+    this.lastMove = now;
+    var d = dt >= SLIDE_MS ? SLIDE_MS : Math.round(dt * 0.6);
+    this.slide = d < 50 ? 0 : d;
     this.scrollToFocus();
     this.update();
     return true;
@@ -233,7 +246,14 @@ export class VirtualList {
     var more = this.top + this.fullLines < total;
     if (o.edge && more !== this.more) { this.more = more; if (more) o.edge.classList.add('shown'); else o.edge.classList.remove('shown'); }
     var off = this.top * this.lineSize;
-    this.layer.style.transform = o.horizontal ? 'translate3d(' + -off + 'px,0,0)' : 'translate3d(0,' + -off + 'px,0)';
+    if (off !== this.off) {
+      // Transition posée dans le même passage que le transform : elle s'applique à ce changement-ci.
+      var tr = this.slide && this.off >= 0 ? 'transform ' + this.slide + 'ms ease-out' : 'none';
+      if (tr !== this.trans) { this.trans = tr; this.layer.style.transition = tr; }
+      this.off = off;
+      this.layer.style.transform = o.horizontal ? 'translate3d(' + -off + 'px,0,0)' : 'translate3d(0,' + -off + 'px,0)';
+    }
+    this.slide = 0;
     this.requestPages(lo, Math.min(o.count - 1, (last + 1 + (o.prefetchLines === undefined ? 2 : o.prefetchLines)) * cross - 1));
   }
 
