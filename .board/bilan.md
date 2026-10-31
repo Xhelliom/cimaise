@@ -16,10 +16,22 @@ Rien de tout ça n'existait sur la base (741f527) : la couche était déplacée 
 - Vérifié dans l'aperçu navigateur (`/demo/virtual`) : une transition CSS de 180 ms est créée au pas,
   de 62 ms à une répétition toutes les 100 ms, et aucune à une répétition toutes les 30 ms.
 
-## Pas fait
-- **Latence touche→frame sur la Frame (avant/après), à mesurer par Stéphane** : diagnostic (touche 0), descendre
-  et remonter dans une bibliothèque, relever le max. Si le max dépasse 100 ms, baisser `SLIDE_MS`.
-  Je n'ai pas accès à la TV, donc ce critère reste ouvert. Le glissement lui-même reste à constater sur la TV.
+- Commit 383d9a1 (code, tests, bilan).
+- Empaquetage (31/10, 10:48) : `scripts/tizen/package.sh apps/tv/dist` → `dist/cimaise.wgt` (181 957 octets), signé
+  avec le certificat auteur habituel (identité d'app inchangée). Le profil de signature attend `/work/.local/certs` :
+  copie temporaire de `certs/` dans le `.local/` du worktree, supprimée après l'installation.
+- Installation sur la Frame (31/10) : `scripts/tizen/install.sh`.
+  - **Réponse du SDK** : `app_id[cimaise001] install completed`, `cmd_ret:0`, app présente dans `applist`.
+  - **Observé physiquement** : en attente de Stéphane.
+
+## Pas fait / en attente
+- **Critère 1, glissement sans trou ni saut** : non testé sur la TV, en attente du retour de Stéphane.
+- **Critère 2, touche maintenue sans retard** : couvert par les tests et l'aperçu navigateur ; non testé sur la TV.
+- **Critère 3, latence max < 100 ms au diagnostic (touche 0)** : non mesuré, en attente du relevé de Stéphane.
+  Si le max dépasse 100 ms, il faudra baisser `SLIDE_MS` (list.ts), puis réempaqueter et réinstaller.
+  Il n'y a pas de mesure « avant » sur la TV : la version précédente n'a pas été relevée avant l'installation.
 - Pas de rendu publié : une capture fixe ne montre pas un glissement de 180 ms, et les transitions ne s'animent pas
   dans un onglet en arrière-plan.
-- Pas de commit : les modifications sont dans l'arbre de travail de la branche.
+
+## Retour de Stéphane
+- (à compléter : glissement vu ou non, trou éventuel, ligne « latence touche→frame » et « cause du max »)
