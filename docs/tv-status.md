@@ -62,3 +62,49 @@ Un échantillon par cas quand c'est possible, choisi pour n'isoler qu'une variab
 | ASS converti en SRT (sidecar) | The Bear S3E1 (18301), 37 min ; alternatives S3E3 (18293), S3E5 (18299) | mkv, ASS interne en, lecture directe de la vidéo ; le serveur sert la piste en SRT (`/library/streams/N`), passée à `setExternalSubtitlePath` | Direct, sous-titres affichés (serveur : SRT confirmé 200 le 2026-10-30) | | « OK partout » (Stéphane, 2026-10-30) : affiché, synchrone, survit aux sauts | Oui (`confirmed` : ass converti ; ssa non vu) |
 
 Cas sans échantillon propre : **Opus** seul (voir ligne). Rappel : un cas dont le lecteur échoue n'est retiré du profil qu'après observation à l'écran ; sinon `confirmed` reste à false.
+
+## TV2 — banc d'essai Tizen 4 (pas une cible) : pourquoi la page vide signée est refusée (2026-10-31)
+
+TV2 : UE49NU7175 (2018), `platform_version:4.0` (`sdb capability`), logiciel T-KTM2LDEUC-1360.0 (photo de Stéphane, 29/10).
+Page vide `cimaiseblk.Blank`, profil Samsung « cimaise » : **installée sur la Frame**, **refusée par TV2**.
+
+### Ce que disent les codes
+
+Le code décimal est la forme courte de `install failed[118, -NN]` affiché par `sdb`/`tizen install` : 118 = échec d'installation, -NN = étape qui a refusé.
+
+| Code | Forme longue | Signification | Source |
+|---|---|---|---|
+| **118019** | `[118, -19], reason: Parsing error` | Le `config.xml` est rejeté à la lecture, avant toute vérification de signature. | Vu sur **notre Frame** le 29/10 (package de 9 caractères, `docs/decisions.md`) ; [forum Samsung](https://forum.developer.samsung.com/t/install-failed-118-19-reason-parsing-error/20482) |
+| **118012** | `[118, -12], reason: Check certificate error` (souvent suivi de `Invalid certificate chain with certificate in signature :<-3>`) | Le paquet est lu et décompressé, puis la **chaîne de certificats** de la signature n'est pas reconnue par la TV. | [forum Samsung, 118012](https://forum.developer.samsung.com/t/tizen-install-to-tv-error-code-118012/19689) ; [forum Samsung, chaîne invalide](https://forum.developer.samsung.com/t/check-certificate-error-invalid-certificate-chain/38782) ; [TizenBrew #239](https://github.com/reisxd/TizenBrew/issues/239) (TV 2017, Tizen 3, même texte) |
+
+- **118019 avec `required_version="5.0"` : expliqué.** TV2 est en 4.0 ; une app qui exige 5.0 est refusée à la lecture du `config.xml`. Rien à corriger côté signature.
+- **118012 avec `required_version="4.0"` : la lecture passe** (l'installation atteint 23 %), c'est la **vérification du certificat** qui échoue.
+
+### Ce qui a été vérifié (lecture seule, sur le poste, 31/10)
+
+- Le DUID de TV2 est **bien** dans le certificat distributeur (`URN:tizen:deviceid`, à côté de celui de la Frame) et dans le profil. Ce n'est donc pas un oubli de DUID.
+- Certificats du profil : distributeur émis par `VD DEVELOPER Public CA Class` (racine `VD DEVELOPER Public Root Class`), auteur par `Samsung VD Author CA` (racine `Tizen Developers Root Class`). **Les deux CA intermédiaires datent de juin 2025** (17/06/2025 et 19/06/2025). Certificats valides du 29/10/2026 au 29/10/2027. Signature RSA-SHA512.
+- Samsung a répondu en septembre 2026 ([Tizen.Issues #139](https://github.com/Samsung/Tizen.Issues/issues/139), appareil Tizen 5.5, même erreur « Invalid certificate chain ») : **la racine des certificats a changé ; les anciens modèles font confiance à l'ancienne racine et ne peuvent pas vérifier les certificats émis aujourd'hui ; les serveurs de l'ancienne CA sont retirés.** Seule voie annoncée : une mise à jour du firmware qui renouvelle le magasin de confiance, pour les modèles encore suivis.
+
+### Hypothèses (de la plus probable à la moins probable)
+
+1. **Nouvelle CA Samsung inconnue de TV2 (probable).** Le firmware 1360 de TV2 ne connaît pas la chaîne de 2025 ; la Frame (T-MSMDEUC-1500.9) la connaît. Tout colle : DUID présent, lecture du paquet passée, refus à l'étape certificat, réponse de Samsung. *Non vérifié* : le texte complet de l'erreur sur TV2 (on n'a que le code), ni l'existence d'un firmware plus récent pour TV2.
+2. **Horloge de TV2 fausse (peu probable, vérifiable en 10 s).** Les certificats ne sont valides qu'à partir du 29/10/2026 09:06 UTC ; une TV en retard les verrait « pas encore valides ».
+3. **Algorithme SHA-512 non géré par Tizen 4 (peu probable).** Le packager actuel signe en RSA-SHA512 ; aucune source trouvée ne le relie à -12. À ne creuser que si 1 et 2 tombent.
+
+Écarté : DUID manquant ; certificat « Tizen » au lieu de « Samsung » (le profil est bien Samsung, privilège Public) ; `required_version` (corrigé par l'essai en 4.0).
+
+### Prochain test proposé (demande l'accord de Stéphane, une seule installation)
+
+1. **Sans action sur la TV** : Stéphane lit l'heure et la date de TV2, et regarde si une mise à jour existe (Paramètres → Assistance → Mise à jour du logiciel → Mettre à jour maintenant ; ne pas l'installer sans décision).
+2. **Une installation** de la page vide en `required_version="4.0"` (copie temporaire du `config.xml`, `apps/blank` non modifié), avec l'IP de TV2 passée par une **copie temporaire** de `.local/tizen.env.tv2` (jamais `.local/tizen.env`), en gardant **toute la sortie** de `sdb install` / `vd_appinstall` : on cherche `Invalid certificate chain …<-3>` (confirme l'hypothèse 1) ou `expired / not yet valid` (hypothèse 2).
+3. Lecture : chaîne invalide + aucune mise à jour du firmware → TV2 ne pourra plus installer d'app signée aujourd'hui ; on arrête le banc Tizen 4.
+
+### Questions pour Stéphane
+
+- Faire la mise à jour du firmware de TV2 si elle existe ? (Mise à jour officielle Samsung, pas un firmware modifié ; mais irréversible, et TV2 ne servirait alors plus de témoin « Tizen 4 d'origine ».)
+- Si TV2 ne peut pas être débloquée : abandonner le banc Tizen 4 ? Il n'est pas une cible ; la Frame installe déjà.
+
+### Ce que ça dit pour la Frame
+
+La Frame accepte la nouvelle chaîne aujourd'hui. Risque à garder en tête : si un jour il faut **recréer** le certificat auteur, ce sera forcément avec la nouvelle CA (l'ancienne n'existe plus) ; garder `.local/SamsungCertificate/` sauvegardé, c'est l'identité de l'app (HANDOFF §10).
