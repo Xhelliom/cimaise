@@ -22,6 +22,7 @@ Ce qui a été vu à l'écran ou constaté sur la TV.
 
 Ce que `sdb`, le packager ou le SDK ont répondu. Ne prouve pas un succès visible.
 
+- **2026-10-31, logo Overseerr sur la tuile du Dock** : `package.sh apps/tv/dist` (depuis le worktree, wrapper `DOCKER` de `docs/decisions.md`) → `dist/cimaise.wgt` signé (185 Ko, contient `logos/overseerr.png`) ; `install.sh` → « install completed » (3,1 s) et app présente ; `launch.sh` → « launched ». Ce que montre l'écran : en attente de Stéphane.
 - **2026-10-30, fiche Overseerr** : `package.sh apps/tv/dist` → `dist/cimaise.wgt` signé ; `install.sh` → « install completed » (3,5 s) et app présente ; `launch.sh` → « launched ».
 - **2026-10-30, sonde Overseerr** : `package.sh` (copie de `apps/tv/dist` + `local-config.js` + `<access origin>`) → `dist/cimaise.wgt` signé (author + distributor) ; `install.sh` → « install completed » (vd_appinstall, 3,8 s) et `cimaise001.Cimaise` dans la liste ; `launch.sh` → « launched ».
 
