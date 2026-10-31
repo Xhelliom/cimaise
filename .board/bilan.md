@@ -1,6 +1,6 @@
 # Bilan — pourquoi TV2 (Tizen 4) refuse la page signée (31/10)
 
-Exploration, aucun code. Rien de tout ça n'existait sur la base (0e765a9).
+Exploration, aucun code. Rien de tout ça n'existait sur la base (0e765a9). Commit c433862.
 
 ## Fait
 - `docs/tv-status.md`, section « TV2 » : sens des codes avec sources.
