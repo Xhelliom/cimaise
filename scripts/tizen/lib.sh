@@ -44,8 +44,13 @@ run_in_container() {
   mkdir -p "$LOCAL_DIR/tizen-studio-data"
   local envopt=()
   [ -f "$ENV_FILE" ] && envopt=(--env-file "$ENV_FILE")
+  # .local hors du dépôt (worktree, CIMAISE_LOCAL_DIR) : le profil de signature référence
+  # /work/.local/certs/… ; on monte donc LOCAL_DIR à cet endroit.
+  local localopt=()
+  [ "$(realpath -m "$LOCAL_DIR")" = "$REPO_ROOT/.local" ] || localopt=(-v "$LOCAL_DIR:/work/.local")
   "$DOCKER" run --rm -i --network host \
     "${envopt[@]}" \
+    "${localopt[@]}" \
     "${DOCKER_RUN_EXTRA[@]}" \
     -v "$REPO_ROOT:/work" \
     -v "$LOCAL_DIR/tizen-studio-data:/home/tizen/tizen-studio-data" \

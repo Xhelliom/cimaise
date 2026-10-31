@@ -779,3 +779,13 @@ rafraîchissement que « Ajoutés récemment » (clé `unseen`, 5 min, cache aff
 serveur (même ordre que `recentlyAdded`), réduits par `slim` avant le cache. DOM : une rangée virtualisée de plus (chevron
 compris), dont les images ne se chargent que lorsqu'elle est à une rangée du focus. `plex.js` +≈0,6 Ko (chunk différé). Aucune
 minuterie.
+
+## Chaîne native Tizen 5 dans l'image, sonde « Voie B » étape 1 (2026-10-31)
+
+But : vérifier si un `.tpk` natif C signé avec **notre** profil (auteur et distributeur inchangés) s'installe et se lance sur la Frame. C'est le préalable à la « Voie B » de `docs/home-button.md`. Cette étape ne fait aucun appel vconf, aucun `dlopen` et ne déclare aucun privilège.
+
+- **Rootstrap** : le SDK public (Tizen Studio 5.6) n'a **pas** de rootstrap natif pour les TV Samsung (`TV-SAMSUNG-Public` ne contient que le Web). On prend le rootstrap Tizen 5.0 public le plus proche : **IoT-Headed 5.0** (`iot-headed-5.0-device.core`, armel, EFL et appfw). Le paquet `IOT-Headed-5.0-NativeAppDevelopment-CLI` tire GCC 6.2 et `NativeCLI`. GCC 9.2 a été écarté : il ajoutait +3,3 Go (aarch64, i586, x86_64, llvm-10) et réclamait `python3.8`, introuvable sur Ubuntu 22.04.
+- **Prérequis système** vérifiés par le gestionnaire de paquets, qui sinon n'installe rien (code 4) : `python2.7`, `libpython2.7`, `libncurses5` (vrais paquets Ubuntu 22.04), plus `make` pour `tizen build-native`.
+- **Coût** : SDK 3 442 Mo → 4 797 Mo (**+1,35 Go**). Image `cimaise-tizen` 9,80 Go → **11,92 Go** (non compressée). Rien n'est ajouté au `.wgt` de cimaise.
+- **Outillage** : `apps/native-probe/` (manifeste, `main.c` de 60 lignes) et `scripts/tizen/native-probe.sh` (build, install, launch, uninstall, list). `lib.sh` monte maintenant `LOCAL_DIR` sur `/work/.local` quand `.local` est hors du dépôt (cas d'un worktree avec `CIMAISE_LOCAL_DIR`), car le profil de signature référence `/work/.local/certs/…`.
+- **Résultat** (`docs/tv-status.md`) : **installation acceptée** (`pkg_type[tpk]`, « install completed », app visible par Stéphane). **Lancement non abouti** : chargement sans fin, texte jamais affiché ; le SDK répond « resumed » au lieu de « launched ». **Désinstallation via sdb refusée** (`sdb uninstall` et `0 vd_appuninstall` → `closed`) : il faut supprimer l'app depuis le menu de la TV. À prévoir pour toute expérience native future.

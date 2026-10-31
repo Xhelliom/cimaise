@@ -191,3 +191,24 @@ de cette carte). **Rien de tout cela ne doit être écrit en retour.**
 - HANDOFF.md du présent dépôt : §2 (autorun retenu), §9 (recherche seulement), §10 (interdits),
   §11 Q5/Q8 (autorun et persistance à vérifier).
 - `docs/decisions.md` du présent dépôt : gestion Retour, pastille Smart Hub via `hide()`.
+
+## Voie B — étape 1 : résultat (2026-10-31)
+
+> Sonde `org.cimaise.sondenative` : app C vide, sans privilège ni vconf ni `dlopen`, signée avec le
+> profil cimaise inchangé. Détails dans `docs/tv-status.md` et `docs/decisions.md`.
+
+- **Installation : acceptée.** Notre certificat public (auteur + distributeur) suffit pour
+  installer un `.tpk` natif (`pkg_type[tpk]`, « install completed », app vue dans Apps par Stéphane).
+  L'incertitude n° 1 de la Voie B est levée côté installation.
+- **Lancement : non abouti.** Chargement sans fin à l'écran, texte jamais affiché, pas de fermeture
+  automatique ; `was_execute` répond « resumed » au lieu de « launched ». Le code de l'app n'a donc
+  probablement jamais tourné. Faute de logs (`logcat` et `appinfo` sont `closed`), la cause n'est
+  pas départagée : (a) la TV refuse d'exécuter un binaire natif signé par un certificat public,
+  (b) plantage au chargement des bibliothèques (rootstrap IoT 5.0 ≠ TV), (c) fenêtre EFL non
+  affichée par le compositeur de la TV.
+- **Désinstallation via sdb : refusée** (`closed`) ; suppression manuelle depuis la TV.
+- **Conséquence** : tant qu'aucun code natif ne s'exécute, les étapes suivantes de la Voie B
+  (lecture vconf, etc.) sont sans objet. Prochaine sonde possible, à décider par Stéphane : un
+  binaire sans EFL (par exemple un service-app qui se termine aussitôt), lancé par
+  `tizen.application.launch` depuis cimaise pour récupérer un message d'erreur. Cela permettrait
+  de distinguer (a) de (b)/(c).
