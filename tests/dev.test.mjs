@@ -174,3 +174,44 @@ test('aperçu : sert les logos d’apps sous /app/logos/, rien d’autre que des
   assert.equal((await fetch(base + '/app/logos/../index.ts')).status, 404);
   assert.equal((await fetch(base + '/app/logos/inconnu.png')).status, 404);
 });
+
+// Home Assistant refuse le cross-origin : l'aperçu passe par le relais /__ha/, qui ajoute le jeton côté serveur.
+test('aperçu : relais Home Assistant — jeton ajouté côté serveur, jamais renvoyé au navigateur', async () => {
+  const { createServer } = await import('node:http');
+  const { mkdtempSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const TOKEN = 'SECRET-TOKEN-0123456789';
+  const seen = [];
+  const ha = createServer((req, res) => {
+    let b = ''; req.on('data', (c) => (b += c));
+    req.on('end', () => {
+      seen.push({ m: req.method, u: req.url, auth: req.headers.authorization, b });
+      // un HA bavard qui renverrait le jeton dans le corps
+      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify([{ entity_id: 'scene.film', state: 'x', echo: req.headers.authorization }]));
+    });
+  });
+  await new Promise((ok) => ha.listen(0, '127.0.0.1', ok));
+  const dir = mkdtempSync(`${tmpdir()}/ha-`);
+  writeFileSync(`${dir}/ha.env`, `HA_URL=http://127.0.0.1:${ha.address().port}/\nHA_TOKEN=${TOKEN}\n`);
+  process.env.HA_ENV_FILE = `${dir}/ha.env`;
+  try {
+    const sess = await get('/__mocks/ha-session.js');
+    assert.doesNotMatch(sess.text, new RegExp(TOKEN));
+    assert.match(sess.text, /haUrl=location\.origin\+'\/__ha'/);
+    const g = await fetch(`${base}/__ha/api/states`, { headers: { authorization: 'Bearer faux' } });
+    const body = await g.text();
+    assert.equal(g.status, 200);
+    assert.doesNotMatch(body, new RegExp(TOKEN));
+    for (const [k, v] of g.headers) assert.doesNotMatch(`${k}: ${v}`, new RegExp(TOKEN));
+    const p = await fetch(`${base}/__ha/api/services/scene/turn_on`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"entity_id":"scene.film"}' });
+    assert.doesNotMatch(await p.text(), new RegExp(TOKEN));
+    assert.deepEqual(seen.map((x) => [x.m, x.u, x.auth]), [['GET', '/api/states', `Bearer ${TOKEN}`], ['POST', '/api/services/scene/turn_on', `Bearer ${TOKEN}`]]);
+    assert.equal(seen[1].b, '{"entity_id":"scene.film"}');
+    assert.equal((await fetch(`${base}/__ha/auth/token`)).status, 404);
+    process.env.HA_ENV_FILE = `${dir}/absent.env`;
+    assert.equal((await fetch(`${base}/__ha/api/states`)).status, 503);
+  } finally {
+    delete process.env.HA_ENV_FILE;
+    ha.close();
+  }
+});
