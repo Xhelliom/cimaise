@@ -7,8 +7,10 @@ import { ScenesView } from './scenes';
 
 export interface OverseerrSettings {
   url: string;                                                        // adresse enregistrée, sinon l'adresse par défaut
-  key: string;
+  key: string;                                                        // clé saisie dans les Réglages ; vide sinon
+  packaged?: boolean;                                                 // vrai : le paquet fournit une clé (jamais transmise ici)
   onConfig: (url: string, key: string) => void;                       // le propriétaire persiste
+  // key vide avec packaged : le propriétaire teste avec la clé du paquet.
   test: (url: string, key: string, cb: (err: Error | null, text?: string) => void) => void;   // texte du résultat, sans la clé
 }
 
@@ -64,7 +66,7 @@ export function createOverseerrView(doc: Document, ov: OverseerrSettings, redraw
   }
 
   function test(): void {
-    if (!url || !key) { status = 'Renseigne l’adresse et la clé.'; return; }
+    if (!url || (!key && !ov.packaged)) { status = 'Renseigne l’adresse et la clé.'; return; }
     if (busy) return;
     busy = true;
     status = 'Test en cours…';
@@ -83,7 +85,7 @@ export function createOverseerrView(doc: Document, ov: OverseerrSettings, redraw
       if (r === 'test') line.appendChild(div('nom', 'Tester la connexion'));
       else {
         line.appendChild(div('nom', r === 'url' ? 'Adresse' : 'Clé API'));
-        line.appendChild(div('puce' + (on ? ' focus' : ''), r === 'url' ? (url || 'Non définie') : (key ? '••••••••' : 'Non définie')));
+        line.appendChild(div('puce' + (on ? ' focus' : ''), r === 'url' ? (url || 'Non définie') : (key ? '••••••••' : ov.packaged ? 'Fournie par le paquet' : 'Non définie')));
       }
       line.style.top = i * ROW_H + 'px';
       list.appendChild(line);

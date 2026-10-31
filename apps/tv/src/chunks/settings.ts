@@ -9,7 +9,7 @@ import { HaSettings } from '../../../../packages/launcher/src/settings/scenes';
 import { OverseerrSettings } from '../../../../packages/launcher/src/settings/overseerr';
 import { testConnection } from '../../../../packages/overseerr/src/api/client';
 import { Http as OverseerrHttp } from '../../../../packages/overseerr/src/api/types';
-import { DEFAULT_OVERSEERR_URL, saveOverseerrConfig } from '../../../../packages/overseerr/src/api/config';
+import { DEFAULT_OVERSEERR_URL, overseerrConfigFrom, saveOverseerrConfig } from '../../../../packages/overseerr/src/api/config';
 import { loadStored } from '../../../../packages/tv-core/src/storage';
 import { createOverseerrProbePanel } from '../../../../packages/widgets/src/overseerr-probe';
 import { xhrHttp } from '../../../../packages/widgets/src/xhr';
@@ -59,15 +59,18 @@ function toEntry(a: AppEntry, from: CatalogEntry[]): CatalogEntry {
 // d'ici que dans l'en-tête X-Api-Key ; le texte du test n'en contient rien.
 function overseerrSettings(): OverseerrSettings {
   var p = loadStored().prefs;
+  // Clé du paquet (window.__cimaiseOverseerr) : signalée à l'écran, jamais passée à la vue ; sert seulement au test.
+  var pkg = overseerrConfigFrom(null);
   return {
-    url: typeof p.overseerrUrl === 'string' && p.overseerrUrl ? p.overseerrUrl : DEFAULT_OVERSEERR_URL,
+    url: typeof p.overseerrUrl === 'string' && p.overseerrUrl ? p.overseerrUrl : pkg ? pkg.url : DEFAULT_OVERSEERR_URL,
     key: typeof p.overseerrKey === 'string' ? p.overseerrKey : '',
+    packaged: !!pkg,
     onConfig: function (url, key) {
       try { saveOverseerrConfig(url, key); } catch (e) { /* stockage refusé : valable pour cette session */ }
     },
     test: function (url, key, cb) {
       // Même XHR que la sonde (renvoie toujours de quoi abandonner) : pas de second transport dans le chunk.
-      testConnection(xhrHttp as OverseerrHttp, { url: url, key: key }, function (err, info) {
+      testConnection(xhrHttp as OverseerrHttp, { url: url, key: key || (pkg ? pkg.key : '') }, function (err, info) {
         if (err || !info) return cb(err || new Error('réponse vide'));
         cb(null, 'Overseerr ' + (info.version || '?') + ' joignable, clé acceptée' +
           (info.mediaItems !== null ? ' (' + info.mediaItems + ' médias)' : '') + '.');
