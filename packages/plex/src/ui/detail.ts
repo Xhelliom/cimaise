@@ -38,6 +38,11 @@ function markedCopy(it: Item, watched: boolean): Item {
 // Saison dont tous les épisodes sont vus (info absente : non).
 function seasonSeen(s: Item): boolean { return !!s.leafCount && s.viewedLeafCount === s.leafCount; }
 
+// Compteur d’une pastille de saison : « 7/10 vus » (rien si le serveur n’a pas donné le nombre d’épisodes).
+function seasonCount(s: Item): { text: string; cls: string } | null {
+  return s.leafCount ? { text: (s.viewedLeafCount || 0) + '/' + s.leafCount + ' vus', cls: 'count' } : null;
+}
+
 // Position de reprise d'une pastille : « 12:34 » ou « 1:02:10 ».
 function clock(ms: number): string {
   var s = Math.floor(ms / 1000), h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, ss = s % 60;
@@ -164,7 +169,7 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
   if (stub.type === 'show') {
     seasonList = createRow({
       container: seasonsBox, doc: doc, count: 0, itemW: 240, itemH: 84, gap: 24, viewportW: 1400, viewportH: 84, edge: seasonsMore,
-      render: function (i) { return seasons[i] ? { title: seasons[i].title, image: null, selected: seasons[i] === curSeason, done: seasonSeen(seasons[i]) } : null; },
+      render: function (i) { return seasons[i] ? { title: seasons[i].title, image: null, selected: seasons[i] === curSeason, done: seasonSeen(seasons[i]), badge: seasonCount(seasons[i]) } : null; },
       onSelect: function (i) { settle(); loadEpisodes(seasons[i]); }
     });
     episodeList = createRow({

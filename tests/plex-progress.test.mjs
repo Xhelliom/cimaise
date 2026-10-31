@@ -213,3 +213,23 @@ test('timeline : en transcodage, la session est signalée au serveur (en-tête X
   assert.equal(t[0].headers['X-Plex-Session-Identifier'], 'cimaise-abc');
   assert.equal(t[1].headers['X-Plex-Session-Identifier'], undefined);
 });
+
+test('vu / non vu : compteurs « vus » de la saison et de la série décalés de ±1 dans le cache, une seule fois', () => {
+  const cache = plex.createCache({ store: memStore(), ns: 'srv' });
+  const data = plex.createData(() => { throw new Error('pas de réseau'); }, ID, SERVER, cache);
+  const ep = { ratingKey: '7', type: 'episode', title: 'E', parentRatingKey: '6', grandparentRatingKey: '5' };
+  cache.set('c:6', [ep, { ratingKey: '8', type: 'episode', viewCount: 1 }]);
+  cache.set('m:5', { ratingKey: '5', type: 'show', leafCount: 10, viewedLeafCount: 3 });
+  cache.set('c:5', [{ ratingKey: '6', type: 'season', leafCount: 4, viewedLeafCount: 1 }, { ratingKey: '9', type: 'season', leafCount: 6, viewedLeafCount: 2 }]);
+  const counts = () => [cache.get('m:5').value.viewedLeafCount, cache.get('c:5').value[0].viewedLeafCount, cache.get('c:5').value[1].viewedLeafCount];
+  data.marked(ep, true);
+  assert.deepEqual(counts(), [4, 2, 2]);
+  data.marked(ep, true);   // déjà vu : pas de double compte
+  assert.deepEqual(counts(), [4, 2, 2]);
+  data.progressed(ep, 5000, false);   // entamé de nouveau : reste compté vu
+  assert.deepEqual(counts(), [4, 2, 2]);
+  data.marked(ep, false);
+  assert.deepEqual(counts(), [3, 1, 2]);
+  data.progressed(ep, DUR, true);
+  assert.deepEqual(counts(), [4, 2, 2]);
+});
