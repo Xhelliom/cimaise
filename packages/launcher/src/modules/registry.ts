@@ -9,6 +9,7 @@
 import { loadStored, saveStored } from '../../../tv-core/src/storage';
 import { CatalogEntry } from '../catalog/model';
 import { defaultCatalog } from '../catalog/defaults';
+import { overseerrConfigFrom } from '../../../overseerr/src/api/config';
 
 export interface ModuleDef {
   id: string;
@@ -27,7 +28,8 @@ export var MODULES: ModuleDef[] = [
   },
   {
     id: 'overseerr', name: 'Overseerr', tileId: 'overseerr', chunk: 'overseerr', settings: 'overseerr',
-    configured: function (p) { return typeof p.overseerrUrl === 'string' && !!p.overseerrUrl && typeof p.overseerrKey === 'string' && !!p.overseerrKey; }
+    // Réglages (prefs), sinon la clé fournie par le paquet (window.__cimaiseOverseerr) : installation à neuf sans saisie.
+    configured: function (p) { return overseerrConfigFrom(p) !== null; }
   }
 ];
 

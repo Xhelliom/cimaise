@@ -56,6 +56,20 @@ test('défauts : Plex activé ; Scènes seulement si Home Assistant est configur
   assert.equal(M.moduleEnabled('inconnu', {}), false);
 });
 
+test('Overseerr : la clé fournie par le paquet (window.__cimaiseOverseerr) suffit à l\'activer, tuile comprise', () => {
+  const had = 'window' in globalThis, prev = globalThis.window;
+  globalThis.window = { __cimaiseOverseerr: { url: 'https://pkg.test/', key: 'pk' } };
+  try {
+    assert.equal(M.moduleEnabled('overseerr', {}), true, 'installation à neuf : activé sans saisie');
+    assert.equal(M.moduleEnabled('overseerr', { modules: { overseerr: false } }), false, 'masqué explicitement : reste masqué');
+    assert.deepEqual(M.visibleCatalog(M.addNewTiles([PLEX, NF], {}), {}).map((e) => e.id), ['overseerr', 'plex', 'nf']);
+    globalThis.window = { __cimaiseOverseerr: { url: 'https://pkg.test/' } };
+    assert.equal(M.moduleEnabled('overseerr', {}), false, 'paquet sans clé : masqué');
+  } finally {
+    if (had) globalThis.window = prev; else delete globalThis.window;
+  }
+});
+
 test('masquer puis réactiver chaque module : persisté dans cimaise.v1', () => {
   const s = memStore();
   for (const m of M.MODULES) {

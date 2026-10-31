@@ -119,6 +119,15 @@ test('adresse saisie : normalisée (https:// ajouté, / final retiré) ; Retour 
   assert.equal(S.normalizeOverseerrUrl(''), '');
 });
 
+test('clé fournie par le paquet : « Fournie par le paquet » affiché, jamais la clé ; Tester est permis sans saisie', () => {
+  const { t, enter, press, log } = open({ packaged: true });
+  enter();
+  assert.ok(t().includes('Fournie par le paquet'));
+  assert.ok(!t().includes('Non définie') && !t().includes('••••••••'));
+  press('down', 'down', 'enter');
+  assert.equal(log.tests, 1);
+});
+
 test('Tester : sans clé, rien n\'est appelé ; avec clé, le résultat s\'affiche ; une erreur s\'affiche aussi', () => {
   const a = open();
   a.enter();
