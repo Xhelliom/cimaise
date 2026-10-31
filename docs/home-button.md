@@ -269,3 +269,18 @@ tout ce qui touche à l'UI ou aux bibliothèques TV. À décider par Stéphane ;
 **Choix de la prochaine carte : à Stéphane.** Candidates : (a) test du lancement réseau (piste 5),
 (b) essais manuels 2 + 3 + 4 + 7 + 8 consignés dans `docs/tv-status.md`, (c) raccourcis de touches
 dans cimaise (piste 1).
+
+### Piste 5 testée : lancement par le réseau (2026-10-31)
+
+`POST http://<TV>:8001/api/v2/applications/cimaise001.Cimaise` (API Smart View, HTTP, sans jeton)
+→ `true`, et **cimaise s'est ouverte à l'écran** (vu par Stéphane). L'API connaît l'app développeur
+(`GET` → `running:false`, et ce champ ne bouge pas après l'ouverture : il n'est pas fiable). Une demande
+d'autorisation au nom de « Home Assistant » s'est affichée au même moment ; Stéphane l'a acceptée.
+Détails dans `docs/tv-status.md`.
+
+**Conséquence** : un « bouton cimaise » externe est **faisable** sans code natif ni réglage système.
+Il suffit d'un script ou d'une automatisation Home Assistant qui fait ce `POST` (ou le service de
+l'intégration `samsungtv`), déclenché par un bouton Zigbee, un widget, un tag NFC ou la voix. La
+piste 6 (retour automatique) devient elle aussi possible. À trancher par Stéphane pour la prochaine
+carte : quel déclencheur (bouton physique, widget…), et s'il veut aussi le retour automatique,
+avec quel délai N.

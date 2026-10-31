@@ -23,3 +23,7 @@ Livré :
 ## Suite : autres pistes pour le bouton Home (question de Stéphane)
 
 Ajouté à `docs/home-button.md`, section « Autres pistes après la Voie B » : dix pistes non natives, avec pour chacune la faisabilité sur la Frame 2019, le coût et ce qu'il faudrait tester. Rien n'a été exécuté sur la TV et aucun réglage n'a été écrit. Seule piste vers un vrai « bouton cimaise » depuis n'importe où : le lancement réseau via Home Assistant (piste 5), éventuellement avec retour automatique (piste 6). Il faut d'abord vérifier que la TV accepte de lancer une app développeur par le réseau. Sans homelab : cimaise en tête de barre, autorun, retour par Home ou Retour (pistes 2, 3, 4). Prochaine carte à choisir par Stéphane : (a) test réseau, (b) essais manuels, (c) raccourcis de touches dans cimaise.
+
+## Piste 5 testée (à la demande de Stéphane) : lancement réseau → OK
+
+Un `POST /api/v2/applications/cimaise001.Cimaise` (API Smart View, port 8001) → `true`, et **cimaise s'est ouverte** (vu par Stéphane). Une demande d'autorisation « Home Assistant » s'est affichée en même temps et Stéphane l'a acceptée (Home Assistant fait désormais partie des appareils autorisés de la TV ; c'est réversible). Le « bouton cimaise » externe via Home Assistant est donc faisable. Prochaine carte à choisir : le déclencheur (bouton Zigbee, widget, NFC, voix) et, éventuellement, le retour automatique (délai N).
