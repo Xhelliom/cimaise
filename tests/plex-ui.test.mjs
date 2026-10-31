@@ -1523,3 +1523,51 @@ test('indice de débordement : un chevron par rangée de l’accueil, caché qua
   assert.ok(more.every((m) => !m.classList.contains('on')), 'pas la classe « on » des zones actives');
   assert.ok(more.every((m) => !m.classList.contains('shown')), '2 et 3 éléments tiennent à l’écran : pas d’indice');
 });
+
+// ---- fiche série : compteur « vus » par saison --------------------------------------------------------------------
+const countOf = (p, re) => { const t = tileByLabel(p, 'plex-seasons', re); const b = byClass(t, 'vbadge'); return b.length ? b[0].textContent : null; };
+
+test('pastilles de saison : « N/M vus » (viewedLeafCount/leafCount), rien sans leafCount', async () => {
+  const { d } = viewDeps({
+    seasonsOf: [season('750', 1, 10, 7), season('751', 2, 3, 0), { ratingKey: '752', type: 'season', index: 3, title: 'Saison 3' }],
+    eps: { 750: [episode('1', 1, '750')], 751: [episode('4', 1, '751')] },
+  });
+  const p = ui.createDetailPanel(d.arg, SHOW_DECK);
+  await flush();
+  assert.equal(countOf(p, /^Saison 1$/), '7/10 vus');
+  assert.equal(countOf(p, /^Saison 2$/), '0/3 vus');
+  assert.equal(countOf(p, /^Saison 3$/), null);
+  p.destroy();
+});
+
+test('Marquer vu / non vu puis retour de lecture : le compteur de la saison suit (correctif local, puis serveur)', async () => {
+  const { d, state } = viewDeps({
+    ondeck: { ratingKey: '2', type: 'episode', index: 2, parentIndex: 1, parentRatingKey: '750', title: 'Ép 2', duration: 1200000 },
+    seasonsOf: [season('750', 1, 3, 1), season('751', 2, 2, 0)],
+    eps: { 750: [episode('1', 1, '750', { viewCount: 1 }), episode('2', 2, '750'), episode('3', 3, '750')], 751: [] },
+  });
+  d.arg.http = withMarks(d.arg.http);
+  const p = ui.createDetailPanel(d.arg, SHOW_DECK);
+  await flush();
+  assert.equal(countOf(p, /^Saison 1$/), '1/3 vus');
+  const seasonsBefore = d.arg.http.calls.filter((c) => /\/700\/children/.test(c.url)).length;
+  state.seasons = [season('750', 1, 3, 2), season('751', 2, 2, 0)];
+  p.onKey('right'); p.onKey('enter');   // Marquer vu (S1 E2)
+  await flush();
+  assert.equal(countOf(p, /^Saison 2$/), '0/2 vus', 'autre saison intacte');
+  assert.ok(d.arg.http.calls.filter((c) => /\/700\/children/.test(c.url)).length > seasonsBefore, 'saisons redemandées');
+  assert.equal(countOf(p, /^Saison 1$/), '2/3 vus');
+  p.onKey('enter');   // Marquer non vu
+  state.seasons = [season('750', 1, 3, 1), season('751', 2, 2, 0)];
+  await flush();
+  assert.equal(countOf(p, /^Saison 1$/), '1/3 vus');
+  // retour de lecture : épisode 3 terminé
+  p.suspend();
+  state.seasons = [season('750', 1, 3, 2), season('751', 2, 2, 0)];
+  sharedData(d).progressed({ ratingKey: '3', type: 'episode', parentRatingKey: '750', grandparentRatingKey: '700' }, 0, true);
+  p.resume();   // le serveur n'a pas encore répondu : seul le correctif local du cache est affiché
+  assert.equal(countOf(p, /^Saison 1$/), '2/3 vus', 'retour : compteur corrigé dès l’affichage');
+  await flush();
+  assert.equal(countOf(p, /^Saison 1$/), '2/3 vus');
+  p.destroy();
+});

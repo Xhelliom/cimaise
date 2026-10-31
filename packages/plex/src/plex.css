@@ -59,7 +59,9 @@
 .plex-seasons .vlayer{margin:12px 0 0 24px}
 .plex-seasons .vimg{display:none}
 /* Pastille portée par le libellé : la tuile a déjà son translate en style inline, le scale du focus va donc au libellé */
-.plex-seasons .vlabel{left:0;top:0;width:240px;height:84px;line-height:84px;text-align:center;font-size:30px;border-radius:42px;background:rgba(255,255,255,.08);box-shadow:inset 0 0 0 2px rgba(255,255,255,.14);transition:transform .2s ease}
+.plex-seasons .vlabel{left:0;top:0;width:240px;height:84px;line-height:62px;text-align:center;font-size:30px;border-radius:42px;background:rgba(255,255,255,.08);box-shadow:inset 0 0 0 2px rgba(255,255,255,.14);transition:transform .2s ease}
+/* Compteur « 7/10 vus » sous le titre, dans la pastille (pas de scale au focus : seul le libellé grossit) */
+.plex-seasons .vbadge{position:absolute;left:0;top:52px;width:240px;text-align:center;font-size:22px;line-height:24px;color:rgba(255,255,255,.7)}
 .plex-seasons .vtile.sel .vlabel{background:rgba(255,255,255,.28);box-shadow:inset 0 -6px 0 0 #fff}
 .plex-seasons.on .vtile.focus .vlabel{box-shadow:0 0 0 6px #fff;transform:scale(1.06)}
 .plex-ep-title{position:absolute;left:120px;top:700px;font-size:28px;color:rgba(255,255,255,.6)}

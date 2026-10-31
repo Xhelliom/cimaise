@@ -85,12 +85,34 @@ export function createData(http: Http, id: Identity, s: ServerRef, cache: Cache)
   }
 
   // Tout est corrigé sur place puis marqué à redemander : l'affichage est immédiat, le serveur reprend la main ensuite.
+  // Un épisode qui passe vu ou non vu décale de ±1 les compteurs « vus » de sa saison (liste des saisons, fiche) et de sa série.
   function touch(it: Item, local: Local): void {
+    var was = seenNow(it);
     cache.set('o:' + it.ratingKey, local);
     if (local.watched) patch<Item[]>('unseen', function (l) { return l.filter(function (x) { return x.ratingKey !== it.ratingKey; }); });
     patch<Item>('m:' + it.ratingKey, apply);
     if (it.parentRatingKey) patch<Item[]>('c:' + it.parentRatingKey, applyAll);
-    if (it.grandparentRatingKey) { patch<Item>('m:' + it.grandparentRatingKey, same); patch<Item[]>('c:' + it.grandparentRatingKey, same); }
+    var now = seenNow(it), d = was === null || now === null ? 0 : (now ? 1 : 0) - (was ? 1 : 0);
+    var gp = it.grandparentRatingKey, pk = it.parentRatingKey;
+    function count(x: Item): Item { return d && x.leafCount !== undefined ? counted(x, d) : x; }
+    if (pk) patch<Item>('m:' + pk, count);
+    if (gp) {
+      patch<Item>('m:' + gp, count);
+      patch<Item[]>('c:' + gp, function (l) { return l.map(function (s) { return s.ratingKey === pk ? count(s) : s; }); });
+    }
+  }
+  // Vu d'après le cache (liste de la saison, sinon fiche de l'épisode) ; null si l'épisode n'y est pas.
+  function seenNow(it: Item): boolean | null {
+    var l = it.parentRatingKey ? cache.get<Item[]>('c:' + it.parentRatingKey, 0) : null;
+    if (l) for (var i = 0; i < l.value.length; i++) if (l.value[i].ratingKey === it.ratingKey) return !!l.value[i].viewCount;
+    var m = cache.get<Item>('m:' + it.ratingKey, 0);
+    return m ? !!m.value.viewCount : null;
+  }
+  function counted(x: Item, d: number): Item {
+    var o: any = {};
+    for (var k in x) if (x.hasOwnProperty(k)) o[k] = (x as any)[k];
+    o.viewedLeafCount = Math.max(0, Math.min(x.leafCount || 0, (x.viewedLeafCount || 0) + d));
+    return o;
   }
 
   return {

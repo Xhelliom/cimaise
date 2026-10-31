@@ -754,6 +754,17 @@ unwatched }`, champ ajouté sans changer le schéma (absent ou inconnu = titre, 
 Coût : `plex.js` +2,1 Ko (chargé à la demande), `app.js` +95 o (`reset` de `VirtualList`), `app.css` +476 o ; deux nœuds DOM ;
 une lecture du stockage à l'ouverture d'une bibliothèque, une écriture par changement. Aucune image, aucune minuterie.
 
+## 2026-10-31 — Fiche série : compteur « vus » par saison
+
+Chaque pastille de saison affiche `viewedLeafCount/leafCount vus` sous son titre (badge `VirtualList` existant, rien sans
+`leafCount`). Marquer vu / non vu et le retour de lecture corrigent **le cache** sur place (`data.touch`) : l'épisode qui
+change d'état décale de ±1 le compteur de sa saison (liste des saisons, fiche de saison) et de sa série, une seule fois (état
+« vu » relu dans le cache avant le changement) ; le serveur reprend la main à la réponse suivante. L'ouverture sur la saison et
+l'épisode « à suivre » (OnDeck de la série) existait déjà (4f7e26f) et n'a pas changé.
+
+Coût : `plex.js` +708 o (chargé à la demande), `app.css` +145 o ; un nœud texte par pastille visible ; aucune requête,
+image ni minuterie en plus.
+
 ## Accueil Plex : rangée « Pas encore vus » (2026-10-31)
 
 Troisième rangée, **après « Ajoutés récemment »** : les ajouts récents non vus, films et séries. Source :
