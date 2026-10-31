@@ -164,7 +164,7 @@ test('REST seulement, aucune minuterie : le source n’a ni WebSocket, ni setTim
   }
 });
 
-test('aperçu : le jeton vient de HA_ENV_FILE et va dans cimaise.v1 ; sans fichier, un avertissement sans secret', async () => {
+test('aperçu : cimaise.v1 pointe sur le relais /__ha (jamais le jeton ni l’URL de HA) ; sans fichier, un avertissement sans secret', async () => {
   const { startDevServer } = await import('../scripts/dev/server.mjs');
   const dir = mkdtempSync(join(tmpdir(), 'haenv-'));
   const file = join(dir, 'ha.env');
@@ -177,7 +177,7 @@ test('aperçu : le jeton vient de HA_ENV_FILE et va dans cimaise.v1 ; sans fichi
   try {
     const js = await get(file);
     assert.match(js, /cimaise\.v1/);
-    assert.ok(js.includes('haUrl') && js.includes('haToken') && js.includes('http://ha.invalid:8123'));
+    assert.ok(js.includes('haUrl') && js.includes('/__ha') && !js.includes(TOKEN) && !js.includes('ha.invalid'));
     const none = await get(join(dir, 'absent.env'));
     assert.match(none, /console\.warn/);
     assert.ok(!none.includes(TOKEN));
