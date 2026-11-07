@@ -778,6 +778,54 @@ test('choix de la série (audioLang / subLang) : prime sur le mode', () => {
   assert.equal(pb.chooseTracks(item('mkv-h264-dts').Media[0].Part[0].Stream, { mode: 'vo', subLang: '' }).subtitle, null, 'coupés pour cette série');
 });
 
+// --- Ma langue (native) : même logique que le français, dans une autre langue ----------------------------------
+
+const S = (id, type, lang, extra) => ({ id, streamType: type, codec: type === 2 ? 'ac3' : 'srt', languageCode: lang, ...extra });
+const ofLang = (t) => ({ audio: t.audio && t.audio.languageCode, sub: t.subtitle && t.subtitle.languageCode });
+// Film américain (doublages fr / es), film français, film espagnol, film japonais : sous-titres fra, spa, eng complets partout.
+const FILMS = {
+  us: [S(1, 2, 'eng', { default: true }), S(2, 2, 'fra'), S(3, 2, 'spa'), S(4, 3, 'fra'), S(5, 3, 'spa'), S(6, 3, 'eng')],
+  fr: [S(1, 2, 'fra', { default: true }), S(2, 2, 'eng'), S(4, 3, 'fra'), S(5, 3, 'spa'), S(6, 3, 'eng')],
+  es: [S(1, 2, 'spa', { default: true }), S(4, 3, 'fra'), S(5, 3, 'spa'), S(6, 3, 'eng')],
+  jp: [S(1, 2, 'jpn', { default: true }), S(5, 3, 'spa'), S(6, 3, 'eng')],
+};
+
+test('Ma langue = français (défaut ou explicite) : décisions identiques à aujourd’hui, fixtures réelles comprises', () => {
+  const names = ['mkv-h264-dts', 'mkv-h264-ac3-vobsub', 'mkv-h264-ac3-srt-force', 'mkv-h264-ac3-ass', 'mkv-av1-opus', 'mkv-hevc-hdr10', 'mkv-h264-ac3-srt-externe'];
+  for (const mode of ['vo', 'fr', 'custom', undefined]) {
+    for (const n of names) assert.deepEqual(pick(n, { mode, native: 'fra', audioList: ['eng'], subList: ['spa'] }), pick(n, { mode, audioList: ['eng'], subList: ['spa'] }), mode + ' ' + n);
+    for (const f of Object.keys(FILMS)) assert.deepEqual(pb.chooseTracks(FILMS[f], { mode, native: 'fra' }), pb.chooseTracks(FILMS[f], { mode }), mode + ' ' + f);
+  }
+  assert.deepEqual(ofLang(pb.chooseTracks(FILMS.us, { native: 'fra' })), { audio: 'eng', sub: 'fra' });
+  assert.deepEqual(ofLang(pb.chooseTracks(FILMS.fr, { native: 'fra' })), { audio: 'fra', sub: null });
+  assert.deepEqual(ofLang(pb.chooseTracks(FILMS.us, { mode: 'fr', native: 'fra' })), { audio: 'fra', sub: null });
+});
+
+test('Ma langue = espagnol : VO + sous-titres espagnols, aucun si la VO est l’espagnol ; doublé = audio espagnol', () => {
+  const vo = { mode: 'vo', native: 'spa' }, dub = { mode: 'fr', native: 'spa' };
+  assert.deepEqual(ofLang(pb.chooseTracks(FILMS.us, vo)), { audio: 'eng', sub: 'spa' });
+  assert.deepEqual(ofLang(pb.chooseTracks(FILMS.fr, vo)), { audio: 'fra', sub: 'spa' }, 'film français : sous-titré en espagnol');
+  assert.deepEqual(ofLang(pb.chooseTracks(FILMS.es, vo)), { audio: 'spa', sub: null }, 'VO espagnole : aucun sous-titre');
+  assert.deepEqual(ofLang(pb.chooseTracks(FILMS.jp.filter((s) => s.languageCode !== 'spa'), vo)), { audio: 'jpn', sub: 'eng' }, 'pas d’espagnol : anglais à défaut');
+  assert.deepEqual(ofLang(pb.chooseTracks(FILMS.us, dub)), { audio: 'spa', sub: null }, 'doublage espagnol');
+  assert.deepEqual(ofLang(pb.chooseTracks(FILMS.fr, dub)), { audio: 'fra', sub: 'spa' }, 'pas de doublage espagnol : VO + sous-titres espagnols');
+  assert.deepEqual(ofLang(pb.chooseTracks(FILMS.es, dub)), { audio: 'spa', sub: null });
+  assert.deepEqual(ofLang(pb.chooseTracks(FILMS.us, { ...vo, native: 'es' })), { audio: 'eng', sub: 'spa' }, 'code à deux lettres accepté');
+  // le choix de la série prime toujours ; le mode personnalisé ignore Ma langue
+  assert.deepEqual(ofLang(pb.chooseTracks(FILMS.us, { ...vo, audioLang: 'fra', subLang: '' })), { audio: 'fra', sub: null });
+  assert.deepEqual(ofLang(pb.chooseTracks(FILMS.us, { mode: 'custom', native: 'spa', audioList: ['eng'], subList: ['fra'] })), { audio: 'eng', sub: null });
+  assert.deepEqual(ofLang(pb.chooseTracks(FILMS.jp, { mode: 'custom', native: 'spa', audioList: ['fra'], subList: ['eng'] })), { audio: 'jpn', sub: 'eng' });
+});
+
+test('Ma langue = anglais : sous-titres anglais seulement (pas de repli sur lui-même), aucun pour une VO anglaise ; doublé = anglais', () => {
+  const vo = { mode: 'vo', native: 'eng' }, dub = { mode: 'fr', native: 'eng' };
+  assert.deepEqual(ofLang(pb.chooseTracks(FILMS.us, vo)), { audio: 'eng', sub: null });
+  assert.deepEqual(ofLang(pb.chooseTracks(FILMS.fr, vo)), { audio: 'fra', sub: 'eng' });
+  assert.deepEqual(ofLang(pb.chooseTracks(FILMS.jp.filter((s) => s.languageCode !== 'eng'), vo)), { audio: 'jpn', sub: null }, 'pas d’anglais : aucun (ni espagnol, ni français)');
+  assert.deepEqual(ofLang(pb.chooseTracks(FILMS.fr, dub)), { audio: 'eng', sub: null });
+  assert.deepEqual(ofLang(pb.chooseTracks(FILMS.es, dub)), { audio: 'spa', sub: 'eng' });
+});
+
 // --- Pastilles de la fiche ------------------------------------------------------------------------------------
 
 test('pastilles : 4K, Dolby Vision, 5.1, langues audio et sous-titres, mode identique à decidePlayback (fiches réelles)', () => {

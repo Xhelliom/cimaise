@@ -891,3 +891,11 @@ d'équivalent exact à 14 ans), à confirmer par Stéphane.
 **Coût.** +0,8 Ko sur le chunk différé `plex.js` (102,98 → 103,82 Ko minifié), 0 sur le JS initial ; CSS +0,2 Ko ;
 un élément DOM de plus par fiche, mis à jour seulement quand le code change. Non mesuré sur la Frame (pas
 d'installation dans cette carte).
+
+## Langues du lecteur Plex : réglage « Ma langue » et aides en clair (2026-11-07)
+- **Demande** : garder la logique « VO + sous-titres dans ma langue, aucun si la VO est ma langue », mais sans le français codé en dur, pour qu'un hispanophone (par exemple) ait la même chose en espagnol.
+- **Stockage** : `prefs.plexLang.native` (code ISO 639-2 parmi `LANG_CHOICES`, défaut `fra`). Absent ou inconnu = `fra` : **une pref existante ne change rien**, pas de migration ni de nouvelle version de schéma. La valeur de mode stockée `fr` est **gardée** pour compatibilité ; elle signifie désormais « doublé dans ma langue ».
+- **`chooseTracks`** (`playback/tracks.ts`) : mode `vo` = VO + sous-titres dans ma langue puis anglais (anglais seul si ma langue est l'anglais), aucun si l'audio est dans ma langue ; mode `fr` = audio dans ma langue s'il existe, sinon VO + sous-titres dans ma langue. Mode `custom` inchangé (Ma langue n'y joue pas). Les choix mémorisés par série priment toujours.
+- **Réglages** : ligne « Ma langue » sous le mode (masquée en Personnalisé, où elle n'a pas d'effet) ; libellés dynamiques « VO sous-titrée en <ma langue> », « Doublé en <ma langue> ». Sous chaque choix, une aide texte seul avec un exemple concret, recalculée à chaque changement, et une ligne rappelant que le choix fait dans le lecteur pour une série prime. Tout tient sans défilement en 1920×1080 (mode Personnalisé compris) et reste lisible en 1280×720 (aides 26 px → ~17 px).
+- **Coût** : JS initial inchangé ; +1,2 Ko sur `settings.js` et `plex.js` (chunks différés, surtout les textes d'aide), CSS +0,06 Ko, `.wgt` +0,9 Ko. Non mesuré sur la Frame (installation faite par la carte du bandeau, en fin de lot).
+- **Hors périmètre, suite possible** : traduire l'interface de cimaise (elle reste en français, l'aide le dit). « Ma langue » serait le point de départ naturel d'un tel réglage.

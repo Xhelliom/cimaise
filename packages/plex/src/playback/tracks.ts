@@ -1,9 +1,10 @@
 import { Stream } from '../api/types';
 import { ClientProfile, FRAME_2019_PROFILE, findEntry } from './profile';
 
-// Réglages du lecteur (voir tv-core/langprefs) : mode 'vo' (défaut) | 'fr' | 'custom' + listes ordonnées du mode personnalisé.
+// Réglages du lecteur (voir tv-core/langprefs) : mode 'vo' (défaut) | 'fr' (doublé) | 'custom' + listes ordonnées du mode personnalisé ;
+// native = « Ma langue » des modes 'vo' et 'fr' (défaut 'fra').
 // audioLang / subLang : choix explicite (série, menu du lecteur) qui prime sur le mode ; subLang '' = coupés (sauf piste forcée).
-export interface TrackPrefs { mode?: string; audioList?: string[]; subList?: string[]; audioLang?: string; subLang?: string; }
+export interface TrackPrefs { mode?: string; native?: string; audioList?: string[]; subList?: string[]; audioLang?: string; subLang?: string; }
 export interface Tracks { audio: Stream | null; subtitle: Stream | null; }
 
 // Plex renvoie des codes ISO 639-2 à trois lettres ; on accepte aussi les codes à deux lettres et les variantes bibliographiques.
@@ -49,21 +50,22 @@ export function originalLang(streams: Stream[] | undefined): string {
   return audios.length ? normalizeLang(audios[0].languageCode) : '';
 }
 
-// Audio : le choix explicite de la série d'abord ; sinon selon le mode — VO ; français s'il existe sinon VO ; première langue de la liste
+// Audio : le choix explicite de la série d'abord ; sinon selon le mode — VO ; ma langue si elle existe sinon VO ; première langue de la liste
 // personnalisée présente sinon VO. Dans la langue retenue : un codec lisible par la TV d'abord, puis « default ».
-// Sous-titres : langues voulues dans l'ordre (choix explicite, sinon mode : VO → français puis anglais, sauf si l'audio est français ;
-// français → français si l'audio ne l'est pas ; personnalisé → liste, seulement si l'audio n'est dans aucune langue de la liste audio).
+// Sous-titres : langues voulues dans l'ordre (choix explicite, sinon mode : VO → ma langue puis anglais, sauf si l'audio est dans ma langue ;
+// doublé → ma langue si l'audio ne l'est pas ; personnalisé → liste, seulement si l'audio n'est dans aucune langue de la liste audio).
 // Pour chaque langue : piste complète (lisible en direct d'abord : SRT avant ASS/PGS/VobSub, sans la version malentendants,
 // interne avant externe), puis forcée. Aucune trouvée (ou aucune voulue) : la piste « forcée » de la langue de l'audio, s'il y en a une.
 // Les indicateurs « default » et « selected » des sous-titres sont ignorés : ils reflètent le fichier ou le dernier choix de l'appareil précédent.
 export function chooseTracks(streams: Stream[] | undefined, prefs: TrackPrefs, profile?: ClientProfile): Tracks {
   var p = profile || FRAME_2019_PROFILE;
   var mode = prefs.mode === 'fr' || prefs.mode === 'custom' ? prefs.mode : 'vo';
+  var mine = normalizeLang(prefs.native) || 'fra';
   var audios = ofType(streams, 2), vo = originalLang(streams), pool: Stream[] = [], i: number;
   var score = function (s: Stream) { return (findEntry(p.audio, s.codec) ? 2 : 0) + (s.default ? 1 : 0); };
   var wants: string[] = [];
   if (prefs.audioLang) wants = [normalizeLang(prefs.audioLang)];
-  else if (mode === 'fr') wants = ['fra'];
+  else if (mode === 'fr') wants = [mine];
   else if (mode === 'custom') for (i = 0; prefs.audioList && i < prefs.audioList.length; i++) wants.push(normalizeLang(prefs.audioList[i]));
   for (i = 0; i < wants.length && !pool.length; i++) pool = inLang(audios, wants[i]);
   if (!pool.length && vo) pool = inLang(audios, vo);
@@ -77,12 +79,12 @@ export function chooseTracks(streams: Stream[] | undefined, prefs: TrackPrefs, p
 
   var subLangs: string[] = [], k: number;
   if (prefs.subLang !== undefined) subLangs = prefs.subLang ? [normalizeLang(prefs.subLang)] : [];
-  else if (mode === 'fr') { if (lang !== 'fra') subLangs = ['fra']; }
+  else if (mode === 'fr') { if (lang !== mine) subLangs = [mine]; }
   else if (mode === 'custom') {
     var understood = false;
     for (k = 0; prefs.audioList && k < prefs.audioList.length; k++) if (lang && normalizeLang(prefs.audioList[k]) === lang) understood = true;
     if (!understood) for (k = 0; prefs.subList && k < prefs.subList.length; k++) subLangs.push(normalizeLang(prefs.subList[k]));
-  } else if (lang !== 'fra') subLangs = ['fra', 'eng'];
+  } else if (lang !== mine) subLangs = mine === 'eng' ? ['eng'] : [mine, 'eng'];
 
   var subtitle: Stream | null = null;
   function split(l: string, forcedOnes: boolean): Stream[] {
