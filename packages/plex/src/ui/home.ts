@@ -175,7 +175,7 @@ export function createHomePanel(arg: PlexArg): Panel {
   }
   // Onglets : Gauche/Droite entre bibliothèques (bornés), Haut → en-tête, Bas → 1re rangée, Entrée ouvre la bibliothèque.
   function tabsKey(k: Key): boolean {
-    if (k === 'enter') { var s = sections[tabIdx]; c.nav.push(createLibraryPanel(arg, { key: s.key, title: s.title })); return true; }
+    if (k === 'enter') { var s = sections[tabIdx]; c.nav.push(createLibraryPanel(arg, { key: s.key, title: s.title, type: s.type })); return true; }
     if (k === 'left' || k === 'right') { tabIdx = Math.max(0, Math.min(sections.length - 1, tabIdx + (k === 'left' ? -1 : 1))); relayout(); return true; }
     if (k === 'up') return go('head');
     if (k === 'down') return visible().length ? go('rows') : true;

@@ -3,13 +3,17 @@ import { LibraryView } from '../api/library';
 import { Panel } from '../../../tv-core/src/router/router';
 import { Key } from '../../../tv-core/src/keys';
 import { loadStored, saveStored } from '../../../tv-core/src/storage';
-import { createGrid, VirtualList } from '../../../tv-core/src/virtual/list';
+import { createGrid, createRow, VirtualList } from '../../../tv-core/src/virtual/list';
 import { Ctx, el, openable, PlexArg, resolve, tileInfo } from './context';
 import { createDetailPanel } from './detail';
 import { POSTER } from './images';
 import { recordMeasure } from '../../../tv-core/src/diag';
 
 export var PAGE_SIZE = 36;   // X-Plex-Container-Size : 6 colonnes × 6 lignes
+
+// Rangées en tête (En cours, Ajoutés récemment) : titre puis la rangée d’affiches ; la grille vient dessous.
+// Tout défile d’un seul transform sur la couche : rangée active en haut, ou grille à sa place d’origine (rangées hors écran).
+var ROW_PITCH = 560;
 
 var LABELS = '#ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
@@ -52,9 +56,14 @@ export function letterStarts(dirs: Letter[]): Array<{ label: string; start: numb
   return out;
 }
 
-// Grille d'une bibliothèque : 6 colonnes de 240 px, pages de 36 demandées à mesure du défilement.
-// Haut depuis la première ligne : pilules de tri et « Non vus » ; tri et filtre faits par le serveur.
-export function createLibraryPanel(arg: PlexArg, section: { key: string; title: string }): Panel {
+interface Row { title: string; wrap: HTMLElement; box: HTMLElement; list: VirtualList; items: Item[]; }
+type Zone = 'pills' | 'rows' | 'grid';
+
+// Bibliothèque : rangées « En cours » et « Ajoutés récemment » de la section (masquées si vides), puis la grille :
+// 6 colonnes de 240 px, pages de 36 demandées à mesure du défilement ; tri et filtre (serveur) sur les pilules.
+// Haut depuis la première ligne de la grille → dernière rangée → … → pilules ; Bas depuis la dernière rangée → grille.
+// `type` : 'show' regroupe les ajouts par série (une tuile par série) ; absent = films.
+export function createLibraryPanel(arg: PlexArg, section: { key: string; title: string; type?: string }): Panel {
   var c = resolve(arg) as Ctx;
   var doc = c.doc;
   var root = el(doc, 'plex-panel plex-library');
@@ -67,11 +76,16 @@ export function createLibraryPanel(arg: PlexArg, section: { key: string; title: 
   pills.appendChild(sortPill);
   pills.appendChild(unseenPill);
   root.appendChild(pills);
+  var body = el(doc, 'plex-lib-body'), layer = el(doc, 'plex-lib-layer');
+  body.appendChild(layer);
+  root.appendChild(body);
   var box = el(doc, 'plex-grid');
-  root.appendChild(box);
+  layer.appendChild(box);
   root.appendChild(status);
   var bar = el(doc, 'plex-alpha');
-  root.appendChild(bar);
+  layer.appendChild(bar);
+  var rows: Row[] = [];
+  var zone: Zone = 'rows', active = 0, held = false;
   var cells: HTMLElement[] = [];
   var starts: Array<{ label: string; start: number; size: number }> = [];
   var inBar = false, barAt = 0, curAt = -1;
@@ -139,7 +153,7 @@ export function createLibraryPanel(arg: PlexArg, section: { key: string; title: 
   function pillKey(k: Key): boolean {
     if (k === 'left') pillAt = 0;
     else if (k === 'right') pillAt = 1;
-    else if (k === 'down') { inPills = false; list.setActive(true); }
+    else if (k === 'down') { inPills = false; go(shown().length ? 'rows' : 'grid', 0); }
     else if (k === 'enter') {
       if (pillAt === 0) { var i = 0; while (SORTS[i].id !== sortOf().id) i++; choice.sort = SORTS[(i + 1) % SORTS.length].id; }
       else choice.unwatched = !choice.unwatched;
@@ -194,6 +208,73 @@ export function createLibraryPanel(arg: PlexArg, section: { key: string; title: 
     fetchPage(0, PAGE_SIZE);
   }
 
+  // ---- rangées en tête ----
+  function shown(): Row[] { return rows.filter(function (r) { return r.items.length > 0; }); }
+  // Zone qui porte vraiment le focus : sans rangée (chargement, rangées vides), il reste dans la grille.
+  function current(): Zone { return zone === 'rows' && !shown().length ? 'grid' : zone; }
+  // Images : rangée active et suivante (la grille est hors écran sous la 1re rangée pleine) ; aucune une fois dans la grille.
+  function wants(r: Row): boolean { var k = shown().indexOf(r); return !held && current() === 'rows' && k >= active && k <= active + 1; }
+  function addRow(title: string, aimed: boolean): Row {
+    var wrap = el(doc, 'plex-hub'), rbox = el(doc, 'plex-row'), more = el(doc, 'plex-more');
+    var r: Row = { title: title, wrap: wrap, box: rbox, items: [], list: null as any };
+    r.list = createRow({
+      container: rbox, doc: doc, count: 0, itemW: POSTER.w, itemH: POSTER.h + 72, gap: 48, viewportW: 1800, viewportH: POSTER.h + 72, edge: more,
+      render: function (i) { return r.items[i] ? tileInfo(c.session, r.items[i], wants(r)) : null; },
+      onSelect: function (i) {
+        var it = r.items[i], t = it && openable(it);
+        if (t) c.nav.push(createDetailPanel(arg, t, aimed && it.type === 'episode' ? it : undefined));
+      }
+    });
+    wrap.appendChild(el(doc, 'plex-hub-title', title));
+    wrap.appendChild(rbox);
+    wrap.appendChild(more);
+    layer.appendChild(wrap);
+    rows.push(r);
+    return r;
+  }
+  // Positions : rangées vides masquées, grille juste dessous ; un seul transform pour défiler.
+  function relayout(): void {
+    var v = shown(), z = current();
+    for (var i = 0, n = 0; i < rows.length; i++) {
+      if (!rows[i].items.length) { rows[i].wrap.style.display = 'none'; continue; }
+      rows[i].wrap.style.display = '';
+      rows[i].wrap.style.transform = 'translate3d(0,' + n * ROW_PITCH + 'px,0)';
+      n++;
+    }
+    if (active > v.length - 1) active = Math.max(0, v.length - 1);
+    var gridTop = v.length * ROW_PITCH + 'px';
+    if (box.style.top !== gridTop) { box.style.top = gridTop; bar.style.top = gridTop; }
+    var y = inPills ? 0 : z === 'rows' ? active * ROW_PITCH : v.length * ROW_PITCH;
+    layer.style.transform = 'translate3d(0,' + -y + 'px,0)';
+    for (var j = 0; j < rows.length; j++) {
+      var on = !inPills && z === 'rows' && v[active] === rows[j];
+      rows[j].box.className = on ? 'plex-row on' : 'plex-row';
+      rows[j].list.setActive(on);
+      rows[j].list.refresh();
+    }
+    list.setActive(!inPills && !inBar && z === 'grid');
+  }
+  function go(z: Zone, at: number): boolean { zone = z; active = at; relayout(); return true; }
+  function toPills(): void { inPills = true; pillAt = 0; relayout(); paintPills(); }
+  function rowKey(k: Key): boolean {
+    var v = shown();
+    if (k === 'up') { if (active > 0) return go('rows', active - 1); toPills(); return true; }
+    if (k === 'down') { if (active < v.length - 1) return go('rows', active + 1); return list.count > 0 ? go('grid', active) : true; }
+    if (k === 'left' || k === 'right' || k === 'enter') return v[active].list.handleKey(k);
+    return false;
+  }
+  function setRow(r: Row, l: Item[]): void { r.items = l; r.list.setCount(l.length); relayout(); }
+  var deckRow = addRow('En cours', true), recentRow = addRow('Ajoutés récemment', false);
+  var rowCancels: Array<() => void> = [], deckCancel: (() => void) | null = null;
+  function quiet(): void { /* rangée absente : la grille suffit */ }
+  // Coût : deux requêtes de plus à l'ouverture (≈ 0,4 à 29 Ko et 41 à 59 Ko de JSON), en cache 5 min comme l'accueil.
+  function loadDeck(): void {
+    if (deckCancel) deckCancel();
+    deckCancel = c.data.sectionDeck(section.key, function (l) { setRow(deckRow, l); }, quiet);
+  }
+  loadDeck();
+  rowCancels.push(c.data.sectionRecent(section.key, section.type === 'show', function (l) { setRow(recentRow, l); }, quiet));
+
   paintPills();
   opening = true;
   load();
@@ -203,14 +284,22 @@ export function createLibraryPanel(arg: PlexArg, section: { key: string; title: 
     el: root,
     onKey: function (k: Key): boolean {
       if (inPills) return pillKey(k);
+      zone = current();
+      if (zone === 'rows') return rowKey(k);
       if (inBar) return barKey(k);
       if (list.handleKey(k)) { follow(); return true; }
       if (k === 'left' && curAt >= 0 && list.count > 0) { inBar = true; barAt = curAt; list.setActive(false); paint(); return true; }
-      if (k === 'up') { inPills = true; pillAt = 0; list.setActive(false); paintPills(); return true; }
+      if (k === 'up') { var v = shown(); if (v.length) return go('rows', v.length - 1); toPills(); return true; }
       return false;
     },
-    suspend: function () { list.release(); },
-    resume: function () { list.restore(); },
-    destroy: function () { for (var i = 0; i < cancels.length; i++) cancels[i](); list.release(); }
+    suspend: function () { held = true; list.release(); for (var i = 0; i < rows.length; i++) rows[i].list.release(); },
+    resume: function () { held = false; list.restore(); for (var i = 0; i < rows.length; i++) rows[i].list.restore(); relayout(); loadDeck(); },
+    destroy: function () {
+      for (var i = 0; i < cancels.length; i++) cancels[i]();
+      for (var j = 0; j < rowCancels.length; j++) rowCancels[j]();
+      if (deckCancel) deckCancel();
+      list.release();
+      for (var r = 0; r < rows.length; r++) rows[r].list.release();
+    }
   };
 }

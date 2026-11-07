@@ -820,3 +820,36 @@ valider : le choix de N (A) ou la décision de tester B.
 
 Coût : étude seule, aucune modification de l'app ni de la TV ; sondes documentées dans
 `docs/tv-status.md` (§ Réponse du SDK).
+
+## Bibliothèque Plex : rangées « En cours » et « Ajoutés récemment » en tête (2026-11-07)
+
+**Décision.** Le panneau d'une bibliothèque film ou série montre, au-dessus de la grille, les rangées « En cours » et
+« Ajoutés récemment » **de cette bibliothèque** (même tuile, même virtualisation que l'accueil, rangées vides masquées).
+Navigation : pilules ↔ rangées ↔ grille (Haut depuis la 1re ligne de la grille → dernière rangée → … → pilules ;
+Bas depuis les pilules → 1re rangée). Tri, filtre « Non vus » et barre alphabétique de la grille inchangés.
+
+**Endpoints vérifiés sur le serveur du homelab** (07/11, 24 éléments demandés par `X-Plex-Container-Size` ; un
+`?X-Plex-Container-Size=` en paramètre d'URL est ignoré, il faut l'en-tête) :
+
+| Usage | Endpoint | Films | Séries |
+|---|---|---|---|
+| En cours | `/library/sections/{id}/onDeck` | 0,4 Ko (vide : aucun film commencé) | 28,9 Ko (6 épisodes) |
+| Ajoutés (films) | `/library/sections/{id}/recentlyAdded` | 59,1 Ko | — |
+| Ajoutés (séries) | `/library/sections/{id}/all?type=2&sort=episode.addedAt:desc` | — | 40,8 Ko (24 séries) |
+
+Écartés : `/library/sections/{id}/recentlyAdded` pour les séries (épisodes un par un : 24 épisodes d'une même série,
+65 Ko), `/hubs/sections/{id}` (82 à 137 Ko, 7 ou 8 rayons dont 2 servis, `tv.recentlyadded` limité à 6),
+`/hubs/home/recentlyAdded?type=2&sectionID=` (207 Ko pour 24, saisons et épisodes mêlés),
+`/hubs/home/continueWatching?sectionID=1` (ignore la section). Le tri `episode.addedAt:desc` donne une tuile par
+série, dans le même ordre que le rayon « ajoutés récemment » du serveur : c'est le regroupement par série demandé,
+et la tuile ouvre directement la fiche de la série.
+
+**Coût.**
+- **Deux requêtes de plus à l'ouverture d'une bibliothèque** (≈ 60 Ko de JSON pour Films, ≈ 70 Ko pour Séries),
+  en parallèle de la 1re page de la grille. Cache 5 min comme l'accueil (clés `sd:` / `sr:`), affiché tout de suite
+  ensuite ; aucune requête tant qu'il est frais. « En cours » est redemandé au retour d'un écran (après lecture),
+  et corrigé sur place quand un épisode est lu ou marqué vu.
+- **JS : +3,4 Ko** sur le chunk différé `plex.js` (97,2 → 100,6 Ko minifié), 0 sur le JS initial ; **CSS : +0,4 Ko**.
+- DOM : deux rangées virtualisées de plus (pool de tuiles de l'accueil) ; images seulement pour la rangée active et
+  la suivante, aucune une fois le focus dans la grille.
+- Non mesuré sur la Frame (installation en fin de lot).

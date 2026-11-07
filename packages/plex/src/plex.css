@@ -33,6 +33,14 @@
 .plex-alpha-l.focus{box-shadow:0 0 0 6px #fff;transform:scale(1.06);color:#fff;font-weight:700;position:relative;z-index:1}
 .plex-lib-title{position:absolute;left:120px;top:72px;font-size:40px;font-weight:500}
 .plex-lib-count{position:absolute;left:120px;top:130px;font-size:28px;color:rgba(255,255,255,.6)}
+/* Bibliothèque : rangées En cours / Ajoutés récemment puis la grille, dans une couche qui défile sous l’en-tête (titre, pilules). */
+.plex-lib-body{position:absolute;left:0;top:170px;width:1920px;height:910px;overflow:hidden}
+.plex-lib-layer{position:absolute;left:0;top:0;width:1920px;height:910px;transition:transform .2s ease}
+.plex-lib-layer .plex-grid,.plex-lib-layer .plex-alpha{top:0}
+.plex-lib-layer .plex-hub{height:560px}
+.plex-lib-layer .plex-hub-title{top:24px}
+.plex-lib-layer .plex-row{top:68px}
+.plex-lib-layer .plex-hub .plex-more{top:250px}
 .plex-lib-pills{position:absolute;right:96px;top:72px;height:64px;white-space:nowrap}
 .plex-pill{display:inline-block;vertical-align:top;height:64px;line-height:64px;padding:0 36px;margin-left:16px;border-radius:32px;font-size:28px;font-weight:500;color:rgba(255,255,255,.75);background:rgba(255,255,255,.07);transition:transform .2s ease}
 .plex-pill.on{color:#111;background:#e5a00d}
