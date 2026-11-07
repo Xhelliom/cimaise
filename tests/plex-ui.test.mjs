@@ -303,8 +303,9 @@ test('Réglages Plex : la roue dentée de l’accueil ouvre les langues ; défau
   assert.equal(d.pushed.length, 1);
   const p = d.pushed[0];
   assert.equal(byClass(p.el, 'plex-settings').length, 1);
-  assert.deepEqual(rowsOf(p), ['Langues du lecteur = VO sous-titrée']);
-  assert.ok(texts(p.el).some((t) => /version originale/.test(t)), 'explication du mode');
+  assert.deepEqual(rowsOf(p), ['Langues du lecteur = VO sous-titrée en français', 'Ma langue = Français']);
+  assert.ok(texts(p.el).includes('Film américain : audio anglais, sous-titres français. Film français : audio français, sans sous-titres.'), 'exemple du mode');
+  assert.ok(texts(p.el).some((t) => /retenu pour cette série/.test(t)), 'rappel du choix par série');
   assert.equal(d.arg.store.getItem('cimaise.v1'), null);
 });
 
@@ -312,14 +313,15 @@ test('Réglages Plex : le mode se change à la télécommande et est enregistré
   const d = deps();
   const p = ui.createSettingsPanel(d.arg);
   assert.equal(p.onKey('right'), true);
-  assert.deepEqual(rowsOf(p), ['Langues du lecteur = Français si disponible']);
-  assert.deepEqual(stored(d.arg.store), { mode: 'fr', audio: ['fra'], subs: ['fra'] });
+  assert.deepEqual(rowsOf(p), ['Langues du lecteur = Doublé en français', 'Ma langue = Français']);
+  assert.deepEqual(stored(d.arg.store), { mode: 'fr', native: 'fra', audio: ['fra'], subs: ['fra'] });
+  assert.ok(texts(p.el).includes('Audio français s’il existe, sinon VO sous-titrée en français.'));
   p.onKey('enter'); // Personnalisé : les listes apparaissent
   assert.equal(stored(d.arg.store).mode, 'custom');
   assert.equal(rowsOf(p).length, 7);
   p.onKey('enter'); // boucle sur « VO sous-titrée »
   assert.equal(stored(d.arg.store).mode, 'vo');
-  assert.equal(rowsOf(p).length, 1);
+  assert.equal(rowsOf(p).length, 2, 'mode + Ma langue');
   p.onKey('left');
   assert.equal(stored(d.arg.store).mode, 'vo', 'borne basse');
   assert.equal(p.onKey('back'), false, 'Retour reste au routeur');
@@ -364,7 +366,31 @@ test('Réglages Plex : un stockage qui refuse l’écriture ne casse pas l’éc
   d.arg.store.setItem = () => { throw new Error('quota'); };
   const p = ui.createSettingsPanel(d.arg);
   assert.doesNotThrow(() => p.onKey('right'));
-  assert.deepEqual(rowsOf(p), ['Langues du lecteur = Français si disponible']);
+  assert.deepEqual(rowsOf(p), ['Langues du lecteur = Doublé en français', 'Ma langue = Français']);
+});
+
+test('Réglages Plex : Ma langue change les libellés et l’exemple en direct ; masquée en mode Personnalisé', () => {
+  const d = deps();
+  const p = ui.createSettingsPanel(d.arg);
+  p.onKey('down'); // Ma langue
+  p.onKey('right'); p.onKey('right'); p.onKey('right'); // Français → Anglais → Japonais → Espagnol
+  assert.deepEqual(rowsOf(p), ['Langues du lecteur = VO sous-titrée en espagnol', 'Ma langue = Espagnol']);
+  assert.equal(stored(d.arg.store).native, 'spa');
+  assert.equal(stored(d.arg.store).mode, 'vo');
+  assert.ok(texts(p.el).includes('Film américain : audio anglais, sous-titres espagnols. Film espagnol : audio espagnol, sans sous-titres.'));
+  assert.ok(texts(p.el).some((t) => /cherchés en espagnol/.test(t)));
+  p.onKey('left'); p.onKey('left'); // Anglais
+  assert.ok(texts(p.el).includes('Film français : audio français, sous-titres anglais. Film américain : audio anglais, sans sous-titres.'));
+  p.onKey('up'); p.onKey('right'); // Doublé
+  assert.deepEqual(rowsOf(p), ['Langues du lecteur = Doublé en anglais', 'Ma langue = Anglais']);
+  assert.ok(texts(p.el).includes('Audio anglais s’il existe, sinon VO sous-titrée en anglais.'));
+  p.onKey('right'); // Personnalisé : pas de Ma langue, listes inchangées
+  assert.equal(rowsOf(p).length, 7);
+  assert.ok(!rowsOf(p).some((r) => /^Ma langue/.test(r)));
+  assert.ok(texts(p.el).some((t) => /^Audio : votre 1re langue/.test(t)), 'ordre des listes expliqué');
+  assert.ok(!texts(p.el).some((t) => /cherchés en/.test(t)));
+  assert.ok(texts(p.el).some((t) => /retenu pour cette série/.test(t)));
+  assert.equal(stored(d.arg.store).native, 'eng', 'Ma langue gardée');
 });
 
 // ---- bibliothèque --------------------------------------------------------------------------------------------

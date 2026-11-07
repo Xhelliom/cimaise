@@ -164,7 +164,8 @@
 .plex-set-row.on{background:rgba(255,255,255,.1);color:#fff;box-shadow:0 0 0 6px #fff;transform:scale(1.06)}
 .plex-set-val{padding:10px 28px;border-radius:24px;font-size:28px;font-weight:500;background:rgba(255,255,255,.08)}
 .plex-set-row.on .plex-set-val{background:rgba(255,255,255,.9);color:#111}
-.plex-set-desc{position:absolute;left:152px;top:298px;width:1130px;font-size:24px;color:rgba(255,255,255,.5)}
+.plex-set-desc{position:absolute;left:152px;width:1500px;font-size:26px;line-height:34px;color:rgba(255,255,255,.6)}
+.plex-set-note{left:120px;color:rgba(255,255,255,.45)}
 .plex-episodes .vbar{position:absolute;left:0;top:197px;width:360px;height:6px;background:#e5a00d;transform-origin:0 0;z-index:2}
 .plex-episodes .vtile.done::after,.plex-seasons .vtile.done::after{content:"";position:absolute;z-index:2;border-radius:50%;background:#e5a00d}
 .plex-episodes .vtile.done::after{right:12px;top:12px;width:44px;height:44px}

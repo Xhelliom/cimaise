@@ -462,17 +462,26 @@ test('device.watchNetwork : état initial + événements webapis.network, retrai
 
 test('langues : défaut « VO sous-titrée », mémorisé dans cimaise.v1 (prefs.plexLang), version courante', () => {
   const s = memStore();
-  assert.deepEqual(core.loadLangPrefs(s), { mode: 'vo', audioList: ['fra'], subList: ['fra'] });
+  assert.deepEqual(core.loadLangPrefs(s), { mode: 'vo', native: 'fra', audioList: ['fra'], subList: ['fra'] });
   core.saveLangPrefs({ mode: 'custom' }, s);
   core.saveLangPrefs({ audioList: ['eng', 'jpn'], subList: [] }, s);
-  assert.deepEqual(core.loadLangPrefs(s), { mode: 'custom', audioList: ['eng', 'jpn'], subList: [] });
+  assert.deepEqual(core.loadLangPrefs(s), { mode: 'custom', native: 'fra', audioList: ['eng', 'jpn'], subList: [] });
   const stored = JSON.parse(s.getItem('cimaise.v1'));
   assert.equal(stored.version, 4);
-  assert.deepEqual(stored.prefs.plexLang, { mode: 'custom', audio: ['eng', 'jpn'], subs: [] });
+  assert.deepEqual(stored.prefs.plexLang, { mode: 'custom', native: 'fra', audio: ['eng', 'jpn'], subs: [] });
   const bad = memStore({ 'cimaise.v1': JSON.stringify({ version: 3, prefs: { plexLang: { mode: 'x', audio: [42, '', 'eng', 'eng', 'fra', 'jpn', 'ita'], subs: {} } } }) });
-  assert.deepEqual(core.loadLangPrefs(bad), { mode: 'vo', audioList: ['eng', 'fra', 'jpn'], subList: ['fra'] }, 'valeurs invalides : défaut ; listes nettoyées, 3 au plus');
+  assert.deepEqual(core.loadLangPrefs(bad), { mode: 'vo', native: 'fra', audioList: ['eng', 'fra', 'jpn'], subList: ['fra'] }, 'valeurs invalides : défaut ; listes nettoyées, 3 au plus');
   assert.deepEqual(core.loadLangPrefs(memStore({ 'cimaise.v1': JSON.stringify({ version: 3, prefs: { plexLang: { mode: 'fr', audio: [] } } }) })).audioList, ['fra'], 'audio jamais vide');
   assert.deepEqual(core.LANG_CHOICES.slice(0, 2).map((c) => c.code), ['fra', 'eng']);
+});
+
+test('Ma langue : absente des prefs existantes = français (rien ne change), enregistrée à côté du mode, code inconnu = français', () => {
+  const old = memStore({ 'cimaise.v1': JSON.stringify({ version: 4, prefs: { plexLang: { mode: 'fr', audio: ['fra'], subs: ['fra'] } } }) });
+  assert.deepEqual(core.loadLangPrefs(old), { mode: 'fr', native: 'fra', audioList: ['fra'], subList: ['fra'] }, 'mode « fr » gardé tel quel');
+  core.saveLangPrefs({ native: 'spa' }, old);
+  assert.deepEqual(JSON.parse(old.getItem('cimaise.v1')).prefs.plexLang, { mode: 'fr', native: 'spa', audio: ['fra'], subs: ['fra'] });
+  assert.equal(core.langPrefsFor('900', old).native, 'spa');
+  assert.equal(core.loadLangPrefs(memStore({ 'cimaise.v1': JSON.stringify({ version: 4, prefs: { plexLang: { native: 'xx' } } }) })).native, 'fra');
 });
 
 test('migration v2 → v3 : les anciens réglages globaux passent dans prefs.plexLang (mode Personnalisé), les clés disparaissent', () => {
@@ -484,7 +493,7 @@ test('migration v2 → v3 : les anciens réglages globaux passent dans prefs.ple
   assert.equal('plexSubLang' in d.prefs, false);
   assert.equal(d.prefs.homeTiles, 5, 'le reste est intact');
   assert.deepEqual(d.prefs.plexSeries, { 900: { audioLang: 'jpn' } }, 'les choix par série sont conservés');
-  assert.deepEqual(core.loadLangPrefs(old), { mode: 'custom', audioList: ['eng'], subList: ['fra'] });
+  assert.deepEqual(core.loadLangPrefs(old), { mode: 'custom', native: 'fra', audioList: ['eng'], subList: ['fra'] });
   // sous-titres coupés (ancien défaut '') : liste vide ; audio seul enregistré : sous-titres vides
   assert.deepEqual(core.loadStored(memStore({ 'cimaise.v1': JSON.stringify({ version: 2, prefs: { plexAudioLang: 'fra', plexSubLang: '' } }) })).prefs.plexLang, { mode: 'custom', audio: ['fra'], subs: [] });
   assert.deepEqual(core.loadStored(memStore({ 'cimaise.v1': JSON.stringify({ version: 2, prefs: { plexSubLang: 'eng' } }) })).prefs.plexLang, { mode: 'custom', audio: ['fra'], subs: ['eng'] });
@@ -500,7 +509,7 @@ test('langues : le choix fait sur une série est retenu pour ses autres épisode
   const s = memStore();
   core.rememberSeries('900', { audioLang: 'jpn' }, s);
   core.rememberSeries('900', { subLang: 'fra' }, s);
-  const base = { mode: 'vo', audioList: ['fra'], subList: ['fra'] };
+  const base = { mode: 'vo', native: 'fra', audioList: ['fra'], subList: ['fra'] };
   assert.deepEqual(core.langPrefsFor('900', s), { ...base, audioLang: 'jpn', subLang: 'fra' });
   assert.deepEqual(core.langPrefsFor('901', s), base, 'les autres séries suivent le mode');
   assert.deepEqual(core.langPrefsFor(undefined, s), base);
