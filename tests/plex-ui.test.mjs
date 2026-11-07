@@ -180,7 +180,7 @@ test('accueil : deux rangées et des onglets de bibliothèques, affichage imméd
   assert.deepEqual(shownTitles(p), ['En cours', 'Ajoutés récemment'], '« Pas encore vus » vide : masquée');
   assert.deepEqual(byClass(p.el, 'plex-tab').map((n) => n.textContent), ['Accueil', 'Films', 'Séries'], 'onglets depuis le cache (bibliothèques vidéo seulement)');
   assert.ok(texts(p.el).some((t) => /Titre de série 1/.test(t)), 'tuiles de la rangée En cours déjà là');
-  const s = srcs(p.el);
+  const s = srcs(byClass(p.el, 'plex-home-rows')[0]);
   assert.ok(s.length > 0);
   for (const u of s) assert.ok(u.startsWith(SERVER.uri + '/photo/:/transcode?') && /width=240&height=360/.test(u), u);
 });
@@ -242,32 +242,38 @@ test('accueil : télécommande — droite/bas déplacent le focus, Haut depuis l
   assert.ok(d.arg.http.calls.some((c) => /\/library\/sections\/2\/all/.test(c.url)), 'la grille demande la section 2');
 });
 
-test('accueil, en-tête : Haut/Bas/Gauche/Droite cohérents entre Rechercher, la roue, les onglets et la 1re rangée', async () => {
+test('accueil, en-tête sur une ligne : Rechercher · roue · onglets parcourus par Gauche/Droite, Bas → rangée, Haut retenu', async () => {
   const d = deps();
   const p = ui.createHomePanel(d.arg);
   await tick(); await tick();
-  const focused = () => byClass(p.el, 'focus').map((n) => n.className.split(' ')[0]);
-  p.onKey('up'); p.onKey('right'); p.onKey('right'); p.onKey('right');
-  assert.deepEqual(byClass(p.el, 'focus').map((n) => n.textContent), ['Séries'], 'Droite bornée au dernier onglet');
-  for (let i = 0; i < 5; i++) p.onKey('left');
-  assert.deepEqual(byClass(p.el, 'focus').map((n) => n.textContent), ['Films'], 'Gauche bornée : « Accueil » n’est pas focalisable');
+  const focused = () => byClass(p.el, 'focus').map((n) => n.className.split(' ')[0] === 'plex-tab' ? n.textContent : n.className.split(' ')[0]);
+  p.onKey('up');
+  assert.deepEqual(focused(), ['Films'], '1re rangée → 1er onglet');
   assert.equal(p.onKey('up'), true);
-  assert.deepEqual(focused(), ['plex-search-btn'], 'onglets → Rechercher');
-  assert.equal(p.onKey('up'), true, 'rien au-dessus : la touche est retenue');
-  assert.equal(p.onKey('left'), true);
+  assert.deepEqual(focused(), ['plex-search-btn'], 'Haut, Haut depuis la rangée → Rechercher (comme avant)');
+  p.onKey('right'); p.onKey('right');
+  assert.deepEqual(focused(), ['Films'], 'roue → 1er onglet');
+  p.onKey('right'); p.onKey('right'); p.onKey('right');
+  assert.deepEqual(focused(), ['Séries'], 'Droite bornée au dernier onglet');
+  p.onKey('left'); p.onKey('left');
+  assert.deepEqual(focused(), ['plex-gear-btn'], 'Gauche depuis le 1er onglet → roue dentée (« Accueil » n’est pas focalisable)');
+  p.onKey('left');
   assert.deepEqual(focused(), ['plex-search-btn']);
-  assert.equal(p.onKey('right'), true);
-  assert.deepEqual(focused(), ['plex-gear-btn']);
-  assert.equal(p.onKey('right'), true);
-  assert.deepEqual(focused(), ['plex-gear-btn'], 'Droite bornée à la roue');
-  assert.equal(p.onKey('down'), true);
-  assert.deepEqual(byClass(p.el, 'focus').map((n) => n.textContent), ['Films'], 'en-tête → onglets (dernier choisi)');
+  assert.equal(p.onKey('left'), true);
+  assert.deepEqual(focused(), ['plex-search-btn'], 'Gauche bornée à Rechercher');
+  assert.equal(p.onKey('up'), true, 'retenue');
+  p.onKey('right'); p.onKey('right');
+  assert.deepEqual(focused(), ['Films'], 'roue → 1er onglet');
   assert.equal(p.onKey('down'), true);
   assert.equal(byClass(p.el, 'focus').length, 1);
-  assert.equal(byClass(byClass(p.el, 'on')[0], 'focus').length, 1, 'onglets → 1re rangée');
-  assert.equal(byClass(p.el, 'plex-hubs')[0].style.transform, 'translate3d(0,0px,0)', 'l’en-tête reste à l’écran sur la 1re rangée');
+  assert.equal(byClass(byClass(p.el, 'on')[0], 'focus').length, 1, 'onglets → rangée active');
+  p.onKey('up'); p.onKey('left'); p.onKey('left');
+  assert.equal(p.onKey('down'), true);
+  assert.equal(byClass(byClass(p.el, 'on')[0], 'focus').length, 1, 'Rechercher → rangée active');
+  assert.equal(byClass(p.el, 'plex-hubs')[0].style.transform, 'translate3d(0,0px,0)');
   p.onKey('down');
-  assert.ok(/-\d/.test(byClass(p.el, 'plex-hubs')[0].style.transform), 'sous la 1re rangée, l’en-tête défile hors de l’écran');
+  assert.equal(byClass(p.el, 'plex-hubs')[0].style.transform, 'translate3d(0,-560px,0)', 'les rangées défilent sous le bandeau, qui reste');
+  assert.equal(byClass(p.el, 'plex-home-rows')[0].children[0], byClass(p.el, 'plex-hubs')[0], 'la couche qui défile est dans la zone découpée');
 });
 
 test('accueil : sans rangée ni bibliothèque (serveur muet), le focus est sur Rechercher', () => {
@@ -298,7 +304,7 @@ test('Réglages Plex : la roue dentée de l’accueil ouvre les langues ; défau
   const d = deps();
   const home = ui.createHomePanel(d.arg);
   await tick(); await tick();
-  home.onKey('up'); home.onKey('up'); home.onKey('right'); // En cours → onglets → Rechercher → roue dentée
+  home.onKey('up'); home.onKey('left'); // En cours → 1er onglet → roue dentée
   home.onKey('enter');
   assert.equal(d.pushed.length, 1);
   const p = d.pushed[0];
@@ -945,14 +951,18 @@ test('alignement : titres de rangée, première tuile, grille et fiche sur la m�
   assert.equal(px(/\.plex-grid\{left:(\d+)px/) + px(/\.plex-grid \.vlayer\{margin:\d+px 0 0 (\d+)px/), rowLeft);
 });
 
-test('accueil : verticalement, la rangée active et son titre tiennent dans 0–1080 ; la précédente est entière ou hors écran', async () => {
+test('accueil : sous le bandeau (0–480), la rangée active et son titre tiennent dans la zone des rangées ; la précédente en sort', async () => {
   const d = deps();
   const p = ui.createHomePanel(d.arg);
   await tick(); await tick();
   const css = readFileSync('packages/plex/src/plex.css', 'utf8');
   const px = (re) => +re.exec(css)[1];
-  const titleTop = px(/\.plex-hub-title\{[^}]*top:(\d+)px/), titleH = 48; // 40 px de police
-  const rowTop = px(/\.plex-row\{left:\d+px;top:(\d+)px/);
+  const bandBottom = px(/\.plex-band\{[^}]*height:(\d+)px/);
+  const clipTop = px(/\.plex-home-rows\{[^}]*top:(\d+)px/), clipBottom = clipTop + px(/\.plex-home-rows\{[^}]*height:(\d+)px/);
+  assert.ok(clipTop >= bandBottom, 'les rangées ne passent pas sur le bandeau');
+  assert.equal(clipBottom, 1080);
+  const titleTop = px(/\.plex-home \.plex-hub-title\{top:(\d+)/), titleH = 48; // 40 px de police
+  const rowTop = px(/\.plex-home \.plex-row\{top:(\d+)px/);
   const layerMargin = +/\.plex-row \.vlayer,\.plex-grid \.vlayer\{margin:(\d+)px/.exec(css)[1];
   const tileTop = rowTop + layerMargin, tileBottom = tileTop + 360 + 72; // affiche + étiquette
   const ty = (e) => { const m = /translate3d\(0,\s*(-?[\d.]+)px/.exec(e.style.transform || ''); return m ? +m[1] : 0; };
@@ -960,13 +970,10 @@ test('accueil : verticalement, la rangée active et son titre tiennent dans 0–
   const wraps = byClass(p.el, 'plex-hub').filter((w) => w.style.display !== 'none');
   assert.equal(wraps.length, 2);
   for (let a = 0; a < 2; a++) {
-    const y = (i) => ty(layer) + ty(wraps[i]);
-    assert.ok(y(a) + titleTop >= 0 && y(a) + titleTop + titleH <= 1080, 'titre actif ' + a);
-    assert.ok(y(a) + tileTop >= 0 && y(a) + tileBottom <= 1080, 'tuiles actives ' + a);
-    if (a > 0) {
-      const top = y(a - 1) + tileTop, bottom = y(a - 1) + tileBottom;
-      assert.ok(bottom <= 0 || (top >= 0 && bottom <= 1080), 'rangée précédente coupée : ' + top + '–' + bottom);
-    }
+    const y = (i) => clipTop + ty(layer) + ty(wraps[i]);
+    assert.ok(y(a) + titleTop >= clipTop && y(a) + titleTop + titleH <= 1080, 'titre actif ' + a);
+    assert.ok(y(a) + tileTop >= clipTop && y(a) + tileBottom <= 1080, 'tuiles actives ' + a);
+    if (a > 0) assert.ok(y(a - 1) + tileBottom <= clipTop, 'rangée précédente hors de la zone : ' + (y(a - 1) + tileBottom));
     p.onKey('down');
   }
 });
@@ -1754,4 +1761,110 @@ test('fiche : âge en clair à côté de l’année, jamais le code Plex ; code 
     else assert.equal(pill.style.display, 'none');
     p.destroy();
   }
+});
+
+// ---- Bandeau de l'accueil (maquette du 07/11, variante A) -----------------------------------------------------
+const bandImgs = (p) => ui_imgs(byClass(p.el, 'plex-band')[0]);
+const bandSrc = (p) => bandImgs(p)[0].getAttribute('src');
+const bandText = (p, c) => byClass(p.el, c)[0].textContent;
+
+test('bandeau : texte de l’élément sélectionné (tout de suite au 1er affichage, puis après 100 ms sans touche) ; épisode, année · durée, reste, résumé', async () => {
+  const timers = fakeTimers();
+  const d = deps({ timers });
+  const p = ui.createHomePanel(d.arg);
+  await tick(); await tick();
+  assert.equal(bandText(p, 'plex-band-title'), 'Titre de série 1', 'un épisode montre sa série');
+  assert.equal(bandText(p, 'plex-band-sub'), "S1 · E8 — Titre d'épisode 1");
+  assert.equal(bandText(p, 'plex-band-mt'), '2018 · 23 min');
+  assert.equal(bandText(p, 'plex-band-left'), 'reste 13 min');
+  assert.notEqual(byClass(p.el, 'plex-band-prog')[0].style.display, 'none');
+  assert.equal(bandText(p, 'plex-band-sum'), 'Résumé.');
+  p.onKey('down');
+  assert.equal(bandText(p, 'plex-band-title'), 'Titre de série 1', 'touche : rien ne bouge tout de suite (touche maintenue sans coût)');
+  timers.advance(100);
+  assert.notEqual(bandText(p, 'plex-band-title'), 'Titre de série 1', '100 ms plus tard, le bandeau suit');
+  assert.equal(byClass(p.el, 'plex-band-prog')[0].style.display, 'none', 'pas de progression hors reprise');
+  p.destroy();
+});
+
+const SIX = JSON.stringify({ MediaContainer: { size: 6, Metadata: [300, 301, 302, 303, 304, 305].map((k) => ({ ratingKey: String(k), type: 'movie', title: 'Film ' + k, art: '/library/metadata/' + k + '/art/1700000000' })) } });
+test('bandeau : une seule image, posée après 300 ms de focus immobile ; défiler ne charge aucune image intermédiaire', async () => {
+  const timers = fakeTimers();
+  const d = deps({ timers, http: fakeHttp([[/\/library\/onDeck/, SIX], ...serverRoutes()]) });
+  const p = ui.createHomePanel(d.arg);
+  await tick(); await tick();
+  assert.equal(bandImgs(p).length, 1, 'une seule <img> de fond');
+  assert.equal(bandSrc(p), null, 'rien avant le délai');
+  timers.advance(299);
+  assert.equal(bandSrc(p), null);
+  timers.advance(1);
+  const first = bandSrc(p);
+  const q = new URL(first).searchParams;
+  assert.ok(first.startsWith(SERVER.uri + '/photo/:/transcode?'));
+  assert.equal(q.get('width') + '×' + q.get('height'), '960×540');
+  assert.equal(q.get('url'), '/library/metadata/300/art/1700000000');
+  assert.equal(q.get('blur'), null, 'image nette, aucun flou');
+  const img = bandImgs(p)[0];
+  assert.equal(img.className, 'plex-band-img', 'invisible tant qu’elle n’est pas chargée');
+  img.onload();
+  assert.equal(img.className, 'plex-band-img on', 'apparaît au chargement (fondu par l’opacité)');
+  // touche maintenue : chaque appui repousse le délai, aucune image intermédiaire
+  const seen = new Set([first]);
+  for (let i = 0; i < 4; i++) { p.onKey('right'); timers.advance(100); seen.add(bandSrc(p)); }
+  assert.deepEqual([...seen], [first], 'aucune image chargée pendant le défilement');
+  timers.advance(200);
+  assert.equal(img.className, 'plex-band-img', 'focus immobile : l’ancienne s’efface d’abord');
+  assert.equal(bandSrc(p), first, '… sans qu’une 2e image soit décodée en même temps');
+  timers.advance(200);
+  assert.notEqual(bandSrc(p), first, 'puis la nouvelle remplace l’ancienne sur la même <img>');
+  assert.equal(bandImgs(p).length, 1);
+  p.destroy();
+});
+
+test('bandeau : écran recouvert → image retirée ; retour → elle revient après le délai ; destroy → plus de minuterie', async () => {
+  const timers = fakeTimers();
+  const d = deps({ timers });
+  const p = ui.createHomePanel(d.arg);
+  await tick(); await tick();
+  timers.advance(300);
+  const src = bandSrc(p);
+  assert.ok(src);
+  p.suspend();
+  assert.equal(bandSrc(p), null, 'image libérée en quittant l’écran');
+  p.resume();
+  await tick(); await tick();
+  timers.advance(300);
+  assert.equal(bandSrc(p), src);
+  p.onKey('right');
+  p.destroy();
+  timers.advance(1000);
+  assert.equal(bandSrc(p), null);
+});
+
+test('bandeau : en montant dans l’en-tête il garde le dernier élément ; aucun flou ni filter dans la feuille', async () => {
+  const timers = fakeTimers();
+  const d = deps({ timers });
+  const p = ui.createHomePanel(d.arg);
+  await tick(); await tick();
+  p.onKey('right'); timers.advance(100);
+  const t = bandText(p, 'plex-band-title');
+  p.onKey('up'); p.onKey('left');
+  assert.equal(bandText(p, 'plex-band-title'), t);
+  const css = readFileSync('packages/plex/src/plex.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const band = css.split('\n').filter((l) => /plex-band|plex-home/.test(l)).join('\n');
+  assert.doesNotMatch(band, /filter|blur/);
+  assert.match(band, /\.plex-band-img\{[^}]*transition:opacity/, 'seule l’opacité de l’image s’anime');
+  p.destroy();
+});
+
+test('accueil : le résumé est gardé dans le cache des rangées, coupé au mot à 200 caractères', async () => {
+  const long = 'mot '.repeat(120).trim();
+  const deck = JSON.stringify({ MediaContainer: { size: 1, Metadata: [{ ratingKey: '1', type: 'movie', title: 'Long', summary: long, duration: 6000000 }] } });
+  const store = memStore();
+  const d = deps({ store, timers: fakeTimers(), http: fakeHttp([[/\/library\/onDeck/, deck], ...serverRoutes()]) });
+  const p = ui.createHomePanel(d.arg);
+  await tick(); await tick();
+  const sum = bandText(p, 'plex-band-sum');
+  assert.ok(sum.length <= 201 && /mot…$/.test(sum), sum.length + ' ' + sum.slice(-8));
+  p.destroy();
 });

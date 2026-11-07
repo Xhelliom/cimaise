@@ -16,7 +16,7 @@ type Zone = 'play' | 'seasons' | 'episodes';
 
 var SEASON_FOLLOW_MS = 300;
 
-function duration(ms?: number): string {
+export function duration(ms?: number): string {
   if (!ms) return '';
   var m = Math.floor(ms / 60000);
   return m >= 60 ? Math.floor(m / 60) + ' h ' + (m % 60 < 10 ? '0' : '') + (m % 60) + ' min' : m + ' min';

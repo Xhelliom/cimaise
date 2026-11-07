@@ -40,7 +40,7 @@ export function rememberSearch(text: string, store?: Storage): void {
 // L'index est partagé par tous les écrans de la session (l'accueil le lance, la recherche le lit) : posé sur l'argument.
 export function ensureSearch(arg: PlexArg, c: Ctx): SearchIndex {
   if (!arg.search) {
-    arg.search = createSearchIndex({ http: arg.http, id: c.id, session: c.session, cache: c.cache, timers: arg.timers || realTimers(), sections: c.data.sections });
+    arg.search = createSearchIndex({ http: c.http, id: c.id, session: c.session, cache: c.cache, timers: arg.timers || realTimers(), sections: c.data.sections });
   }
   return arg.search;
 }
