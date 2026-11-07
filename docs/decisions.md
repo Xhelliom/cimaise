@@ -853,3 +853,41 @@ et la tuile ouvre directement la fiche de la série.
 - DOM : deux rangées virtualisées de plus (pool de tuiles de l'accueil) ; images seulement pour la rangée active et
   la suivante, aucune une fois le focus dans la grille.
 - Non mesuré sur la Frame (installation en fin de lot).
+
+## Fiche Plex : âge en clair au lieu du code `contentRating` (2026-11-07)
+
+**Décision.** La fiche d'un film ou d'une série affiche, sur la ligne année · durée, une pastille sobre (contour, sans
+fond) avec l'âge selon la signalétique CSA : « Tous publics », « -10 ans », « -12 ans », « -16 ans », « -18 ans ».
+Le code Plex n'est jamais affiché ; un code inconnu donne **aucune pastille** et une ligne `âge inconnu <code>` dans
+les événements de l'écran de diagnostic. Pour une série, c'est le `contentRating` de la série (la fiche ne montre pas
+celui d'un épisode : un épisode ouvre toujours la fiche de sa série). Fonction pure `ageLabel()`
+(`packages/plex/src/ui/age.ts`).
+
+**Valeurs relevées sur le serveur du homelab** (07/11, `/library/sections/{id}/contentRating` puis comptage sur
+`/all`, script `scripts/plex/list-content-ratings.mjs`, lecture seule) :
+
+| Bibliothèque | Valeurs distinctes (nombre d'éléments) |
+|---|---|
+| Films | G ×26, PG ×54, PG-13 ×112, R ×166, NC-17 ×2, TV-14 ×1, TV-MA ×2, Not Rated ×33, Passed ×1, (vide) ×25 |
+| Séries | TV-Y ×3, TV-Y7 ×2, TV-PG ×6, TV-14 ×19, TV-MA ×50, Not Rated ×1, (vide) ×5 |
+
+Aucun code français ni d'un autre pays sur ce serveur (l'agent de métadonnées renseigne la classification US).
+
+**Table retenue.**
+
+| Libellé | US cinéma | US TV | FR | DE (FSK) | UK (BBFC) |
+|---|---|---|---|---|---|
+| Tous publics | G | TV-Y, TV-G | U, TP | 0, 6 | U, `gb/PG` |
+| -10 ans | PG | TV-Y7, TV-PG | 10 | — | — |
+| -12 ans | PG-13 | TV-14 | 12 | 12 | 12, 12A |
+| -16 ans | R | TV-MA | 16 | 16 | 15 |
+| -18 ans | NC-17 | — | 18 | 18 | 18, R18 |
+| rien | Not Rated, Passed, Unrated, vide, tout autre code |
+
+Le préfixe de pays (`fr/`, `de/`, `gb/`…) et la casse sont ignorés ; seul `gb/PG` (ou `uk/PG`) se lit
+« Tous publics », un `PG` nu reste le PG américain. TV-14 → -12 ans est une correspondance approximative (pas
+d'équivalent exact à 14 ans), à confirmer par Stéphane.
+
+**Coût.** +0,8 Ko sur le chunk différé `plex.js` (102,98 → 103,82 Ko minifié), 0 sur le JS initial ; CSS +0,2 Ko ;
+un élément DOM de plus par fiche, mis à jour seulement quand le code change. Non mesuré sur la Frame (pas
+d'installation dans cette carte).
