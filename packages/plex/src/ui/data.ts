@@ -1,5 +1,5 @@
 import { Callback, Http, Identity, Item, Letter, Page, Section, ServerRef } from '../api/types';
-import { getChildren, getFirstCharacter, getMetadata, getOnDeck, getRecentlyAdded, getRecentlyAddedUnwatched, getSectionItems, getSections, LibraryView, TITLE_VIEW, viewQuery } from '../api/library';
+import { getChildren, getFirstCharacter, getMetadata, getOnDeck, getRecentlyAdded, getRecentlyAddedUnwatched, getSectionItems, getSectionOnDeck, getSectionRecent, getSections, LibraryView, TITLE_VIEW, viewQuery } from '../api/library';
 import { Cache } from './cache';
 
 export type Cancel = () => void;
@@ -7,6 +7,8 @@ type On<T> = (value: T) => void;
 type Err = (err: Error) => void;
 
 // Durées de vie (ms) : l'accueil change vite, les bibliothèques et les fiches moins.
+// Rangées d’une bibliothèque : 24 éléments (4 écrans de 6 tuiles), même durée de vie que l’accueil.
+export var SECTION_ROW = 24;
 var TTL_HOME = 5 * 60000, TTL_SECTIONS = 3600000, TTL_PAGE = 10 * 60000, TTL_META = 30 * 60000;
 
 // Position quittée au lecteur : le serveur la reçoit avec un léger retard, une réponse plus ancienne ne doit pas la remplacer.
@@ -40,6 +42,9 @@ export interface Data {
   recent(on: On<Item[]>, err?: Err): Cancel;
   // « Pas encore vus » : ajouts récents non vus (une requête de plus à l'ouverture de l'accueil, même cache que « recent »).
   unseen(on: On<Item[]>, err?: Err): Cancel;
+  // Rangées « En cours » et « Ajoutés récemment » d’une bibliothèque (`shows` : séries regroupées, une tuile par série).
+  sectionDeck(sectionKey: string, on: On<Item[]>, err?: Err): Cancel;
+  sectionRecent(sectionKey: string, shows: boolean, on: On<Item[]>, err?: Err): Cancel;
   // `view` : tri et filtre (défaut : par titre, tout) ; chaque combinaison a ses propres pages en cache.
   page(sectionKey: string, start: number, size: number, on: On<Page>, err?: Err, view?: LibraryView): Cancel;
   letters(sectionKey: string, on: On<Letter[]>, err?: Err, unwatched?: boolean): Cancel;
@@ -82,6 +87,16 @@ export function createData(http: Http, id: Identity, s: ServerRef, cache: Cache)
   function patch<T>(key: string, fn: (v: T) => T): void {
     var hit = cache.get<T>(key, 0);
     if (hit) cache.set(key, fn(hit.value), true);
+  }
+
+  // « En cours » de chaque bibliothèque ouverte (clés 'sd:' notées sous 'sdk') : position corrigée, élément vu retiré,
+  // le tout marqué à redemander. Un élément nouvellement commencé n’y est pas ajouté (sa bibliothèque n’est pas connue ici) :
+  // la réponse du serveur, demandée au retour sur la bibliothèque, l’apporte.
+  function sectionDecks(it: Item, gone: boolean): void {
+    var k = cache.get<string[]>('sdk', 0);
+    if (k) for (var i = 0; i < k.value.length; i++) patch<Item[]>('sd:' + k.value[i], function (l) {
+      return gone ? l.filter(function (x) { return x.ratingKey !== it.ratingKey; }) : applyAll(l);
+    });
   }
 
   // Tout est corrigé sur place puis marqué à redemander : l'affichage est immédiat, le serveur reprend la main ensuite.
@@ -131,6 +146,16 @@ export function createData(http: Http, id: Identity, s: ServerRef, cache: Cache)
       return load<Item[]>('unseen', TTL_HOME, function (cb) { return getRecentlyAddedUnwatched(http, id, s, cb); },
         function (l) { return applyAll(slimAll(shown(l))).filter(function (x) { return !seen(x); }); }, on, err);
     },
+    sectionDeck: function (key, on, err) {
+      var k = cache.get<string[]>('sdk', 0), keys = k ? k.value : [];
+      if (keys.indexOf(key) < 0) cache.set('sdk', keys.concat([key]).slice(-8));
+      return load<Item[]>('sd:' + key, TTL_HOME, function (cb) { return getSectionOnDeck(http, id, s, key, SECTION_ROW, cb); },
+        function (l) { return applyAll(slimAll(shown(l))); }, on, err);
+    },
+    sectionRecent: function (key, shows, on, err) {
+      return load<Item[]>('sr:' + key, TTL_HOME, function (cb) { return getSectionRecent(http, id, s, key, shows, SECTION_ROW, cb); },
+        function (l) { return slimAll(shown(l)); }, on, err);
+    },
     page: function (key, start, size, on, err, view) {
       // Tri par titre sans filtre : clé d'origine (le cache déjà présent reste valable).
       var v = view || TITLE_VIEW, q = v.sort === TITLE_VIEW.sort && !v.unwatched ? '' : viewQuery(v) + ':';
@@ -155,10 +180,12 @@ export function createData(http: Http, id: Identity, s: ServerRef, cache: Cache)
         if (!seen && offsetMs > 0 && (it.type === 'movie' || it.type === 'episode')) out.unshift(apply(slim(it)));
         return out;
       });
+      sectionDecks(it, watched);
     },
     marked: function (it, watched) {
       touch(it, { offset: 0, watched: watched, unseen: !watched });
       patch<Item[]>('ondeck', function (l) { return l.filter(function (x) { return x.ratingKey !== it.ratingKey; }); });
+      sectionDecks(it, true);
     }
   };
 }

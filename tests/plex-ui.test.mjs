@@ -1590,3 +1590,111 @@ test('Marquer vu / non vu puis retour de lecture : le compteur de la saison suit
   assert.equal(countOf(p, /^Saison 1$/), '2/3 vus');
   p.destroy();
 });
+
+// ---- bibliothèque : rangées « En cours » et « Ajoutés récemment » de la section, puis la grille ----------------------
+const SEC_MOVIES = JSON.stringify({ MediaContainer: { size: 2, Metadata: [
+  { ratingKey: '500', type: 'movie', title: 'Récent A', thumb: '/library/metadata/500/thumb/1' },
+  { ratingKey: '501', type: 'movie', title: 'Récent B', thumb: '/library/metadata/501/thumb/1' }] } });
+const SEC_SHOWS = JSON.stringify({ MediaContainer: { size: 1, Metadata: [{ ratingKey: '600', type: 'show', title: 'Série récente', thumb: '/library/metadata/600/thumb/1' }] } });
+const secRoutes = ({ deck = fx('ondeck'), recent = SEC_MOVIES } = {}) => [
+  [/\/library\/sections\/\d+\/onDeck/, () => deck],
+  [/\/library\/sections\/\d+\/recentlyAdded/, () => recent],
+  [/\/library\/sections\/\d+\/all\?type=2&sort=episode\.addedAt:desc/, SEC_SHOWS],
+  ...serverRoutes()];
+const hubTitles = (p) => byClass(p.el, 'plex-hub').filter((w) => w.style.display !== 'none').map((w) => w.children[0].textContent);
+const activeRow = (p) => { const r = byClass(p.el, 'plex-row').find((x) => x.className === 'plex-row on'); return r ? r.parentNode.children[0].textContent : null; };
+const gridFocus = (p) => byClass(byClass(p.el, 'plex-grid')[0], 'vtile').some((t) => t.classList.contains('focus'));
+const pillFocus = (p) => byClass(p.el, 'plex-pill').some((x) => x.classList.contains('focus'));
+
+test('bibliothèque Films : rangées En cours et Ajoutés récemment de la section (24 éléments), puis la grille', async () => {
+  const d = deps({ http: fakeHttp(secRoutes()) });
+  const p = ui.createLibraryPanel(d.arg, { key: '1', title: 'Films', type: 'movie' });
+  await flush();
+  assert.deepEqual(hubTitles(p), ['En cours', 'Ajoutés récemment']);
+  const deck = d.arg.http.calls.find((c) => /\/library\/sections\/1\/onDeck/.test(c.url));
+  const rec = d.arg.http.calls.find((c) => /\/library\/sections\/1\/recentlyAdded/.test(c.url));
+  assert.ok(deck && rec, 'deux requêtes de section');
+  assert.equal(deck.headers['X-Plex-Container-Size'], '24'); assert.equal(rec.headers['X-Plex-Container-Size'], '24');
+  assert.ok(texts(p.el).some((t) => /Récent A/.test(t)) && texts(p.el).some((t) => /Titre de série 1/.test(t)));
+  assert.equal(byClass(p.el, 'plex-grid')[0].style.top, '1120px', 'grille sous les deux rangées');
+  assert.equal(activeRow(p), 'En cours', 'focus d’entrée sur la 1re rangée');
+  assert.ok(!gridFocus(p));
+  for (const u of srcs(p.el)) assert.ok(/width=240&height=360/.test(u), u);
+});
+
+test('bibliothèque Séries : ajouts regroupés par série (une tuile par série), pas les épisodes un par un', async () => {
+  const d = deps({ http: fakeHttp(secRoutes()) });
+  const p = ui.createLibraryPanel(d.arg, { key: '2', title: 'Séries', type: 'show' });
+  await flush();
+  assert.ok(d.arg.http.calls.some((c) => /\/library\/sections\/2\/all\?type=2&sort=episode\.addedAt:desc/.test(c.url)));
+  assert.ok(!d.arg.http.calls.some((c) => /\/sections\/2\/recentlyAdded/.test(c.url)));
+  assert.ok(texts(p.el).some((t) => t === 'Série récente'));
+  p.onKey('down'); p.onKey('enter');
+  assert.equal(d.pushed.length, 1, 'la tuile de la série ouvre sa fiche');
+});
+
+test('bibliothèque : rangées vides masquées, la grille remonte ; sans rangée, Haut depuis la grille → pilules', async () => {
+  const d = deps({ http: fakeHttp(secRoutes({ deck: EMPTY })) });
+  const p = ui.createLibraryPanel(d.arg, { key: '1', title: 'Films', type: 'movie' });
+  await flush();
+  assert.deepEqual(hubTitles(p), ['Ajoutés récemment']);
+  assert.equal(byClass(p.el, 'plex-grid')[0].style.top, '560px');
+  const e = deps({ http: fakeHttp(secRoutes({ deck: EMPTY, recent: EMPTY })) });
+  const q = ui.createLibraryPanel(e.arg, { key: '1', title: 'Films', type: 'movie' });
+  await flush();
+  assert.deepEqual(hubTitles(q), []);
+  assert.equal(byClass(q.el, 'plex-grid')[0].style.top, '0px');
+  assert.ok(gridFocus(q), 'focus dans la grille');
+  q.onKey('up');
+  assert.ok(pillFocus(q));
+});
+
+test('bibliothèque : D-pad pilules ↔ rangées ↔ grille', async () => {
+  const d = deps({ http: fakeHttp(secRoutes()) });
+  const p = ui.createLibraryPanel(d.arg, { key: '1', title: 'Films', type: 'movie' });
+  await flush();
+  const layer = byClass(p.el, 'plex-lib-layer')[0];
+  assert.equal(activeRow(p), 'En cours');
+  assert.equal(p.onKey('down'), true); assert.equal(activeRow(p), 'Ajoutés récemment');
+  assert.equal(layer.style.transform, 'translate3d(0,-560px,0)');
+  assert.equal(p.onKey('down'), true); assert.equal(activeRow(p), null); assert.ok(gridFocus(p), 'grille');
+  assert.equal(layer.style.transform, 'translate3d(0,-1120px,0)', 'grille à sa place d’origine');
+  p.onKey('down'); p.onKey('down');
+  assert.ok(gridFocus(p));
+  p.onKey('up'); p.onKey('up');
+  assert.ok(gridFocus(p), 'remonte dans la grille');
+  assert.equal(p.onKey('up'), true); assert.equal(activeRow(p), 'Ajoutés récemment', 'Haut depuis la 1re ligne → dernière rangée');
+  assert.ok(!gridFocus(p));
+  p.onKey('right'); assert.ok(texts(p.el).includes('Récent B'));
+  p.onKey('up'); assert.equal(activeRow(p), 'En cours');
+  assert.equal(p.onKey('up'), true); assert.ok(pillFocus(p), 'puis les pilules'); assert.equal(activeRow(p), null);
+  assert.equal(layer.style.transform, 'translate3d(0,0px,0)');
+  assert.equal(p.onKey('down'), true); assert.equal(activeRow(p), 'En cours', 'Bas depuis les pilules → 1re rangée');
+  // Entrée sur « En cours » : la fiche de la série, avec l’épisode visé.
+  p.onKey('enter');
+  assert.equal(d.pushed.length, 1);
+});
+
+test('bibliothèque : rangées affichées tout de suite depuis le cache, sans requête tant qu’il est frais', async () => {
+  const store = memStore();
+  const w = ui.createLibraryPanel(deps({ store, http: fakeHttp(secRoutes()) }).arg, { key: '1', title: 'Films', type: 'movie' });
+  await flush(); w.destroy();
+  const d = deps({ store, http: fakeHttp([], { silent: true }) });
+  const p = ui.createLibraryPanel(d.arg, { key: '1', title: 'Films', type: 'movie' });
+  assert.deepEqual(hubTitles(p), ['En cours', 'Ajoutés récemment'], 'synchrone');
+  assert.ok(!d.arg.http.calls.some((c) => /sections\/1\/(onDeck|recentlyAdded)/.test(c.url)), 'cache frais : aucune requête de rangée');
+});
+
+test('bibliothèque : un épisode vu quitte « En cours » de la section au retour de lecture', async () => {
+  const d = deps({ http: fakeHttp(secRoutes()) });
+  const p = ui.createLibraryPanel(d.arg, { key: '2', title: 'Séries', type: 'show' });
+  await flush();
+  assert.ok(texts(p.el).some((t) => /Titre de série 1/.test(t)));
+  p.suspend();
+  sharedData(d).progressed({ ratingKey: '300', type: 'episode' }, 0, true);
+  const silent = fakeHttp([], { silent: true });
+  const q = ui.createLibraryPanel({ ...d.arg, http: silent }, { key: '2', title: 'Séries', type: 'show' });
+  assert.ok(!texts(q.el).some((t) => /Titre de série 1/.test(t)), 'retiré du cache sur place');
+  assert.ok(texts(q.el).some((t) => /Titre de série 2/.test(t)));
+  assert.ok(silent.calls.some((c) => /sections\/2\/onDeck/.test(c.url)), 'et redemandé au serveur');
+});

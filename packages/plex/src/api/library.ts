@@ -43,6 +43,22 @@ export function getRecentlyAdded(http: Http, id: Identity, s: ServerRef, cb: Cal
   return serverGet(http, id, s, '/library/recentlyAdded', null, function (err, j) { err ? cb(err) : cb(null, items(j)); });
 }
 
+// Rangées d'une bibliothèque (vérifié sur le serveur du homelab le 07/11, 24 éléments par X-Plex-Container-Size) :
+// « En cours » = /library/sections/{id}/onDeck (séries : épisodes à suivre, ≈ 29 Ko pour 6 ; films sans film commencé : 0,4 Ko) ;
+// « Ajoutés récemment » = /library/sections/{id}/recentlyAdded pour les films (≈ 59 Ko). Pour les séries, cet endpoint rend les
+// épisodes un par un (24 épisodes d'une même série) : on prend les séries triées par dernier épisode ajouté
+// (/all?type=2&sort=episode.addedAt:desc, ≈ 41 Ko, une tuile par série, même ordre que le rayon tv.recentlyadded du serveur).
+// Écartés : /hubs/sections/{id} (82 à 137 Ko, 7 ou 8 rayons dont 2 servis), /hubs/home/recentlyAdded (207 Ko pour 24).
+export function getSectionOnDeck(http: Http, id: Identity, s: ServerRef, sectionKey: string, size: number, cb: Callback<Item[]>) {
+  var extra = { 'X-Plex-Container-Start': '0', 'X-Plex-Container-Size': String(size) };
+  return serverGet(http, id, s, '/library/sections/' + encodeURIComponent(sectionKey) + '/onDeck', extra, function (err, j) { err ? cb(err) : cb(null, items(j)); });
+}
+export function getSectionRecent(http: Http, id: Identity, s: ServerRef, sectionKey: string, shows: boolean, size: number, cb: Callback<Item[]>) {
+  var extra = { 'X-Plex-Container-Start': '0', 'X-Plex-Container-Size': String(size) };
+  var path = '/library/sections/' + encodeURIComponent(sectionKey) + (shows ? '/all?type=2&sort=episode.addedAt:desc' : '/recentlyAdded');
+  return serverGet(http, id, s, path, extra, function (err, j) { err ? cb(err) : cb(null, items(j)); });
+}
+
 // Ajouts récents non vus (vérifié sur le serveur le 31/10 : 0 élément vu sur 50 ; une saison commencée reste si un épisode n'est pas vu).
 // Même forme que /library/recentlyAdded (films, saisons, albums ; `type` est ignoré) : le tri se fait côté client.
 export function getRecentlyAddedUnwatched(http: Http, id: Identity, s: ServerRef, cb: Callback<Item[]>) {
