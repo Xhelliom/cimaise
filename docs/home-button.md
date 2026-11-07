@@ -462,10 +462,64 @@ piste 6 (retour automatique) devient elle aussi possible. À trancher par Stéph
 carte : quel déclencheur (bouton physique, widget…), et s'il veut aussi le retour automatique,
 avec quel délai N.
 
-**Non prouvé à ce stade (piste 5)** : (1) le `POST` n'a été essayé que dans un seul état de la TV,
+**Non prouvé à ce stade (piste 5)**, levé le 2026-11-07 (voir « Piste 5 prouvée dans les trois états ») : (1) le `POST` n'a été essayé que dans un seul état de la TV,
 pas pendant que Netflix ou le Smart Hub est au premier plan ; c'est pourtant le cas d'usage du « bouton
 cimaise ». (2) On ne sait pas si cimaise a été ouverte par l'appel du PC ou par Home Assistant, qui
 s'est manifesté au même moment. Test proposé, avec l'accord de Stéphane : Netflix au premier plan,
 puis le même `POST` depuis le PC, et il dit ce qu'il voit. Rappel : la piste 1 (touches) ne vaut que
 quand cimaise a le focus ; la piste 5 ne dépend pas de cimaise ; la piste 6 demande environ 1 Ko de JS
 dans cimaise, en plus de la 5.
+
+### Piste 5 prouvée dans les trois états (2026-11-07)
+
+Tests annoncés un par un, résultat dit par Stéphane (détails et réponses HTTP dans `docs/tv-status.md`).
+
+| État de la TV avant l'appel | Déclencheur | Ce que Stéphane a vu | Délai ressenti | Autorisation à l'écran |
+|---|---|---|---|---|
+| Netflix au premier plan | `POST` Smart View depuis le PC | cimaise s'ouvre, **reprend son état** | < 2 s | Non |
+| Smart Hub ouvert (après Home) | `POST` Smart View depuis le PC | cimaise s'ouvre, **reprend son état** | < 2 s | Non |
+| cimaise déjà au premier plan | `POST` Smart View depuis le PC | **Rien** : même écran, même focus | — | Non |
+| Netflix au premier plan | HA `media_player.play_media` (type `app`) | cimaise s'ouvre, **reprend son état**, après acceptation | < 2 s | **Oui**, « Home Assistant » |
+
+**Conclusions.**
+- **La piste 5 tient dans chaque état testé.** Depuis Netflix ou le Smart Hub, cimaise revient en
+  moins de 2 s, sans repartir à froid (elle était restée en mémoire). Si elle est déjà affichée,
+  l'appel ne fait rien : un appui en trop sur le « bouton cimaise » est sans effet, pas de relance.
+- La réponse HTTP du `POST` arrive au bout d'environ 5,2 s, **après** l'affichage : un script ne doit
+  pas attendre cette réponse pour enchaîner, et ne doit pas en déduire un succès.
+- Le doute du 31/10 est levé : le `POST` du PC ouvre cimaise seul, sans autorisation. La demande
+  « Home Assistant » vient de la connexion WebSocket de l'intégration `samsungtv_smart`.
+- **Voie HA à retenir : `rest_command` (le même `POST` Smart View, HTTP, sans jeton)**, appelé par un
+  script déclenché par le bouton. Raisons : aucune autorisation à l'écran, ne dépend ni du jeton
+  WebSocket de l'intégration ni de son état, un seul appel. Le service natif
+  `media_player.play_media` de `samsungtv_smart` (`media_content_type: app`,
+  `media_content_id: cimaise001.Cimaise`) **fonctionne aussi**, mais il a fait apparaître une
+  demande d'autorisation et n'a ouvert cimaise qu'après acceptation. Comme c'est déjà la deuxième
+  fois (31/10, 07/11), il ne convient pas pour un bouton sans regarder l'écran tant qu'on ne sait pas
+  pourquoi le jeton n'est pas conservé. L'intégration native `samsungtv` n'est pas utilisable en
+  l'état : son entrée pour la Frame est « ignorée » dans HA.
+- Exemple de configuration pour la carte qui créera le bouton (**rien n'a été créé dans HA**) :
+  `rest_command: { cimaise: { url: "http://<IP de la Frame>:8001/api/v2/applications/cimaise001.Cimaise", method: post, timeout: 10 } }`.
+
+### Détecter l'app au premier plan (TV Plus qui se lance tout seul)
+
+- **HA ne le voit pas.** Avec TV Plus à l'écran, `media_player.samsung_the_frame` affiche
+  `source`/`app_id` = `TV/HDMI`, exactement comme avec Netflix, le Smart Hub ou cimaise.
+  `samsungtv_smart` n'a aucune liste d'apps configurée (`source_list` = `TV`, `HDMI`).
+- **L'API Smart View non plus.** Les IDs de TV Plus relevés dans `0 applist`
+  (`com.samsung.tv.tvPlusDeeplinker`, `com.samsung.tv.tvplus`) donnent 404 : l'API ne l'expose pas.
+  Pour les apps qu'elle connaît, `visible` reste toujours à `false`, et `running` ne suit pas l'écran
+  (`false` pour cimaise affichée, `true` pour Netflix, Plex et YouTube quelle que soit l'app à
+  l'écran). Ajouter des apps à la liste de `samsungtv_smart` ne changerait donc rien, puisqu'il
+  s'appuie sur ces mêmes champs (non testé).
+- **Côté cimaise (non essayé, aucun changement de l'app) :** `tizen.application.getAppsContext()`
+  liste les apps **en cours**, sans dire laquelle est au premier plan (le lanceur jetable du 31/10
+  l'a montré : un contexte reste listé même sans fenêtre). Il ne suffit pas à dire « TV Plus est à
+  l'écran ». Le signal fiable est celui de cimaise elle-même : `visibilitychange` / page masquée
+  (piste 6). Croisé avec `getAppsContext()` (contexte TV Plus présent ou non), cimaise pourrait
+  signaler à HA « masquée, et TV Plus tourne » : environ 1 Ko de JS, à décider.
+- **Réponse : non, HA ne peut pas savoir aujourd'hui que TV Plus est au premier plan.** Pour relancer
+  cimaise quand TV Plus prend la main, il faut que cimaise signale qu'elle est masquée (piste 6), puis
+  que HA fasse le `rest_command` ci-dessus. Le fait que l'appel ne fasse rien quand cimaise est déjà
+  affichée rend une relance « en trop » sans danger. Non testé : SmartThings, qui exposerait
+  peut-être l'app au premier plan.
