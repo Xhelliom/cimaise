@@ -42,11 +42,17 @@ Ce qui a été vu à l'écran ou constaté sur la TV.
   - fiche d'un film : comment l'âge est-il affiché ? → « **En clair** » (du type « Tous publics », « -12 ans ») ; titre et texte exact non relevés ;
   - ouverture d'une bibliothèque, écran Diagnostic (valeurs recopiées par écrit) : « cache 19 et 20 ms », « réseau méd 202 max 202 ».
   - *Ce que j'en déduis* (non dit par lui) : le budget du §6 bis est tenu avec une large marge (cache ≈ 20 ms pour < 1 s, réseau ≈ 0,2 s pour < 2 s). La mesure va de l'ouverture du panneau aux premières affiches posées dans la grille : elle ne compte ni le décodage des images ni le chargement des rangées de tête. Une seule mesure réseau et deux en cache, sur une bibliothèque non précisée (c'est Films qui était demandé).
+- **Bandeau de l'accueil Plex sur la Frame (2026-11-07, build e53bd5c, variante A).** Questions posées après l'installation et le lancement (23:09). Réponses de Stéphane (choix proposés, sans titre relevé) :
+  - en haut de l'accueil Plex, bandeau avec image à droite, titre, année · durée · âge, 2 lignes de résumé ? → « **Oui, complet** » ;
+  - en se déplaçant dans « En cours », le bandeau suit-il la tuile (texte puis image en fondu) ? → « **Oui, il suit** » ;
+  - flèche droite maintenue, puis descente d'une rangée : aussi fluide qu'avant le bandeau ? → « **Aussi fluide** ».
+  - *Ce que j'en déduis* (non dit par lui) : le délai de 300 ms sur l'image et de 100 ms sur le texte suffit pour que la touche maintenue ne soit pas ralentie sur la Frame. Ressenti seulement : ni latence chiffrée ni mémoire mesurées sur la TV (les chiffres de `docs/decisions.md` viennent de l'aperçu). Le délai réel du fondu n'a pas été chronométré.
 
 ## Réponse du SDK
 
 Ce que `sdb`, le packager ou le SDK ont répondu. Ne prouve pas un succès visible.
 
+- **2026-11-07, bandeau de l'accueil Plex** : `npm run build` sur `e53bd5c` (wgt non signé 172 Ko, `plex.js` 105,7 Ko en chunk différé) ; `package.sh apps/tv/dist` avec `CIMAISE_LOCAL_DIR` vers le `.local` du dépôt principal → `dist/cimaise.wgt` signé (189 Ko) ; `install.sh` → 1er essai : pas de « install completed » dans la sortie filtrée, repli `vd_appinstall` ; 2e essai complet → « install completed » (1,7 s), `cmd_ret:0`, app présente ; `launch.sh` → « Commande envoyée » (0,7 s).
 - **2026-11-07, Finitions Plex 2 (rangées en tête de bibliothèque, âge en clair)** : `npm run build` sur `e995ee8` (wgt non signé 170 Ko, `plex.js` 101 Ko en chunk différé) ; `package.sh apps/tv/dist` depuis le worktree, avec `CIMAISE_LOCAL_DIR` pointant vers le `.local` du dépôt principal → `dist/cimaise.wgt` signé (182 Ko) ; `install.sh` → « install completed » (2,6 s), `cmd_ret:0`, app présente ; `launch.sh` → « launched » (0,3 s).
 
 - **2026-10-31, API Smart View (port 8001, HTTP)** : `GET /api/v2/` → 200 (`modelName` QE49LS03RAUXXC, `model` 19_MUSEM_FRAME, `version` 2.0.25, `TokenAuthSupport` true, `developerMode` 1 ; identifiants masqués). `GET /api/v2/applications/cimaise001.Cimaise` → 200, `{"running":false,"visible":false,"version":"0.0.1"}` : l'API connaît l'app développeur. `POST` sur la même URL à 15:01:02 → `true`, HTTP 200, en 5,2 s. `GET` relu 4 s plus tard → toujours `"running":false` : cet indicateur ne reflète pas l'affichage (voir « Observé »).
