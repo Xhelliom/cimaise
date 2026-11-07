@@ -9,6 +9,8 @@ import { backdropUrl, detailPosterUrl, EPISODE, episodeThumbUrl } from './images
 import { scrobble, unscrobble } from '../api/media';
 import { techBadges } from '../playback/badges';
 import { langPrefsFor } from '../../../tv-core/src/langprefs';
+import { noteEvent } from '../../../tv-core/src/diag';
+import { ageLabel } from './age';
 
 type Zone = 'play' | 'seasons' | 'episodes';
 
@@ -68,9 +70,11 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
   poster.className = 'plex-dposter';
   var title = el(doc, 'plex-dtitle', stub.title);
   var meta = el(doc, 'plex-dmeta', '');
-  // Sous le titre : la méta puis les pastilles techniques (texte seul), sur une ligne.
+  // Sous le titre : la méta, l'âge en clair, puis les pastilles techniques (texte seul), sur une ligne.
   var info = el(doc, 'plex-dinfo'), badges = el(doc, 'plex-dbadges');
+  var age = el(doc, 'plex-age', ''), ageCode: string | undefined = '';
   info.appendChild(meta);
+  info.appendChild(age);
   info.appendChild(badges);
   var prog = el(doc, 'plex-prog');
   var bar = el(doc, 'plex-prog-bar');
@@ -109,6 +113,14 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
     if (item.duration) bits.push(duration(item.duration));
     if (item.type === 'show' && item.leafCount) bits.push(item.leafCount + ' épisodes');
     meta.textContent = bits.join(' · ');
+    // Âge de la série pour une série (la fiche ne montre jamais celui d'un épisode) ; code inconnu : rien, noté au diagnostic.
+    if (item.contentRating !== ageCode) {
+      ageCode = item.contentRating;
+      var a = ageLabel(ageCode);
+      if (!a && ageCode) noteEvent('âge inconnu ' + ageCode);
+      age.textContent = a || '';
+      age.style.display = a ? '' : 'none';
+    }
     summary.textContent = item.summary || '';
     var r = progress(item);
     bar.style.transform = 'scaleX(' + r + ')';

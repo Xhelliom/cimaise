@@ -57,6 +57,7 @@
 /* Pastilles techniques : texte seul ; la dernière dit lecture directe (verte) ou transcodage (ambre) */
 .plex-dbadges{display:flex}
 .plex-badge{height:40px;line-height:40px;padding:0 16px;margin-left:12px;border-radius:8px;font-size:22px;font-weight:500;background:rgba(255,255,255,.14);color:rgba(255,255,255,.9)}
+.plex-age{height:36px;line-height:36px;padding:0 14px;margin-left:12px;border:2px solid rgba(255,255,255,.4);border-radius:8px;font-size:22px;font-weight:500;color:rgba(255,255,255,.85)}
 .plex-badge.direct{background:rgba(70,180,110,.3)}
 .plex-badge.transcode{background:rgba(229,160,13,.32)}
 .plex-prog{top:296px;width:480px;height:8px;border-radius:4px;background:rgba(255,255,255,.2);overflow:hidden}

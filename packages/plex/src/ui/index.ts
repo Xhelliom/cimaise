@@ -10,3 +10,4 @@ export * from './player';
 export * from './settings';
 export * from './search-index';
 export * from './search';
+export * from './age';

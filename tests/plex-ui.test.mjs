@@ -1698,3 +1698,34 @@ test('bibliothèque : un épisode vu quitte « En cours » de la section au reto
   assert.ok(texts(q.el).some((t) => /Titre de série 2/.test(t)));
   assert.ok(silent.calls.some((c) => /sections\/2\/onDeck/.test(c.url)), 'et redemandé au serveur');
 });
+
+// ---- âge en clair ----------------------------------------------------------------------------------------------
+test('âge en clair : valeurs relevées sur le serveur, codes FR/DE/UK, inconnu → rien', () => {
+  const cases = {
+    // relevées sur le serveur du homelab (docs/decisions.md)
+    G: 'Tous publics', PG: '-10 ans', 'PG-13': '-12 ans', R: '-16 ans', 'NC-17': '-18 ans',
+    'TV-Y': 'Tous publics', 'TV-Y7': '-10 ans', 'TV-PG': '-10 ans', 'TV-14': '-12 ans', 'TV-MA': '-16 ans',
+    'Not Rated': null, Passed: null, '': null,
+    // autres codes courants
+    'TV-G': 'Tous publics', 'fr/U': 'Tous publics', 'fr/10': '-10 ans', 'fr/12': '-12 ans', 12: '-12 ans', 'fr/16': '-16 ans', 'fr/18': '-18 ans',
+    'de/0': 'Tous publics', 'de/6': 'Tous publics', 'de/12': '-12 ans', 'de/16': '-16 ans', 'de/18': '-18 ans', 'FSK 12': '-12 ans',
+    'gb/U': 'Tous publics', 'gb/PG': 'Tous publics', 'gb/12A': '-12 ans', 'gb/15': '-16 ans', 'gb/18': '-18 ans',
+    ' tv-ma ': '-16 ans', Unrated: null, 'xx/42': null,
+  };
+  for (const [code, want] of Object.entries(cases)) assert.equal(ui.ageLabel(code), want, code);
+  assert.equal(ui.ageLabel(undefined), null);
+});
+
+test('fiche : âge en clair à côté de l’année, jamais le code Plex ; code inconnu : pastille masquée', async () => {
+  const meta = (r) => JSON.stringify({ MediaContainer: { Metadata: [{ ...JSON.parse(fx('metadata')).MediaContainer.Metadata[0], contentRating: r }] } });
+  for (const [code, want] of [['PG-13', '-12 ans'], ['TV-MA', '-16 ans'], ['Not Rated', null]]) {
+    const d = deps({ http: fakeHttp([[/\/library\/metadata\/\d+$/, meta(code)]].concat(serverRoutes())) });
+    const p = ui.createDetailPanel(d.arg, { ratingKey: '100', type: 'movie', title: 'x', thumb: '/t', contentRating: code });
+    await tick(); await tick();
+    const pill = byClass(p.el, 'plex-age')[0];
+    assert.ok(!texts(p.el).includes(code), 'code ' + code + ' jamais affiché');
+    if (want) { assert.equal(pill.textContent, want); assert.notEqual(pill.style.display, 'none'); }
+    else assert.equal(pill.style.display, 'none');
+    p.destroy();
+  }
+});
