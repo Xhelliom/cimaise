@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><title>cimaise — maquette Plex, bandeau de l'accueil</title><link rel="stylesheet" href="plex.css">
+<style>
+/* Maquette du bandeau (07/11). Deux variantes : #a = bandeau haut (image 1280×480 à droite), #b = fond plein écran derrière les rangées.
+   Aucun flou ni filtre : l'image est un JPEG du transcodeur photo, assombrie par un dégradé CSS statique (peint une fois, jamais animé).
+   Seule l'opacité de l'image s'anime (fondu de 200 ms) ; une seule image de fond existe à la fois. */
+.hero{position:absolute;left:0;top:0;width:1920px;overflow:hidden}
+.art{position:absolute;background:#1a1a1e center/cover no-repeat;opacity:0;transition:opacity .2s linear}
+.art.on{opacity:1}
+.voile{position:absolute;left:0;top:0;width:1920px}
+.a .hero{height:480px}
+.a .art{left:640px;top:0;width:1280px;height:720px}
+.a .voile{height:480px;background:linear-gradient(to right,var(--bg) 640px,rgba(11,11,13,.6) 900px,rgba(11,11,13,0) 1300px),linear-gradient(to top,var(--bg) 0,rgba(11,11,13,0) 200px)}
+.b .hero{height:1080px}
+.b .art{left:0;top:0;width:1920px;height:1080px}
+.b .voile{height:1080px;background:linear-gradient(to right,rgba(11,11,13,.92) 0,rgba(11,11,13,.75) 700px,rgba(11,11,13,0) 1400px),linear-gradient(to top,var(--bg) 0,rgba(11,11,13,.9) 520px,rgba(11,11,13,0) 760px)}
+/* En-tête compact : Rechercher, roue dentée et onglets sur une ligne */
+.tete{top:40px;gap:16px;align-items:center}
+.tete .pil,.tete .rond{height:72px}
+.tete .cherche{width:560px;font-size:28px;padding:0 32px}
+.tete .rond{width:72px}
+.tete .rond svg{width:40px;height:40px}
+.tete .og{height:64px;padding:0 32px;font-size:28px;color:rgba(255,255,255,.8);background:rgba(40,40,44,.75)}
+.tete .og.on{color:#000;background:#e5a00d}
+.tete .sep{width:8px}
+/* Texte du bandeau */
+.info{position:absolute;left:120px;top:156px;width:820px}
+.info h1{margin:0;font-size:64px;font-weight:500;letter-spacing:-.02em;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.info .ep{margin-top:6px;font-size:30px;font-weight:500;color:rgba(255,255,255,.9);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.info .meta{margin-top:14px;display:flex;align-items:center;gap:14px;font-size:28px;color:rgba(255,255,255,.75)}
+.age{display:inline-block;padding:0 12px;border:2px solid rgba(255,255,255,.55);border-radius:6px;font-size:24px;line-height:34px}
+.info p{margin:18px 0 0;height:84px;overflow:hidden;font-size:28px;line-height:42px;color:rgba(255,255,255,.82)}
+.jg{display:flex;align-items:center;gap:18px;margin-top:16px;font-size:24px;color:rgba(255,255,255,.75)}
+.jg i{display:block;width:320px;height:6px;border-radius:3px;background:rgba(255,255,255,.2);overflow:hidden}
+.jg i b{display:block;height:6px;background:#e5a00d}
+/* Rangées sous le bandeau (titre actif à y = 488), dans une zone découpée : le bandeau reste fixe */
+.pr{background:#e5a00d}
+.rangee{transition:transform .25s ease}
+.rangs{position:absolute;left:0;top:488px;width:1920px;height:592px;overflow:hidden}
+.r1{top:0;height:548px}.r2{top:560px;height:548px}
+.rangee h2{font-size:34px}
+.piste{padding-top:24px}
+.bord{top:48px}
+.b .bord.d{background:linear-gradient(to left,rgba(11,11,13,.8) 15%,rgba(11,11,13,0))}
+.pick{position:absolute;right:40px;bottom:24px;font-size:22px;color:rgba(255,255,255,.4)}
+</style></head>
+<body class="a">
+<div class="hero"><div class="art" id="art"></div><div class="voile"></div></div>
+<nav class="tete z"><a class="pil cherche f"><i class="ic lou"></i>Rechercher un film, une série…</a><a class="rond f" title="Réglages"><svg viewBox="0 0 48 48"><path id="d" d="M20 2h8l1 8h-10z"/><use href="#d" transform="rotate(45 24 24)"/><use href="#d" transform="rotate(90 24 24)"/><use href="#d" transform="rotate(135 24 24)"/><use href="#d" transform="rotate(180 24 24)"/><use href="#d" transform="rotate(225 24 24)"/><use href="#d" transform="rotate(270 24 24)"/><use href="#d" transform="rotate(315 24 24)"/><circle cx="24" cy="24" r="12" fill="none" stroke="#fff" stroke-width="8"/></svg></a><i class="sep"></i><a class="pil og on">Accueil</a><a class="pil og f">Films</a><a class="pil og f">Séries</a></nav>
+<div class="info"><h1 id="ti"></h1><div class="ep" id="ep"></div><div class="meta" id="me"></div><div class="jg" id="jg"><i><b id="jb"></b></i><span id="jt"></span></div><p id="re"></p></div>
+<div class="rangs"><section class="rangee r1"><h2>En cours<span></span></h2><div class="piste z"></div><i class="bord g"></i><i class="bord d"></i></section>
+<section class="rangee r2"><h2>Ajoutés récemment<span></span></h2><div class="piste z"></div><i class="bord g"></i><i class="bord d"></i></section></div>
+<div class="pick" id="pk"></div>
+<script>
+(function(){
+// Démonstration : #a ou #b choisit la variante, #a-2-3 = variante, zone, index. Données factices, ou window.BANDEAU (capture réelle, hors git).
+var C=[["#0e7490","#082f49"],["#9a3412","#431407"],["#6b21a8","#1e1b4b"],["#a16207","#422006"],["#3f6212","#1a2e05"],["#be123c","#4c0519"],["#334155","#020617"],["#86198f","#2e1065"]];
+var R="Une équipe d'ingénieurs coincée sur une station polaire découvre que les relevés météo annoncent une tempête qui n'arrive jamais. Pendant ce temps, au village, personne ne croit leurs messages.";
+function fx(t,y,ep,pr){return{t:t,y:y,d:"1 h 52",a:"-12 ans",ep:ep,p:pr,r:R}}
+var D=window.BANDEAU||{r1:[fx("Station Boréale","2024","S2 · E5 — Le relevé",.72),fx("Le Dernier Phare","2023",null,.2),fx("Code Ardoise","2025","S2 · E7 — Double fond",.45),fx("Kilomètre zéro","2022",null,.08),fx("Vallée perdue","2021","S3 · E1 — Retour",.6),fx("La Cité des vents","2024",null,.33),fx("Nuit blanche à Lisbonne","2020",null,.9),fx("Le Bureau des rêves","2026","S1 · E2 — Premier jour",.15)],
+ r2:[fx("Orbite basse","2026"),fx("Marée noire","2026"),fx("Les Héritiers","2024"),fx("Les Heures claires","2025"),fx("Quai 9","2025"),fx("Saison sèche","2025"),fx("Les Mariniers","2024"),fx("Haute Saison","2024")]};
+var h=/^#([ab])(?:-(\d)-(\d))?$/.exec(location.hash)||[],v=h[1]||"a";document.body.className=v;
+var rows=document.querySelectorAll(".rangee"),pistes=[rows[0].querySelector(".piste"),rows[1].querySelector(".piste")];
+document.getElementById("pk").textContent=v==="a"?"Variante A — bandeau haut":"Variante B — fond plein écran";
+[D.r1,D.r2].forEach(function(l,r){l.forEach(function(it,i){var c=C[i%8],t=document.createElement("div");t.className="t";
+ t.innerHTML='<a class="af f" style="--a:'+c[0]+';--b:'+c[1]+(it.img?';background-image:url('+it.img+')':'')+'">'+(r===0&&it.p?'<i class="pr" style="width:'+Math.round(it.p*100)+'%"></i>':'')+'</a><div class="lb"></div>';
+ t.querySelector(".lb").textContent=it.t;pistes[r].appendChild(t);});});
+var z=document.querySelectorAll(".z"),zi=1,ci=[0,0,0],art=document.getElementById("art"),T=null,F=null;
+function $(i){return document.getElementById(i)}
+function it(i){return z[i].querySelectorAll(".f")}
+function data(){return zi===0?null:(zi===1?D.r1:D.r2)[ci[zi]]}
+// Texte : tout de suite (4 nœuds, boîte de taille fixe). Fond : seulement après 300 ms de focus immobile, fondu par l'opacité.
+function texte(d){$("ti").textContent=d.t;$("ep").textContent=d.ep||"";$("ep").style.display=d.ep?"":"none";
+ $("me").innerHTML="";[d.y,d.d].forEach(function(s){if(s){var e=document.createElement("span");e.textContent=s;$("me").appendChild(e);$("me").appendChild(document.createTextNode("·"))}});
+ if(d.a){var a=document.createElement("span");a.className="age";a.textContent=d.a;$("me").appendChild(a)}else if($("me").lastChild)$("me").removeChild($("me").lastChild);
+ $("jg").style.display=d.p?"":"none";if(d.p){$("jb").style.width=Math.round(d.p*320)+"px";$("jt").textContent=d.reste||"reste 26 min"}
+ $("re").textContent=d.r||"";}
+function fond(d,i){if(T)clearTimeout(T);T=setTimeout(function(){T=null;art.className="art";clearTimeout(F);F=setTimeout(function(){
+ art.style.backgroundImage=d.art?"url("+d.art+")":"radial-gradient(ellipse 70% 90% at 70% 40%,"+C[i%8][0]+","+C[i%8][1]+" 70%)";art.className="art on";},200);},300);}
+function go(nz,nc){
+ if(nz<0||nz>=z.length||nc<0||nc>=it(nz).length)return;
+ var o=it(zi)[ci[zi]];o.className=o.className.replace(" focus","");zi=nz;ci[zi]=nc;it(zi)[nc].className+=" focus";
+ var top=zi===2?-560:0;rows[0].style.transform=rows[1].style.transform="translateY("+top+"px)";
+ if(zi===0)return;
+ var r=rows[zi-1],d=Math.max(0,nc-4),n=it(zi).length;
+ z[zi].style.transform="translateX("+(-288*d)+"px)";r.className=d?"rangee r"+zi+" dec":"rangee r"+zi;
+ r.querySelector("h2 span").textContent=(nc+1)+" sur "+n;r.querySelector(".bord.d").style.opacity=d+6>=n?0:1;
+ texte(data());fond(data(),nc);}
+document.addEventListener("keydown",function(e){var k=e.keyCode;
+ if(k===37)go(zi,ci[zi]-1);else if(k===39)go(zi,ci[zi]+1);
+ else if(k===38)go(zi-1,Math.min(ci[zi-1],it(zi-1).length-1));else if(k===40)go(zi+1,Math.min(ci[zi+1],it(zi+1).length-1));});
+var z0=h[2]?+h[2]:1,c0=h[3]?+h[3]:0;ci[1]=0;it(1)[0].className+=" focus";go(z0,c0);
+})();
+</script>
+</body></html>

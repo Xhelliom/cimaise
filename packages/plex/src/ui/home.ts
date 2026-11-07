@@ -8,15 +8,13 @@ import { createDetailPanel } from './detail';
 import { createSettingsPanel } from './settings';
 import { createSearchPanel, ensureSearch } from './search';
 import { POSTER } from './images';
+import { createBand } from './band';
 
-var PITCH = 560;   // distance entre deux rangées (titre à y = 200 + HEAD, puis 760 + HEAD)
+// Bandeau (maquette du 07/11, variante A) : fixe sur les 480 px du haut, avec l'en-tête sur une ligne (Rechercher, roue dentée,
+// onglets). Les rangées défilent dessous, dans une zone découpée (.plex-home-rows, y = 488) : la rangée active y est toujours
+// en haut (titre à y = 488, affiches à y = 558), la suivante pointe en bas ; la précédente sort entièrement de la zone.
+var PITCH = 560;   // distance entre deux rangées
 var GAP = 48;
-// En-tête (Rechercher + roue dentée, puis onglets des bibliothèques) au-dessus de la 1re rangée, dans la couche qui défile :
-// il sort de l'écran dès qu'on descend sous la 1re rangée, qui reprend alors exactement la place qu'elle avait sans en-tête.
-var HEAD = 96;
-// Sous la première rangée, la couche remonte de LIFT en plus : les tuiles de la rangée précédente (jusqu'à y = 702 dans
-// leur cadre, étiquettes comprises) finissent au-dessus de 0 au lieu d'être coupées ; le titre actif reste à y = 200 - LIFT.
-var LIFT = 160;
 // L'index des titres (recherche) se construit en arrière-plan une fois l'accueil posé : il ne dispute rien au premier affichage.
 var INDEX_DELAY = 1500;
 
@@ -32,8 +30,9 @@ function gear(doc: Document): HTMLElement {
   return g;
 }
 
-// Accueil (maquette du 30/10) : en-tête « Rechercher un film, une série… » + roue dentée (Réglages Plex), onglets en pilules des
-// bibliothèques (Films · Séries · …), puis les rangées En cours, Ajoutés récemment et Pas encore vus. Haut depuis la 1re rangée → onglets → en-tête.
+// Accueil (maquettes du 30/10 et du 07/11) : bandeau de l'élément sélectionné, en-tête sur une ligne (« Rechercher un film,
+// une série… », roue dentée des Réglages Plex, onglets en pilules des bibliothèques), puis les rangées En cours, Ajoutés
+// récemment et Pas encore vus. Haut depuis la 1re rangée → onglets.
 // Les rangées vides disparaissent ; les rangées à plus d'une rangée du visible (au-dessus comme en dessous) sont libérées ;
 // une rangée partiellement visible garde ses images.
 export function createHomePanel(arg: PlexArg): Panel {
@@ -41,6 +40,7 @@ export function createHomePanel(arg: PlexArg): Panel {
   var doc = c.doc;
   var root = el(doc, 'plex-panel plex-home');
   var layer = el(doc, 'plex-hubs');
+  var clip = el(doc, 'plex-home-rows');
   var status = el(doc, 'plex-status', 'Chargement…');
   var head = el(doc, 'plex-head');
   var searchBtn = el(doc, 'plex-search-btn');
@@ -51,9 +51,14 @@ export function createHomePanel(arg: PlexArg): Panel {
   head.appendChild(searchBtn);
   head.appendChild(gearBtn);
   var tabsBox = el(doc, 'plex-tabs');
-  layer.appendChild(head);
-  layer.appendChild(tabsBox);
-  root.appendChild(layer);
+  // Sans minuteries (hors navigateur, sans injection) : pas d'index, et le bandeau change d'image sans délai.
+  var timers = arg.timers || (typeof window !== 'undefined' ? realTimers() : null);
+  var band = createBand(doc, c.session, timers);
+  root.appendChild(band.el);
+  root.appendChild(head);
+  root.appendChild(tabsBox);
+  clip.appendChild(layer);
+  root.appendChild(clip);
   root.appendChild(status);
   var hubs: Hub[] = [];
   var active = 0;
@@ -120,11 +125,11 @@ export function createHomePanel(arg: PlexArg): Panel {
       var wrap = hubs[i].box.parentNode as HTMLElement;
       if (hubs[i].items.length === 0) { wrap.style.display = 'none'; continue; }
       wrap.style.display = '';
-      wrap.style.transform = 'translate3d(0,' + (k * PITCH + HEAD) + 'px,0)';
+      wrap.style.transform = 'translate3d(0,' + k * PITCH + 'px,0)';
       k++;
     }
     if (active > v.length - 1) active = Math.max(0, v.length - 1);
-    layer.style.transform = 'translate3d(0,' + -(active > 0 ? PITCH * active + LIFT + HEAD : 0) + 'px,0)';
+    layer.style.transform = 'translate3d(0,' + -PITCH * active + 'px,0)';
     var z = current();
     for (var j = 0; j < hubs.length; j++) {
       var on = z === 'rows' && v[active] === hubs[j];
@@ -136,7 +141,16 @@ export function createHomePanel(arg: PlexArg): Panel {
     gearBtn.className = z === 'head' && headIdx === 1 ? 'plex-gear-btn focus' : 'plex-gear-btn';
     for (var t = 0; t < tabEls.length; t++) tabEls[t].className = z === 'tabs' && t === tabIdx ? 'plex-tab focus' : 'plex-tab';
     status.textContent = loaded() ? '' : status.textContent;
+    follow();
   }
+
+  // Bandeau : l'élément sélectionné de la rangée active (il garde le dernier quand le focus monte dans l'en-tête).
+  function follow(): void {
+    var v = visible(), h = v[active];
+    if (!h) return;
+    if (current() === 'rows' || !shownOnce) { shownOnce = true; band.show(h.items[h.list.focus.index] || null); }
+  }
+  var shownOnce = false;
 
   function setItems(h: Hub, items: any[]): void {
     h.items = items;
@@ -156,8 +170,7 @@ export function createHomePanel(arg: PlexArg): Panel {
     deckCancel = c.data.onDeck(function (l) { setItems(onDeck, l); }, fail);
   }
   loadDeck();
-  // Sans minuteries (hors navigateur, sans injection) : pas d'index ; la recherche le lance elle-même à son ouverture.
-  var timers = arg.timers || (typeof window !== 'undefined' ? realTimers() : null);
+  // Sans minuteries : pas d'index ; la recherche le lance elle-même à son ouverture.
   var indexT: any = timers ? timers.setTimeout(function () { indexT = null; ensureSearch(arg, c).start(); }, INDEX_DELAY) : null;
   cancels.push(c.data.recent(function (l) { setItems(recent, l); }, fail));
   // Coût : une requête de plus à l'ouverture (/library/recentlyAdded?unwatched=1, ≈ 116 Ko de JSON sur le serveur du homelab,
@@ -166,19 +179,22 @@ export function createHomePanel(arg: PlexArg): Panel {
   cancels.push(c.data.sections(setSections, fail));
 
   function go(z: Zone): boolean { zone = z; relayout(); return true; }
-  // En-tête : Gauche/Droite entre Rechercher et la roue, Bas → onglets (ou 1re rangée), Haut retenu (rien au-dessus).
+  // En-tête et onglets sont sur la même ligne : Rechercher · roue dentée · onglets. Gauche/Droite la parcourent (bornée aux
+  // deux bouts, « Accueil » n'est pas focalisable), Bas → rangée active. Haut depuis les onglets → Rechercher (comme avant le
+  // bandeau : Haut, Haut depuis la 1re rangée mène toujours à la recherche) ; Haut depuis Rechercher ou la roue est retenu.
   function headKey(k: Key): boolean {
     if (k === 'enter') { c.nav.push(headIdx === 0 ? createSearchPanel(arg) : createSettingsPanel(arg)); return true; }
+    if (k === 'right' && headIdx === 1 && sections.length) { tabIdx = 0; return go('tabs'); }
     if (k === 'left' || k === 'right') { headIdx = k === 'left' ? 0 : 1; relayout(); return true; }
-    if (k === 'down') return sections.length ? go('tabs') : visible().length ? go('rows') : true;
+    if (k === 'down') return visible().length ? go('rows') : true;
     return k === 'up';
   }
-  // Onglets : Gauche/Droite entre bibliothèques (bornés), Haut → en-tête, Bas → 1re rangée, Entrée ouvre la bibliothèque.
   function tabsKey(k: Key): boolean {
     if (k === 'enter') { var s = sections[tabIdx]; c.nav.push(createLibraryPanel(arg, { key: s.key, title: s.title, type: s.type })); return true; }
+    if (k === 'left' && tabIdx === 0) { headIdx = 1; return go('head'); }
     if (k === 'left' || k === 'right') { tabIdx = Math.max(0, Math.min(sections.length - 1, tabIdx + (k === 'left' ? -1 : 1))); relayout(); return true; }
-    if (k === 'up') return go('head');
     if (k === 'down') return visible().length ? go('rows') : true;
+    if (k === 'up') { headIdx = 0; return go('head'); }
     return false;
   }
 
@@ -192,11 +208,12 @@ export function createHomePanel(arg: PlexArg): Panel {
       var v = visible();
       if (k === 'down') { if (active >= v.length - 1) return false; active++; relayout(); return true; }
       if (k === 'up') { active--; relayout(); return true; }
-      if (k === 'left' || k === 'right' || k === 'enter') return v[active].list.handleKey(k);
+      if (k === 'left' || k === 'right') { var moved = v[active].list.handleKey(k); follow(); return moved; }
+      if (k === 'enter') return v[active].list.handleKey(k);
       return false;
     },
-    suspend: function () { held = true; for (var i = 0; i < hubs.length; i++) hubs[i].list.release(); },
-    resume: function () { held = false; for (var i = 0; i < hubs.length; i++) hubs[i].list.restore(); relayout(); loadDeck(); },
-    destroy: function () { if (indexT !== null && timers) timers.clearTimeout(indexT); if (deckCancel) deckCancel(); for (var i = 0; i < cancels.length; i++) cancels[i](); for (var j = 0; j < hubs.length; j++) hubs[j].list.release(); }
+    suspend: function () { held = true; band.release(); for (var i = 0; i < hubs.length; i++) hubs[i].list.release(); },
+    resume: function () { held = false; for (var i = 0; i < hubs.length; i++) hubs[i].list.restore(); band.restore(); relayout(); loadDeck(); },
+    destroy: function () { if (indexT !== null && timers) timers.clearTimeout(indexT); if (deckCancel) deckCancel(); for (var i = 0; i < cancels.length; i++) cancels[i](); for (var j = 0; j < hubs.length; j++) hubs[j].list.release(); band.destroy(); }
   };
 }

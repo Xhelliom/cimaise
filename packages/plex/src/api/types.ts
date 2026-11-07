@@ -47,7 +47,7 @@ export interface Item {
   // Classification du pays d’origine (PG-13, TV-MA, fr/12…) ; affichée en clair par ageLabel().
   contentRating?: string;
   // Épisodes (onDeck, children) : série et saison parentes.
-  grandparentTitle?: string; grandparentRatingKey?: string; grandparentThumb?: string; parentTitle?: string; parentIndex?: number;
+  grandparentTitle?: string; grandparentRatingKey?: string; grandparentThumb?: string; grandparentArt?: string; parentTitle?: string; parentIndex?: number;
   // Saisons (recentlyAdded) : série parente.
   parentRatingKey?: string; parentThumb?: string;
   Media?: Media[];

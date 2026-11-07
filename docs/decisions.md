@@ -899,3 +899,49 @@ d'installation dans cette carte).
 - **Réglages** : ligne « Ma langue » sous le mode (masquée en Personnalisé, où elle n'a pas d'effet) ; libellés dynamiques « VO sous-titrée en <ma langue> », « Doublé en <ma langue> ». Sous chaque choix, une aide texte seul avec un exemple concret, recalculée à chaque changement, et une ligne rappelant que le choix fait dans le lecteur pour une série prime. Tout tient sans défilement en 1920×1080 (mode Personnalisé compris) et reste lisible en 1280×720 (aides 26 px → ~17 px).
 - **Coût** : JS initial inchangé ; +1,2 Ko sur `settings.js` et `plex.js` (chunks différés, surtout les textes d'aide), CSS +0,06 Ko, `.wgt` +0,9 Ko. Non mesuré sur la Frame (installation faite par la carte du bandeau, en fin de lot).
 - **Hors périmètre, suite possible** : traduire l'interface de cimaise (elle reste en français, l'aide le dit). « Ma langue » serait le point de départ naturel d'un tel réglage.
+
+## Accueil Plex : bandeau de l'élément sélectionné (2026-11-07)
+
+**Demande.** Stéphane trouvait l'accueil Plex « un peu nu ». Deux variantes maquettées dans l'aperçu
+(`packages/plex/mockups/bandeau.html`, `#a` / `#b`), captures publiées sur la carte : A = bandeau haut (480 px, image à
+droite), B = fond plein écran derrière les rangées. **Stéphane a choisi A**, en préférant la légèreté. Estimation donnée :
+même image décodée dans les deux cas, mais B compose un calque plein écran (≈ 8 Mo GPU contre ≈ 3,7 Mo) et fait glisser les
+affiches par-dessus une image ; B reste un simple changement de CSS si la Frame montre qu'il ne coûte rien.
+
+**Réalisation (A).** `packages/plex/src/ui/band.ts` + `home.ts` :
+- En haut, sur 480 px : titre (la série pour un épisode), « S1 · E8 — titre de l'épisode » ou « Saison 2 », année · durée,
+  âge en clair (`ageLabel`, déjà utilisé par la fiche), jauge « reste 13 min » pour une reprise, 2 lignes de résumé.
+- Image : `art` (ou `grandparentArt`) via `/photo/:/transcode` en **960×540**, JPEG net, affiché en 1280×720 à droite et
+  coupé à 480 px ; voile = deux dégradés CSS **statiques**. Aucun `filter`, `blur` ni `backdrop-filter` (testé).
+- **Une seule `<img>`** : l'ancienne s'efface par l'opacité (200 ms), son `src` est remplacé (l'ancienne n'est plus
+  référencée), la nouvelle apparaît au chargement. Jamais deux fonds décodés à la fois. Écran recouvert → `src` retiré.
+- **Délais** : image après **300 ms** de focus immobile ; texte après **100 ms** sans touche (immédiat au 1er affichage).
+  Une touche maintenue ne fait donc aucun travail de bandeau.
+- En-tête sur une ligne (Rechercher, roue, onglets) au-dessus du bandeau ; les rangées défilent dessous dans une zone
+  découpée (y = 488). Navigation : Gauche/Droite parcourent la ligne, Haut depuis les onglets → Rechercher (Haut, Haut
+  depuis la 1re rangée mène toujours à la recherche, comme avant), Bas → rangée active.
+- Résumé gardé dans le cache des 3 rangées de l'accueil, **coupé au mot à 200 caractères** (avant : retiré).
+
+**Coût mesuré (aperçu Chromium 155, CPU ralenti ×6, bibliothèque du homelab ; comparaison base / bandeau).**
+
+| Indicateur | Base | Bandeau |
+|---|---|---|
+| JS initial `app.js` | 40,06 Ko | 40,06 Ko (inchangé) |
+| Chunk différé `plex.js` | 102,66 Ko | 105,74 Ko (+3,1 Ko) |
+| `app.css` | 24,53 Ko | 26,93 Ko (+2,4 Ko) |
+| `.wgt` | 170,93 Ko | 172,31 Ko (+1,4 Ko) |
+| Image de fond décodée | — | 1 × 960×540 = 1,98 Mo |
+| Tas JS après GC | 2,00 Mo | 2,14 Mo |
+| Nœuds DOM de l'accueil | 120 | 135 |
+| Cache des 3 rangées (JSON) | 106,8 Ko | 116,3 Ko (+9,5 Ko, résumés) |
+| Gestionnaire de touche, médiane | 1,4 ms | 1,6 à 1,9 ms |
+| Touche → image suivante, touche répétée (120 ms), médiane | 12,4 / 12,9 ms | 12,7 / 17,8 ms |
+| Touche → image suivante, focus immobile 700 ms, médiane | 9,4 / 9,6 ms | 15,8 / 15,9 ms (< 1 trame) |
+
+Premier essai avec le texte mis à jour à chaque touche : 25 à 27 ms (médiane) en touche répétée, d'où le délai de 100 ms
+sur le texte. Les deux cas restent sous une trame à 60 Hz et très loin des 100 ms du budget ; l'écart résiduel du cas
+« immobile » est l'alignement sur la synchro verticale, pas du travail du gestionnaire. **À confirmer sur la Frame** :
+fluidité du fondu et coût du calque image (≈ 3,7 Mo GPU à 1280×720), latence ressentie.
+
+**Correction au passage.** `ensureSearch` construisait l'index des titres avec `arg.http` (absent dans l'app) au lieu
+de `c.http` : l'index en arrière-plan échouait (« http is not a function » dans la console de l'aperçu). Corrigé.

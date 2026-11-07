@@ -29,3 +29,8 @@ export function searchPosterUrl(s: ServerRef, item: Item): string | null {
   var path = item.type === 'episode' && item.grandparentThumb ? item.grandparentThumb : item.thumb;
   return path ? photoUrl(s, path, SEARCH_POSTER.w, SEARCH_POSTER.h) : null;
 }
+// Bandeau de l'accueil : art de l'œuvre net, en 960×540, affiché en 1280×720 (≈ 2 Mo décodés, une seule image à la fois).
+export var BAND_ART = { w: 960, h: 540 };
+export function bandArtUrl(s: ServerRef, path: string): string {
+  return photoUrl(s, path, BAND_ART.w, BAND_ART.h);
+}

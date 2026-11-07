@@ -206,3 +206,37 @@
 .plex-recent-item.focus{box-shadow:0 0 0 6px #fff;transform:scale(1.06)}
 /* Clavier de la recherche : le repère de tv-core (aplat translucide) devient l'anneau net du module ; il glisse déjà par transform */
 .plex-search .kb-focus{background:none;opacity:1;box-shadow:0 0 0 6px #fff}
+/* Accueil, bandeau (maquette du 07/11, variante A) : 480 px en haut, l'élément sélectionné. Image = JPEG 960×540 du transcodeur
+   (net), affiché en 1280×720 à droite et coupé à 480 px ; voile = dégradés CSS statiques (peints une fois, jamais animés).
+   Seule l'opacité de l'image s'anime. Aucun flou ni filter. Les rangées défilent dessous dans .plex-home-rows (y = 488). */
+.plex-band{position:absolute;left:0;top:0;width:1920px;height:480px;overflow:hidden}
+.plex-band-img{position:absolute;left:640px;top:0;width:1280px;height:720px;opacity:0;transition:opacity .2s linear}
+.plex-band-img.on{opacity:1}
+.plex-band-veil{position:absolute;left:0;top:0;width:1920px;height:480px;background:linear-gradient(to right,#0b0b0d 640px,rgba(11,11,13,.6) 900px,rgba(11,11,13,0) 1300px),linear-gradient(to top,#0b0b0d 0,rgba(11,11,13,0) 200px)}
+.plex-band-info{position:absolute;left:120px;top:156px;width:820px}
+.plex-band-title{font-size:64px;font-weight:500;letter-spacing:-.02em;line-height:70px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.plex-band-sub{margin-top:6px;font-size:30px;font-weight:500;color:rgba(255,255,255,.9);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.plex-band-meta{margin-top:14px;height:40px;font-size:28px;line-height:40px;color:rgba(255,255,255,.75);white-space:nowrap}
+.plex-band-mt,.plex-band-meta .plex-age{display:inline-block;vertical-align:middle}
+.plex-band-meta .plex-age{margin-left:16px}
+.plex-band-prog{margin-top:12px;height:32px;line-height:32px;font-size:24px;color:rgba(255,255,255,.75);white-space:nowrap}
+.plex-band-bar{display:inline-block;vertical-align:middle;position:relative;width:320px;height:6px;margin-right:18px;border-radius:3px;background:rgba(255,255,255,.2);overflow:hidden}
+.plex-band-fill{position:absolute;left:0;top:0;width:320px;height:6px;background:#e5a00d}
+.plex-band-left{display:inline-block;vertical-align:middle}
+.plex-band-sum{margin-top:16px;height:84px;overflow:hidden;font-size:28px;line-height:42px;color:rgba(255,255,255,.82)}
+.plex-home-rows{position:absolute;left:0;top:488px;width:1920px;height:592px;overflow:hidden}
+.plex-home .plex-hub-title{top:0}
+.plex-home .plex-row{top:40px}
+.plex-home .plex-hub .plex-more{top:222px}
+.plex-home .plex-status{top:560px}
+/* En-tête compact sur une ligne, au-dessus du bandeau : Rechercher (560 px), roue dentée (72 px), onglets. */
+.plex-home .plex-head{top:40px;width:648px;height:72px}
+.plex-home .plex-search-btn,.plex-home .plex-gear-btn{height:72px;border-radius:36px}
+.plex-home .plex-search-btn{width:560px;padding-left:88px;font-size:28px;line-height:72px}
+.plex-home .plex-ic-search{left:34px;top:18px}
+.plex-home .plex-gear-btn{left:576px;width:72px}
+.plex-home .plex-gear{left:12px;top:12px}
+.plex-home .plex-tabs{left:808px;top:44px;width:1000px}
+.plex-home .plex-tab{background:rgba(40,40,44,.75);color:rgba(255,255,255,.8)}
+.plex-home .plex-tab.here{color:#111;background:#e5a00d}
+.plex-home .plex-tab.focus{color:#fff}

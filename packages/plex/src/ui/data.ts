@@ -25,6 +25,16 @@ function slim(it: Item): Item {
   return o;
 }
 function slimAll(l: Item[]): Item[] { return l.map(slim); }
+// Rangées de l'accueil : le bandeau montre 2 lignes de résumé (≈ 110 caractères) ; on en garde SUMMARY_MAX, coupé au mot.
+export var SUMMARY_MAX = 200;
+export function brief(t: string): string {
+  if (t.length <= SUMMARY_MAX) return t;
+  var c = t.slice(0, SUMMARY_MAX), sp = c.lastIndexOf(' ');
+  return (sp > SUMMARY_MAX / 2 ? c.slice(0, sp) : c) + '…';
+}
+function slimHome(l: Item[]): Item[] {
+  return l.map(function (it) { var o = slim(it); if (it.summary) o.summary = brief(it.summary); return o; });
+}
 
 // Types montrables (la musique est hors MVP ; une saison s'ouvre sur sa série).
 function shown(l: Item[]): Item[] {
@@ -136,15 +146,15 @@ export function createData(http: Http, id: Identity, s: ServerRef, cache: Cache)
         function (l) { return l.filter(function (x) { return x.type === 'movie' || x.type === 'show'; }); }, on, err);
     },
     onDeck: function (on, err) {
-      return load<Item[]>('ondeck', TTL_HOME, function (cb) { return getOnDeck(http, id, s, cb); }, function (l) { return applyAll(slimAll(shown(l))); }, on, err);
+      return load<Item[]>('ondeck', TTL_HOME, function (cb) { return getOnDeck(http, id, s, cb); }, function (l) { return applyAll(slimHome(shown(l))); }, on, err);
     },
     recent: function (on, err) {
-      return load<Item[]>('recent', TTL_HOME, function (cb) { return getRecentlyAdded(http, id, s, cb); }, function (l) { return slimAll(shown(l)); }, on, err);
+      return load<Item[]>('recent', TTL_HOME, function (cb) { return getRecentlyAdded(http, id, s, cb); }, function (l) { return slimHome(shown(l)); }, on, err);
     },
     // Le serveur filtre déjà (unwatched=1) ; le filtre local couvre ce qui vient d'être vu ici, avant que le serveur le sache.
     unseen: function (on, err) {
       return load<Item[]>('unseen', TTL_HOME, function (cb) { return getRecentlyAddedUnwatched(http, id, s, cb); },
-        function (l) { return applyAll(slimAll(shown(l))).filter(function (x) { return !seen(x); }); }, on, err);
+        function (l) { return applyAll(slimHome(shown(l))).filter(function (x) { return !seen(x); }); }, on, err);
     },
     sectionDeck: function (key, on, err) {
       var k = cache.get<string[]>('sdk', 0), keys = k ? k.value : [];
