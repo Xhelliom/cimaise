@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Lanceur sonde</title>
+<style>
+  html, body { margin: 0; background: #141820; color: #e8ecf4; font: 28px/1.35 monospace; }
+  body { padding: 48px 64px; }
+  h1 { font-size: 40px; margin: 0 0 12px; }
+  .aide { color: #9aa4b8; margin-bottom: 24px; }
+  #log div { white-space: pre-wrap; }
+  .ok { color: #7ee08a; } .ko { color: #ff8a80; } .info { color: #9aa4b8; }
+</style>
+</head>
+<body>
+<h1>Lanceur de la sonde native</h1>
+<div class="aide">Entrée (OK) : lancer org.cimaise.sondenative et observer 90 s (la sonde doit s'arrêter seule vers 60 s). Retour : quitter. Le journal survit à la sortie.</div>
+<div id="log"></div>
+<script>
+/* ES5 uniquement (moteur web de Tizen 5). Aucune dépendance. */
+(function () {
+  var SONDE = 'org.cimaise.sondenative';
+  var CLE = 'cmzlanceur.journal';
+  var POLLS = [1000, 5000, 15000, 30000, 45000, 55000, 58000, 62000, 65000, 75000, 90000];
+  var logEl = document.getElementById('log');
+  var lignes = [];
+  var t0 = 0;
+  var enCours = false;
+
+  function lire() { try { return JSON.parse(localStorage.getItem(CLE) || '[]'); } catch (e) { return []; } }
+  function ecrire() { try { localStorage.setItem(CLE, JSON.stringify(lignes.slice(-60))); } catch (e) {} }
+  function afficher() {
+    var html = '';
+    for (var i = Math.max(0, lignes.length - 22); i < lignes.length; i++) {
+      html += '<div class="' + lignes[i].c + '">' + lignes[i].t.replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</div>';
+    }
+    logEl.innerHTML = html;
+  }
+  function log(c, t) {
+    var dt = t0 ? ('+' + ((Date.now() - t0) / 1000).toFixed(1) + ' s ') : '';
+    lignes.push({ c: c, t: dt + t });
+    ecrire(); afficher();
+  }
+  function err(e) { return e ? ((e.name || '') + ' : ' + (e.message || String(e))) : '(erreur vide)'; }
+
+  function contexte(etiquette) {
+    try {
+      tizen.application.getAppsContext(function (ctxs) {
+        var trouve = null;
+        for (var i = 0; i < ctxs.length; i++) { if (ctxs[i].appId === SONDE) { trouve = ctxs[i]; } }
+        if (trouve) { log('ok', etiquette + ' : sonde EN COURS (contextId ' + trouve.id + ')'); }
+        else { log('ko', etiquette + ' : sonde absente des ' + ctxs.length + ' apps en cours'); }
+      }, function (e) { log('ko', etiquette + ' : getAppsContext a échoué : ' + err(e)); });
+    } catch (e) { log('ko', etiquette + ' : getAppsContext a levé : ' + err(e)); }
+  }
+
+  function lancer() {
+    if (enCours) { return; }
+    enCours = true; t0 = Date.now();
+    log('info', '=== Essai du ' + new Date().toLocaleString() + ' ===');
+    contexte('avant');
+    try {
+      tizen.application.launch(SONDE,
+        function () { log('ok', 'launch : succès (callback)'); },
+        function (e) { log('ko', 'launch : ÉCHEC : ' + err(e)); });
+    } catch (e) { log('ko', 'launch a levé : ' + err(e)); }
+    for (var i = 0; i < POLLS.length; i++) {
+      (function (ms) {
+        setTimeout(function () {
+          contexte('t+' + (ms / 1000) + ' s');
+          if (ms === POLLS[POLLS.length - 1]) { log('info', '=== fin de l\'essai ==='); enCours = false; t0 = 0; }
+        }, ms);
+      })(POLLS[i]);
+    }
+  }
+
+  lignes = lire();
+  if (lignes.length) { lignes.push({ c: 'info', t: '--- (journal précédent ci-dessus) ---' }); }
+  afficher();
+  if (typeof tizen === 'undefined') { log('ko', 'API tizen absente (pas sur la TV)'); return; }
+  try {
+    var info = tizen.application.getAppInfo(SONDE);
+    log('ok', 'getAppInfo : ' + info.id + ' « ' + info.name + ' » v' + info.version + ' paquet ' + info.packageId + ' (show=' + info.show + ')');
+  } catch (e) { log('ko', 'getAppInfo : ' + err(e)); }
+  contexte('au démarrage');
+
+  document.addEventListener('visibilitychange', function () {
+    log('info', 'lanceur ' + (document.hidden ? 'masqué' : 'revenu au premier plan'));
+  });
+  document.addEventListener('keydown', function (ev) {
+    if (ev.keyCode === 13) { lancer(); }
+    else if (ev.keyCode === 10009) { try { tizen.application.getCurrentApplication().exit(); } catch (e) {} }
+  });
+})();
+</script>
+</body>
+</html>

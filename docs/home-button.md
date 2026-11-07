@@ -191,3 +191,104 @@ de cette carte). **Rien de tout cela ne doit être écrit en retour.**
 - HANDOFF.md du présent dépôt : §2 (autorun retenu), §9 (recherche seulement), §10 (interdits),
   §11 Q5/Q8 (autorun et persistance à vérifier).
 - `docs/decisions.md` du présent dépôt : gestion Retour, pastille Smart Hub via `hide()`.
+
+## Voie B — étape 1 : résultat (2026-10-31)
+
+> Sonde `org.cimaise.sondenative` : app C vide, sans privilège ni vconf ni `dlopen`, signée avec le
+> profil cimaise inchangé. Détails dans `docs/tv-status.md` et `docs/decisions.md`.
+
+- **Installation : acceptée.** Notre certificat public (auteur + distributeur) suffit pour
+  installer un `.tpk` natif (`pkg_type[tpk]`, « install completed », app vue dans Apps par Stéphane).
+  L'incertitude n° 1 de la Voie B est levée côté installation.
+- **Lancement : non abouti.** Chargement sans fin à l'écran, texte jamais affiché, pas de fermeture
+  automatique ; `was_execute` répond « resumed » au lieu de « launched ». Le code de l'app n'a donc
+  probablement jamais tourné. Faute de logs (`logcat` et `appinfo` sont `closed`), la cause n'est
+  pas départagée : (a) la TV refuse d'exécuter un binaire natif signé par un certificat public,
+  (b) plantage au chargement des bibliothèques (rootstrap IoT 5.0 ≠ TV), (c) fenêtre EFL non
+  affichée par le compositeur de la TV.
+- **Désinstallation via sdb : refusée** (`closed`) ; suppression manuelle depuis la TV.
+
+### Sonde v2 : sans fenêtre, lancée par un lanceur web (2026-10-31)
+
+But : séparer « le code natif s'exécute-t-il ? » de « la fenêtre s'affiche-t-elle ? ». La sonde
+1.0.1 ne crée aucune fenêtre ; elle doit vivre 60 s puis se fermer seule. Le lanceur web jetable
+`cmzlanceur.Lanceur` la lance par `tizen.application.launch` et relève `getAppsContext`
+(journal photographié par Stéphane, publié sur la carte).
+
+- Le processus est **créé** : le contexte 3140 apparaît 0,5 s après `launch`, et le premier
+  `launch` répond « succès », mais seulement après 5 s.
+- Il **ne se ferme jamais seul** : le même contexte 3140 est encore présent environ 5 min après
+  son lancement (essai 2, jusqu'à t+90 s). La minuterie de 60 s ne s'est donc pas déclenchée, et
+  le code applicatif n'atteint pas sa boucle d'événements. Un second `launch` sur ce processus
+  bloqué → `UnknownError : Unknown error.`
+- **Ce que cela tranche pour la v1** : le chargement infini ne venait pas de l'affichage de la
+  fenêtre EFL (hypothèse c), puisque la v2 sans fenêtre se bloque pareil. Restent (a) un refus
+  d'exécution du natif signé par un certificat public, appliqué en laissant le processus en
+  suspens, ou (b) un blocage au chargement ou à l'initialisation (appfw/ecore du rootstrap IoT 5.0
+  ≠ TV). Ces deux causes ne sont pas départageables sans logs.
+- Réserve : tout repose sur `getAppsContext` (le contexte existe), pas sur une trace de
+  l'exécution du code.
+
+**Conséquence pour la Voie B** : sur cette Frame, avec notre certificat public, **aucun code natif
+n'a été vu s'exécuter**. Les étapes suivantes (lecture de vconf, `app_operation_*`) supposent un
+code qui tourne : elles sont **bloquées**. Pour aller plus loin, il faudrait une sonde qui prouve
+l'exécution par un effet observable sans logs, par exemple un binaire libc seul qui se termine
+aussitôt (le contexte doit alors disparaître). Même en cas de succès, (a) reste plausible pour
+tout ce qui touche à l'UI ou aux bibliothèques TV. À décider par Stéphane ; recommandation :
+**clore la Voie B** et garder les voies officielles (autorun et réouverture depuis l'arrière-plan).
+
+## Autres pistes après la Voie B (2026-10-31)
+
+> Point de départ : la réaffectation du bouton Home est impossible sur cette Frame (canal sdb fermé,
+> Voie B bloquée : le natif signé avec un certificat public ne s'exécute pas). Restent des pistes
+> **sans code natif ni réglage écrit**. Rien n'a été exécuté sur la TV pour cette liste : chaque
+> « à tester » est une manipulation à faire par Stéphane ou une future carte.
+
+| # | Piste | Faisable (Frame 2019, Tizen 5.0, certificat public) ? | Coût | À tester sur la TV |
+|---|---|---|---|---|
+| 1 | **Touches de la télécommande enregistrées par cimaise** (`tizen.tvinputdevice.registerKey` : touches de couleur, chiffres, ChannelUp/Down, etc.) | **Oui, mais seulement quand cimaise a le focus.** La touche ne parvient à l'app qu'au premier plan : elle ne peut pas *ramener* à cimaise depuis le Smart Hub ou Netflix. Utile comme raccourci *dans* cimaise (par exemple Rouge = Plex). Home, Retour, Volume et les touches dédiées (Netflix, Prime…) ne sont pas enregistrables. | Quasi nul (privilège `tv.inputdevice` déjà déclaré, quelques lignes de JS) | Liste réelle des touches avec `getSupportedKeys()` sur la Frame |
+| 2 | **Position épinglée dans la barre du Smart Hub** (appui long sur la tuile cimaise → Déplacer, en première position) | **Oui**, réglage utilisateur officiel. Au mieux Home → OK (deux appuis), si le focus se pose sur la première tuile à l'ouverture de la barre. | Nul | Où se pose le focus quand on presse Home : première tuile, dernière app ou « Source » ? |
+| 3 | **Autorun au démarrage** (« Exécution automatique de la dernière application », déjà retenu §2) | **Oui**, réglage officiel. Agit à l'allumage seulement, pas sur le bouton Home. | Nul | HANDOFF §11 Q5 : cimaise revient-il après le mode Art, et après une coupure de courant ? |
+| 4 | **Home une seconde fois / Retour depuis le Smart Hub** | **Probable** : sur Tizen, la barre Home s'affiche *par-dessus* l'app courante. Un second Home ou Retour la referme et laisse cimaise au premier plan, si cimaise était l'app en cours et qu'elle est restée en mémoire (Q8). Ce n'est pas un « aller à cimaise » depuis une autre app, mais un retour quasi instantané si on a pressé Home par erreur. | Nul | Depuis cimaise : Home, puis Home (ou Retour) → cimaise revient-elle, et en combien de temps ? Même essai après avoir lancé Netflix depuis cimaise |
+| 5 | **Lancement par le réseau via Home Assistant** (API Smart View de Samsung, `POST http://<TV>:8001/api/v2/applications/<appId>`, ou intégration `samsungtv` / `samsungtvws`) | **Plausible, non vérifié** pour une app installée en mode développeur. Si cela fonctionne, *n'importe quel* déclencheur devient un « bouton cimaise » : bouton Zigbee à côté de la télécommande, widget sur le téléphone, tag NFC, assistant vocal via HA. | Côté homelab seulement ; rien dans cimaise | Un seul appel depuis le PC (autorisation de l'appareil à accepter une fois à l'écran), puis Stéphane dit si cimaise s'ouvre |
+| 6 | **Retour automatique via HA** (cimaise signale « masquée » ; après N s sans lancement volontaire, HA relance cimaise par la piste 5) | **Dépend de la piste 5.** Ressenti : Home → Smart Hub → cimaise revient seule après N s. HA ne voit pas les touches : N trop court gêne la navigation dans le Smart Hub (Q-B, choix de N : 3-5 s ou 15 s). | Environ 1 Ko de JS (événements ponctuels), pas de minuterie permanente ; une automatisation HA | La piste 5, puis vérifier que l'événement « masquée » part bien (persistance Q8) |
+| 7 | **Bixby, à la voix** (« Ouvre cimaise ») | **Incertain** : Bixby TV ouvre les apps installées par leur nom, mais une app développeur n'est peut-être pas indexée. La disponibilité de Bixby en français sur ce modèle est aussi à confirmer. | Nul | Dire « Ouvre cimaise » au micro de la télécommande |
+| 8 | **SmartThings : routine ou scène qui lance l'app** | **Incertain** : l'app SmartThings sait lancer des apps sur la TV, probablement celles du Store seulement. Une routine pourrait être déclenchée par un bouton SmartThings. | Nul (compte Samsung) | Dans l'app SmartThings : la fiche de la TV liste-t-elle cimaise parmi les apps lançables ? |
+| 9 | **HDMI-CEC depuis un autre appareil** (par exemple un Raspberry Pi relié en HDMI) | **Non utile** : CEC sait allumer la TV, changer de source et envoyer des touches, mais pas lancer une app Tizen. Une suite de touches simulées (Home, flèches, OK) est fragile, car elle dépend de l'ordre de la barre. | Matériel en plus, fragile | — (écarté) |
+| 10 | **Télécommande IR universelle, Flirc, touches dédiées** | **Non** : les codes IR ont une fonction fixe dans le firmware, et les touches Netflix, Prime, etc. ne sont pas réaffectables officiellement. | — | — (écarté) |
+
+**Lecture d'ensemble.**
+- Pour un vrai « bouton qui amène à cimaise » depuis n'importe où, la seule piste sérieuse est la
+  **5** (bouton physique ou vocal via HA), éventuellement prolongée par la **6** (retour automatique).
+  Les deux dépendent d'un test unique et inoffensif : la TV accepte-t-elle le lancement réseau d'une
+  app développeur ?
+- Sans homelab, le mieux qu'on puisse avoir : **2 + 3 + 4** (cimaise en tête de barre, autorun,
+  retour par Home ou Retour), tous gratuits et officiels, à vérifier à la main.
+- La **1** améliore l'usage *dans* cimaise, pas le retour à cimaise.
+
+**Choix de la prochaine carte : à Stéphane.** Candidates : (a) test du lancement réseau (piste 5),
+(b) essais manuels 2 + 3 + 4 + 7 + 8 consignés dans `docs/tv-status.md`, (c) raccourcis de touches
+dans cimaise (piste 1).
+
+### Piste 5 testée : lancement par le réseau (2026-10-31)
+
+`POST http://<TV>:8001/api/v2/applications/cimaise001.Cimaise` (API Smart View, HTTP, sans jeton)
+→ `true`, et **cimaise s'est ouverte à l'écran** (vu par Stéphane). L'API connaît l'app développeur
+(`GET` → `running:false`, et ce champ ne bouge pas après l'ouverture : il n'est pas fiable). Une demande
+d'autorisation au nom de « Home Assistant » s'est affichée au même moment ; Stéphane l'a acceptée.
+Détails dans `docs/tv-status.md`.
+
+**Conséquence** : un « bouton cimaise » externe est **faisable** sans code natif ni réglage système.
+Il suffit d'un script ou d'une automatisation Home Assistant qui fait ce `POST` (ou le service de
+l'intégration `samsungtv`), déclenché par un bouton Zigbee, un widget, un tag NFC ou la voix. La
+piste 6 (retour automatique) devient elle aussi possible. À trancher par Stéphane pour la prochaine
+carte : quel déclencheur (bouton physique, widget…), et s'il veut aussi le retour automatique,
+avec quel délai N.
+
+**Non prouvé à ce stade (piste 5)** : (1) le `POST` n'a été essayé que dans un seul état de la TV,
+pas pendant que Netflix ou le Smart Hub est au premier plan ; c'est pourtant le cas d'usage du « bouton
+cimaise ». (2) On ne sait pas si cimaise a été ouverte par l'appel du PC ou par Home Assistant, qui
+s'est manifesté au même moment. Test proposé, avec l'accord de Stéphane : Netflix au premier plan,
+puis le même `POST` depuis le PC, et il dit ce qu'il voit. Rappel : la piste 1 (touches) ne vaut que
+quand cimaise a le focus ; la piste 5 ne dépend pas de cimaise ; la piste 6 demande environ 1 Ko de JS
+dans cimaise, en plus de la 5.

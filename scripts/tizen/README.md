@@ -12,5 +12,6 @@ Réglages et secrets lus dans `.local/` (modèle : `tizen.env.example`).
 - `install.sh` : `sdb install`, puis `vd_appinstall` si besoin, vérification dans la liste.
 - `launch.sh` : lance une app sur la TV.
 - `list-apps.sh` : liste les apps installées et leurs IDs.
+- `native-probe.sh` : sonde native « Voie B » (`.tpk` C vide, `apps/native-probe/`) et son lanceur web jetable (`apps/native-launcher/`) : build, install, launch, build-lanceur, install-lanceur, launch-lanceur, uninstall (refusé par la TV : supprimer depuis le menu), list.
 - `test.sh` : vérifie les wrappers (sans TV).
 - `lib.sh` : fonctions communes.

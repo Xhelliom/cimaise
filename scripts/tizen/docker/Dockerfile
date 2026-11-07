@@ -78,3 +78,19 @@ ENV BROWSER=firefox
 # Dernière instruction : tout doit tourner en `tizen` (sinon le Certificate Manager écrirait dans
 # /root/SamsungCertificate, non monté). Ne rien ajouter après sans rétablir USER tizen.
 USER tizen
+
+# Chaîne native C (essai « Voie B », docs/home-button.md) : construire un .tpk pour Tizen 5.0 armv7l.
+# Le SDK public n'a PAS de rootstrap TV Samsung (réservé aux partenaires) : on prend le rootstrap
+# Tizen 5.0 public le plus proche, IoT-Headed 5.0 (armel, EFL + appfw), qui tire GCC 6.2 et la
+# CLI native. Prérequis système vérifiés par le gestionnaire : python2.7, libpython2.7, libncurses5
+# (vrais paquets Ubuntu 22.04) ; make pour `tizen build-native`. Coût mesuré : +1,35 Go dans le SDK (docs/decisions.md).
+USER root
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends python2.7 libpython2.7 libncurses5 make \
+ && rm -rf /var/lib/apt/lists/*
+USER tizen
+ARG TIZEN_NATIVE_PACKAGES=IOT-Headed-5.0-NativeAppDevelopment-CLI
+RUN /home/tizen/tizen-studio/package-manager/package-manager-cli.bin install \
+      --accept-license --no-java-check ${TIZEN_NATIVE_PACKAGES} \
+ && test -x /home/tizen/tizen-studio/tools/arm-linux-gnueabi-gcc-6.2/bin/arm-linux-gnueabi-gcc \
+ && test -d /home/tizen/tizen-studio/platforms/tizen-5.0/iot-headed/rootstraps/iot-headed-5.0-device.core
