@@ -11,6 +11,42 @@ Peut-on faire pareil pour que le bouton Home de la télécommande ouvre **cimais
 2019 (LS03R, Tizen 5.0), dans les limites du §9 (pas de root, pas d'exploit, pas de
 modification de la politique de sécurité) ? Et sinon, quelles voies officielles restent ?
 
+## Le mécanisme Tizen en dessous (pourquoi le Home est redirigeable)
+
+> Recoupé depuis le travail couchroot S90D — la source de référence citée par CleanFrame
+> (`scripts/native-home/README.md`, voir Sources). C'est ce qui explique *pourquoi* les trois
+> écritures de `Control.cs` suffisent.
+
+- **Le bouton Home n'est pas codé en dur sur le Smart Hub.** Dans le firmware, le handler du
+  bouton Home physique appelle `ContextProduct::LaunchHomeApp`, qui **résout** l'opération
+  app-control `http://tizen.org/appcontrol/operation/main` via `app_operation_get_current_app`.
+  L'app qui répond à cette opération est l'« app Home » effective.
+- **L'enregistrement autorisant** de cette résolution est la ligne de l'opération main dans
+  **`/opt/dbspace/user/5001/.appsvc.db`** (SQLite, par utilisateur). Ligne d'origine relevée sur la
+  TV de référence : `http://tizen.org/appcontrol/operation/main | NULL | NULL | com.samsung.tv.csfs`
+  — c'est-à-dire « Samsung Home ». Rediriger le bouton = changer l'app par défaut de cette
+  opération (`app_operation_set_current_app`) ; l'assignation **survit au reboot** (vérifié
+  reboot par reboot sur S90D).
+- **Chaque écriture de l'`apply` pilote une chose distincte** :
+
+  | Écriture | Ce qu'elle pilote |
+  |---|---|
+  | `app_operation_set_current_app(operation/main, appid)` | Le **bouton Home** physique (ligne `.appsvc.db`) |
+  | `db/appfw/home_appid` = appid | Ce que **`app-boot-manager` choisit au boot** (constaté dans le binaire) |
+  | `db/menu/smart_hub/ontvsetting/auto_start` = 1 | **Foreground vs background** de l'app au boot (0 = arrière-plan) |
+
+- **`startup_appid` seul ne suffit pas** : sur S90D, écrire seulement `db/appfw/startup_appid` n'a
+  rien établi — Samsung l'a remis à `org.tizen.tv-viewer` au reboot. C'est le couple
+  `home_appid` + `auto_start=1` qui établit le boot ; c'est ensuite **Samsung lui-même** qui met à
+  jour les valeurs dérivées `startup_appid` / `booting_appid_backup` vers la nouvelle app.
+- **`db/first_screen/type` n'est pas modifié** par l'apply (reste `com.samsung.tv.csfs`) : la sortie
+  vers le Smart Hub reste possible explicitement (pastille de sortie dans l'app).
+- **Pourquoi il faut du code natif** : `libvconf.so.0` (réglages `db/...`) et les app-operations TV
+  (`libcapi-appfw-app-operation-tv.so.0`) sont des API C natives. L'API Web `tizen.application`
+  n'expose que `launch` / `hide` / `getCurrentApplication` — rien n'écrit l'opération `main` ni les
+  clés `db/`. Impossible de le faire depuis l'app web : il faut exécuter un petit programme **sur la
+  TV**, en tant qu'utilisateur SDK (UID 901).
+
 ## Ce que fait CleanFrame (Tizen 9) — mécanisme
 
 Source : `scripts/native-home/` du dépôt CleanFrame (`Control.cs`, `run.py`, `README.md`,
@@ -97,10 +133,52 @@ lecture sur la TV (§6) — mais même présent, le verrou 1 reste.
   (`vconftool get`, via le shell développeur) — ce n'est pas une opération de l'app, et l'écriture
   réclamerait des privilèges plateforme/partenaire que le SDK public ne donne pas.
 
-**Conclusion de faisabilité :** réassigner le Home vers cimaise sur la Frame 2019 **dans les
-limites du §9 est impossible aujourd'hui**. La seule méthode connue (CleanFrame) passe par un
-exploit interdit, exige un runtime .NET probablement absent, et n'a **jamais** été testée sur
-Tizen 5 (CleanFrame lui-même note « Not tested » pour la Frame 2019 QE55LS03R).
+### Ce qui est observé sur NOTRE TV (lecture seule, 2026-10-31)
+
+Exécuté depuis le PC, via `sdb` (sessions uniques, aucune écriture sur la TV — HANDOFF §10).
+
+**1. Le shell sdb est un dispatcheur à liste blanche, pas un shell.**
+
+| Commande envoyée | Réponse |
+|---|---|
+| `sdb shell id`, `0 id`, `0 uname -m`, `0 cat /etc/tizen-release`, `0 ls …`, `0 vconftool get <5 clés Home>` | **`closed`** — commandes arbitraires refusées |
+| `0 mkdir -p <dir existante>` | **`closed`** (le `|| true` du repli d'`install.sh` le masquait) |
+| `0 applist` | OK — liste des apps complète |
+| `0 vd_appinstall cfhi01.Cfhi cfhi.tpk` (fichier inexistant) | Tentative d'install réelle : « download failed[16] » — la commande est vivante |
+| `0 appinstall tpk cfhi.tpk` (fichier inexistant) | « Package not found [-5] » — `appinstall` existe aussi, résout dans `/home/owner/share/tmp/sdk_tools/` |
+| `0 loglevel`, `0 logcat`, `0 log`, `0 syslog`, `0 appinfo <id>` | **`closed`** — pas de log système, pas d'état d'app via sdb |
+
+**2. Les backticks ne passent pas non plus (test marqueur, 31/10).**
+`0 vd_appinstall "cfhi01.Cfhi" "cfhi.tpk\`id; echo MARKER_HOME_42\`.tpk"` → **`closed`**, sans
+marqueur dans la sortie. Contrôles : un nom propre produit une tentative d'install (le chemin est
+échoé par la TV), un nom avec un espace produit une réponse vide. La rejection arrive **avant**
+toute exécution : la TV valide la chaîne de commande (commandes connues + forme) et ne la passe
+jamais dans un shell avec les arguments bruts. Le « package-name command workaround » de CleanFrame
+(substitution de commandes dans le nom de tpk) n'a donc **aucun support** sur ce firmware — même
+conclusion que sur Tizen 4.0 (CleanFrame PR #8), cette fois **prouvée par expérience** et non par
+inférence.
+
+Conséquences :
+
+- **Le verrou 1 est tranché sur notre TV** : aucune exécution de code arbitraire via sdb — ni
+  commande, ni injection par argument. Impossible de pousser puis faire tourner un helper (C ou
+  .NET) par ce canal.
+- Le seul autre canal d'exécution est l'app elle-même (paquet `.wgt` signé, installé par le chemin
+  officiel) — mais une app web n'a que l'API Web : ni `vconf`, ni app-operations (verrou 3). Les
+  deux canaux sont fermés.
+- Le runtime .NET, les clés `vconf` et les libs natives ne sont plus vérifiables via sdb, mais ce
+  n'est plus bloquant : les canaux d'exécution sont morts avant elles.
+- `appinfo` étant `closed`, l'état « en cours d'exécution » d'une app n'est **pas interrogeable**
+  via sdb : le seul capteur « l'utilisateur est (ou non) sur cimaise » est l'app elle-même (voir
+  « L'objectif « bouton Home = cimaise » » plus bas).
+
+**Conclusion de faisabilité (tranchée le 2026-10-31 par expérience)** : réassigner le bouton Home
+vers cimaise sur la Frame 2019 **dans les limites du §9 n'est pas possible**. Le canal d'exécution
+sdb est définitivement fermé sur ce firmware (liste blanche stricte, backticks rejetés avant
+exécution), et aucune API Web n'écrit l'opération `main` ni les clés `db/`. Les verrous 2 et 3
+(runtime .NET probablement absent, zéro preuve sur Tizen 5 — CleanFrame note « Not tested » pour la
+Frame 2019 QE55LS03R) ne sont plus atteignables de toute façon. Aucune écriture n'a été faite sur
+la TV ; rien à restaurer.
 
 ## Les voies officielles (recensement)
 
@@ -118,6 +196,96 @@ est que la TV garde cimaise en mémoire, d'où une réouverture quasi instantan�
 continue de mener au Smart Hub ; c'est de là que l'utilisateur relance cimaise (ou via l'autorun
 au prochain démarrage). Ce couple **autorun + persistance mémoire** est la meilleure approximation
 officielle d'un « Home = cimaise », sans jamais réassigner le bouton.
+
+## L'objectif « bouton Home = cimaise » — approximation HA (idée, 2026-10-31)
+
+> Objectif exprimé (31/10) : que le bouton Home physique mène à cimaise plutôt qu'au Smart Hub. La
+> réassignation native étant prouvée impossible sur cette TV (section « Transposition »), la voie
+> restante est une **approximation pilotée depuis l'homelab** (périmètre phase 2, HANDOFF §7).
+> **Statut : idée à valider, rien d'implémenté.**
+
+**Ce qui est détectable ou non (état des lieux 31/10) :**
+
+| Signal | Détectable ? | Moyens |
+|---|---|---|
+| « Le Smart Hub est affiché » (en soi) | **Non** | Aucune API publique n'expose l'app au premier plan ; logs système et `appinfo` refusés par le shell sdb (testés 31/10, `closed`) |
+| « L'utilisateur a quitté cimaise » | **Oui** | L'app elle-même est le capteur (ci-dessous) ; `appinfo` étant fermé, c'est le seul capteur possible |
+
+**Architecture proposée (cimaise = capteur, HA = cerveau) :**
+
+1. cimaise envoie des **événements** (HTTP LAN, vers l'homelab) :
+   - `visibilitychange` → visible : `cimaise:foreground` ;
+   - `visibilitychange` → hidden : `cimaise:hidden` ;
+   - lancement volontaire d'une autre app depuis cimaise : `cimaise:launch:<id>` (l'utilisateur a voulu partir) ;
+   - cas limite : si la TV tue l'app au hidden (persistance en mémoire non vérifiée, HANDOFF §11 Q8),
+     l'événement peut être perdu → HA raisonne par **timeout** (aucun `foreground` depuis X s + TV
+     allumée = quitté) ; un heartbeat 15 s optionnel en paranoïa.
+2. Automatisation HA : *TV allumée* + *cimaise hidden (ou timeout)* + *pas de `launch` volontaire*
+   + *N secondes* → **lancer cimaise** (intégration `samsungtv` / port 8001).
+
+**Résultat ressenti** : touche Home → Smart Hub → cimaise revient après N secondes. Le bouton Home
+*sert* à revenir à cimaise, sans réassignation.
+
+**Le réglage à trancher (N)** : 3-5 s = ressenti « bouton » mais envahissant si l'utilisateur
+parcourt le Smart Hub (HA ne voit pas ses touches) ; 15 s = jamais envahissant, moins « bouton ».
+Le repli reste le statut quo : un clic sur cimaise depuis le Smart Hub, réouverture < 0,5 s.
+
+**Coût (légèreté, §6 bis)** : événements ponctuels sur le LAN (~1 ko de JS), aucune minuterie
+permanente obligatoire, rien au démarrage ; bien dans le budget.
+
+**Ce que ça ne donne pas** : aucun signal « touche Home » propre (logs fermés) ; l'auto-retour est
+une inférence (quitté + pas de lancement volontaire), pas une interception du bouton.
+
+## Voie B — helper natif en paquet Tizen (idée 2026-10-31, non testée)
+
+> Exploration web du 31/10 (docs SDK Samsung/Tizen, repo officiel `Samsung/tizen-docs`).
+> Statut : **idée à tester**, rien d'exécuté sur la TV.
+
+Le shell sdb étant fermé, l'autre façon de faire tourner du code natif sur la TV est de
+l'installer **en tant que paquet** : le canal d'installation officiel (`sdb install` /
+`vd_appinstall`) fonctionne déjà chez nous tous les jours — aucune astuce de shell nécessaire.
+
+- **App native C (`.tpk` avec `tizen-manifest.xml`)** : le runtime applicatif natif Tizen existe
+  sur les TV Samsung depuis 2014 (section « TV Legacy Platform » des docs SDK) ; une Frame 2019
+  Tizen 5 a donc bien un runtime natif. Un helper C (~50 lignes) :
+  1. lit les 5 clés Home via `vconf_get_str/_int` (`libvconf.so.0`, base de tous les réglages
+     Samsung, présente sur toute TV) et l'app par défaut de l'opération main ;
+  2. sauvegarde l'instantané d'origine dans le stockage de l'app ;
+  3. `apply` : `vconf_set_str(db/appfw/home_appid)`, `vconf_set_int(auto_start, 1)`, et
+     `app_operation_set_current_app(operation/main, appid)` via `dlopen("libcapi-appfw-app-operation-tv.so.0")`
+     (échec gracieux si la lib est absente sur Tizen 5) — chaque écriture **relu** ;
+  4. `restore` : remise exacte des valeurs d'origine, relue.
+
+  Pilotage depuis cimaise : `tizen.application.launch(<helper>)` (privilège public), résultat lu
+  dans un fichier partagé et affiché dans les réglages ; restauration en un bouton.
+- **Variante .NET (TizenFX)** : type d'app TV documenté (même approche par P/Invoke) — mais exige le
+  **runtime .NET embarqué** sur la TV (présent sur Tizen 9, inconnu et peu probable sur Tizen 5).
+  La variante C n'a aucune dépendance de runtime.
+- **Points d'incertitude (chacun testable avec échec sûr)** :
+  1. l'install d'un `.tpk` natif signé avec notre certificat public est-elle acceptée ? (standard
+     Tizen ; l'install elle-même le dira) ;
+  2. les écritures `vconf` sont-elles acceptées depuis une app de niveau **public** ? La doc liste
+     le privilège `http://tizen.org/privilege/systemsettings` (public : « read and write
+     unrestricted system settings ») et vconf n'apparaît dans aucune liste d'API
+     « security-sensitive » ; le contrôle est par clé (privilège par défaut public selon l'audit
+     couchroot S90D). Si refus : l'écriture échoue, rien n'est modifié.
+  3. `libcapi-appfw-app-operation-tv.so.0` existe-t-elle sur Tizen 5 et accepte-t-elle l'appel ?
+     (présente sur Tizen 9 ; `dlopen` → échec gracieux sinon.) C'est elle qui pilote le vrai bouton
+     ; `home_appid` + `auto_start` pilotes le boot.
+- **Écartés par la doc** : API Web (aucun setter d'opération — confirmé dans la reference
+  Application API), `SmartHubConfig` .NET (lecture seule `Country`/`Server`), WebAssembly et NaCl
+  (sandbox sans accès aux libs système), `inputgenerator`/`keygrab` (privilèges platform, hors
+  certificat public).
+- **Coût** : toolchain cross Tizen 5 (armv7l) + sysroot à installer dans l'image Docker
+  (téléchargement SDK, local) ; helper ≈ quelques Ko ; rien n'est écrit sur la TV tant que
+  l'expérience n'est pas approuvée.
+
+**Télécommande custom (exploration 31/10)** : les codes IR sont mappés à des comportements fixes
+dans le firmware (un Flirc/IR ne peut pas changer ce que fait le bouton Home) ; « app channels »
+(app mappée sur un numéro de canal) introuvable sur les modèles 2019 ; Bixby « ouvre <app> »
+non vérifié pour une app développeur. La seule télécommande custom utile est **hors IR** : un
+bouton physique (Zigbee/ESPHome) ou un raccourci qui déclenche l'automatisation HA « lancer
+cimaise » (voie A ci-dessus).
 
 ## Risques
 
@@ -140,20 +308,27 @@ officielle d'un « Home = cimaise », sans jamais réassigner le bouton.
    §6 bis < 0,5 s) : c'est le vrai ressenti « revenir à cimaise », et il est 100 % officiel.
 3. **Ne pas** porter l'assistant .NET de CleanFrame : canal d'exécution interdit, runtime
    probablement absent, zéro preuve sur Tizen 5.
-4. **Lecture seule optionnelle** : si Stéphane veut lever le doute sur le runtime .NET et l'état
-   des réglages Home de *sa* TV, l'orchestrateur peut exécuter les commandes du §6 (reads only),
-   avec son accord. Résultat attendu : confirmer qu'il n'y a pas de voie propre, et classer la
-   question.
+4. **Lecture seule et test marqueur exécutés (31/10)** : le shell sdb est en liste blanche stricte
+   et les backticks sont rejetés avant exécution sur notre TV — la question du canal est tranchée,
+   pas de voie propre. Aucune expérience supplémentaire n'est nécessaire.
 
 ### Questions qui appartiennent à Stéphane (à trancher, pas décidées ici)
 
-- **Q-A.** Accepte-t-il de clore définitivement la piste « bouton Home » (recommandé), ou veut-il
-  d'abord la lecture seule du §6 pour objectiver l'absence de runtime/API ?
+- **Q-A.** La piste est objectivement close (canal d'exécution prouvé fermé par expérience, 31/10) :
+  validation formelle de la clôture. Le « Home = cimaise » se limite alors au couple autorun +
+  réouverture arrière-plan (et, optionnel, lancement externe depuis Home Assistant).
 - **Q-B.** Le couple « autorun + réouverture arrière-plan » est-il un ressenti suffisant, ou
-  faut-il investiguer une piste **hors app** (par ex. piloter la TV depuis Home Assistant, HANDOFF §7) ?
+  valide-t-on l'approximation HA (capteur cimaise + auto-retour, section dédiée ci-dessus) pour la
+  phase 2 ? Y compris le choix de N (délai d'auto-retour : 3-5 s « bouton » ou 15 s « discret »).
 
 ## Vérifications en lecture seule proposées (orchestrateur + accord de Stéphane)
 
+> **Exécutées le 2026-10-31** (voir « Ce qui est observé sur NOTRE TV » plus haut) : shell sdb en
+> liste blanche (`id`/`cat`/`ls`/`vconftool` → `closed`, `0 applist`/`0 vd_appinstall`/`0
+> appinstall` → vivants) et test marqueur par backticks → `closed` avant exécution. Les checks
+> restants (dotnet, clés vconf, libs) sont injoignables sur cette TV ; le firmware est celui relevé
+> en M0 (QE49LS03RAUXXC, T-MSMDEUC-1500.9). Aucune écriture sur la TV.
+>
 > **À exécuter par l'orchestrateur, pas par l'agent.** Toutes en lecture. Aucune n'écrit de
 > réglage, n'installe, ne lance ni ne redémarre quoi que ce soit. Prérequis : mode développeur
 > activé et `sdb` déjà connecté à la TV (hors périmètre de cette carte). Si une commande renvoie
@@ -191,6 +366,8 @@ de cette carte). **Rien de tout cela ne doit être écrit en retour.**
 - HANDOFF.md du présent dépôt : §2 (autorun retenu), §9 (recherche seulement), §10 (interdits),
   §11 Q5/Q8 (autorun et persistance à vérifier).
 - `docs/decisions.md` du présent dépôt : gestion Retour, pastille Smart Hub via `hide()`.
+- `docs/tv-status.md` du présent dépôt : réponse du SDK de la sonde sdb du 2026-10-31 (shell libre
+  `closed`, `0 applist` OK) et relevé M0 du modèle/firmware (QE49LS03RAUXXC, T-MSMDEUC-1500.9).
 
 ## Voie B — étape 1 : résultat (2026-10-31)
 

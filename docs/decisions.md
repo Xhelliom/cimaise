@@ -790,3 +790,33 @@ But : vérifier si un `.tpk` natif C signé avec **notre** profil (auteur et dis
 - **Outillage** : `apps/native-probe/` (manifeste, `main.c` de 60 lignes) et `scripts/tizen/native-probe.sh` (build, install, launch, uninstall, list). `lib.sh` monte maintenant `LOCAL_DIR` sur `/work/.local` quand `.local` est hors du dépôt (cas d'un worktree avec `CIMAISE_LOCAL_DIR`), car le profil de signature référence `/work/.local/certs/…`.
 - **Résultat** (`docs/tv-status.md`) : **installation acceptée** (`pkg_type[tpk]`, « install completed », app visible par Stéphane). **Lancement non abouti** : chargement sans fin, texte jamais affiché ; le SDK répond « resumed » au lieu de « launched ». **Désinstallation via sdb refusée** (`sdb uninstall` et `0 vd_appuninstall` → `closed`) : il faut supprimer l'app depuis le menu de la TV. À prévoir pour toute expérience native future.
 - **Sonde v2 et lanceur web** : la sonde 1.0.1 (sans fenêtre, 60 s de vie) ne dépend plus que de `libcapi-appfw-application`, `libecore` et libc. Le lanceur `cmzlanceur.Lanceur` (`apps/native-launcher/`, une page ES5 d'environ 4 Ko, aucune dépendance) est une app **jetable**, distincte de cimaise. Il déclare deux privilèges **publics** et rien d'autre : `application.launch` (pour `tizen.application.launch`) et `application.info` (pour `getAppInfo` et `getAppsContext`). Son journal reste en `localStorage` pour survivre à un écran de chargement. Résultat : le processus natif est créé mais ne s'arrête jamais seul (contexte vivant environ 5 min) ; le code applicatif ne tourne donc pas. Cela écarte l'hypothèse « fenêtre » pour la v1 (détail dans `docs/home-button.md`). Les deux apps ont été supprimées depuis le menu de la TV ; la v1 de `main.c` reste dans l'historique (commit `bf1a1a6`).
+
+## 2026-10-31 — Bouton Home natif : piste close sur la Frame 2019 (verdict par expérience)
+
+Objectif : le bouton Home physique mène à cimaise. Étude complète dans `docs/home-button.md`.
+Verdict du jour, établi par sondes **lecture seule** sur la TV (aucune écriture) :
+
+- Le shell sdb est un **dispatcheur à liste blanche stricte**, pas un shell : `id`, `uname`, `cat`,
+  `ls`, `mkdir`, `vconftool get`, `loglevel`, `logcat`, `log`, `syslog`, `appinfo` → `closed` ;
+  vivants : `applist`, `appinstall`, `vd_appinstall` (tentatives d'install réelles sur fichiers
+  inexistants).
+- Test marqueur par backticks dans le nom de tpk (`` `id; echo MARKER` ``) → `closed` **sans
+  marqueur** : la TV valide la chaîne avant exécution. Le canal d'exécution du helper CleanFrame
+  (.NET ou C, poussé par sdb) **n'existe pas** sur ce firmware — même résultat que Tizen 4.0,
+  cette fois prouvé par expérience.
+- Aucune API Web n'écrit l'opération `main` (`.appsvc.db`) ni les clés `db/` : la réassignation du
+  Home n'est donc **pas possible** dans les limites du HANDOFF §9 sur cette TV.
+
+Décision : on ne réassigne pas le bouton (rien à réassigner de toute façon). Le « Home = cimaise »
+reste le couple **autorun dernière app + réouverture arrière-plan** (statut quo, déjà en place).
+Pistes restantes (exploration web 31/10, rien d'exécuté sur la TV) : **(B) helper natif en paquet
+Tizen** — petite app C (`.tpk`) installée par le canal officiel déjà éprouvé, qui fait les
+écritures `vconf`/`app-operation` en natif avec sauvegarde/restauration ; incertitudes testables à
+échec sûr (install du `.tpk` natif, privilèges `vconf` depuis une app public, présence de la lib
+app-operation sur Tizen 5). **(A) approximation HA** — cimaise comme capteur (événements
+foreground/hidden/launch vers l'homelab) + automatisation d'auto-retour après N secondes. Les deux
+sont détaillées dans `docs/home-button.md` (sections « approximation HA » et « Voie B ») ; à
+valider : le choix de N (A) ou la décision de tester B.
+
+Coût : étude seule, aucune modification de l'app ni de la TV ; sondes documentées dans
+`docs/tv-status.md` (§ Réponse du SDK).
