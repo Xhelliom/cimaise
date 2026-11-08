@@ -16,7 +16,7 @@ var SUB_MS = 3000; // durée d'affichage d'un sous-titre dont AVPlay ne donne pa
 var CARD_S = 10;   // compte à rebours avant l'épisode suivant
 var AUTO_MAX = 3;  // épisodes enchaînés d'affilée sans touche, avant « Vous regardez toujours ? »
 var END_SLACK = 2000; // un marqueur de générique qui finit à moins de 2 s de la fin du fichier vaut « fin de l'épisode »
-var TAIL_MS = 30000;  // sans marqueur de générique : la carte de l'épisode suivant s'affiche 30 s avant la fin
+var TAIL_MS = 10000;  // sans marqueur de générique : la carte de l'épisode suivant s'affiche 10 s avant la fin, sans rien lancer avant la fin du fichier
 
 // État partagé d'un enchaînement d'épisodes (passé de lecteur en lecteur) : épisodes lancés par le compte à rebours depuis la dernière touche.
 export interface Chain { auto: number; }
@@ -127,6 +127,8 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number, ch
   var nextItem: Item | null = null, nextReq: Abortable | null = null;
   var markers: Markers = { intro: null, credits: null }, skipKind: 'intro' | 'credits' | null = null;
   var cardOn = false, cardLeft = 0, cardTimer: any = null, cardCancelled = false;
+  // cardTail : carte des dernières secondes sans marqueur de générique ; son décompte suit la position et seule la fin du flux enchaîne.
+  var cardTail = false;
   var barOpen = false, zone: 'track' | 'btns' = 'btns', bi = 0, jumping = false, jumpBase = 0, holding = false;
   // Position visée par la rafale en cours : peinte dès que le saut part (en pause AVPlay n'émet plus onTime), oubliée si la rafale est annulée.
   var aimMs = -1;
@@ -566,18 +568,23 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number, ch
     if (kind) skip.textContent = kind === 'intro' ? 'Passer l’intro' : 'Passer le générique';
     setClass(skip, 'plex-pl-skip', kind !== null);
   }
-  // Zone de la carte : le marqueur de générique, sinon les 30 dernières secondes (si l'épisode est assez long pour que ce ne soit pas tout l'épisode).
+  // Zone de la carte : le marqueur de générique, sinon les TAIL_MS dernières millisecondes (si l'épisode est assez long pour que ce ne soit pas tout l'épisode).
   function cardSpan(): Span | null {
     if (markers.credits) return markers.credits;
     return durationMs > 2 * TAIL_MS ? { start: durationMs - TAIL_MS, end: durationMs } : null;
   }
   // Position courante par rapport aux marqueurs : bouton de saut pendant l'intro ou le générique ; avec un épisode suivant,
-  // le générique (sans marqueur : les 30 dernières secondes) lance la carte.
+  // le générique lance la carte ; sans marqueur, la carte des dernières secondes n'enchaîne qu'à la fin du flux (atEnd).
   function markersAt(ms: number): void {
     if (mode !== 'play') return;
     var inCred = inSpan(markers.credits, ms), inTail = inSpan(cardSpan(), ms);
     if (inTail && nextItem && !cardCancelled) {
-      if (!cardOn) showCard();
+      if (!markers.credits) {
+        // Sans marqueur, l'histoire peut durer jusqu'à la dernière image : aucun minuteur, le décompte se cale sur la fin du fichier.
+        var left = Math.max(0, Math.ceil((durationMs - ms) / 1000));
+        if (!cardOn) showCard(left);
+        else if (cardTail && left !== cardLeft) { cardLeft = left; paintCard(); }
+      } else if (!cardOn) showCard();
       paintSkip(null);
       return;
     }
@@ -597,14 +604,15 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number, ch
   function finish(): void { if (nextItem) goNext(true); else leave(true); }
 
   function paintCard(): void { cardSub.textContent = 'Dans ' + cardLeft + ' s'; }
-  function showCard(): void {
+  // tailLeft : secondes restantes du fichier (carte sans marqueur, sans minuteur) ; absent : compte à rebours de CARD_S secondes.
+  function showCard(tailLeft?: number): void {
     var n = nextItem!;
-    cardOn = true; cardLeft = CARD_S;
+    cardOn = true; cardTail = tailLeft !== undefined; cardLeft = cardTail ? tailLeft! : CARD_S;
     var code = (n.parentIndex !== undefined ? 'S' + two(n.parentIndex) : '') + (n.index !== undefined ? 'E' + two(n.index) : '');
     cardTitle.textContent = 'Suivant : ' + (code ? code + ' — ' : '') + n.title;
     paintCard();
     setClass(card, 'plex-pl-card', true);
-    tickCard();
+    if (!cardTail) tickCard();
   }
   function tickCard(): void {
     cardTimer = timers.setTimeout(function () {
@@ -616,7 +624,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number, ch
     }, 1000);
   }
   function hideCard(): void {
-    cardOn = false;
+    cardOn = false; cardTail = false;
     if (cardTimer !== null) { timers.clearTimeout(cardTimer); cardTimer = null; }
     setClass(card, 'plex-pl-card', false);
   }
