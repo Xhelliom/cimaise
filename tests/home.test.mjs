@@ -363,7 +363,7 @@ test('teinte : après le fondu, l’ancien calque est éteint (minuterie annulé
 test('horloge : seule minuterie au repos, alignée sur la minute ; suspend/resume/destroy', () => {
   let now = D('2026-10-29T20:45:10.500');
   const { p, tm } = mount({ now: () => now });
-  tm.pending().filter((t) => t.ms === 400).forEach((t) => t.fn()); // repli des noms : ponctuelle, éteinte après 400 ms
+  tm.pending().filter((t) => t.ms === 3000).forEach((t) => t.fn()); // repli des noms : ponctuelle, éteinte après 3 s
   let live = tm.pending();
   assert.equal(live.length, 1);
   assert.equal(live[0].ms, 60000 - (10 * 1000 + 500));
@@ -738,13 +738,13 @@ test('rendu minimal : tuile à logo muette sur sa couleur, nom pour l’app sans
   assert.equal(tuiles[0].textContent, '');
 });
 
-test('repli du nom : tuile encore muette après 400 ms → son nom ; le logo arrivé ensuite le remplace', () => {
+test('repli du nom : tuile encore muette 3 s après enrich → son nom ; le logo arrivé ensuite le remplace', () => {
   const { doc, made } = imgDoc();
   const { p, tm } = mount({ catalog: [NETFLIX, { id: 'y', name: 'YouTube', color: '#c4302b', type: 'tv' }], deferRich: true, doc });
   const [n, y] = byClass(p.el, 'tuile');
-  assert.equal(tm.pending().filter((t) => t.ms === 400).length, 0, 'rien avant enrich : le script de démarrage ne compte pas');
+  assert.equal(tm.pending().filter((t) => t.ms === 3000).length, 0, 'rien avant enrich : le script de démarrage ne compte pas');
   p.enrich();
-  const late = tm.pending().filter((t) => t.ms === 400);
+  const late = tm.pending().filter((t) => t.ms === 3000);
   assert.equal(late.length, 1, 'une seule minuterie ponctuelle pour toutes les tuiles, armée par enrich');
   made[1].onload(); // YouTube arrive à temps
   late[0].fn();
@@ -754,17 +754,17 @@ test('repli du nom : tuile encore muette après 400 ms → son nom ; le logo arr
   made[0].onload();
   assert.equal(n.textContent, '', 'le logo remplace le nom');
   assert.equal(n.children.length, 1);
-  assert.equal(tm.pending().filter((t) => t.ms === 400).length, 0);
+  assert.equal(tm.pending().filter((t) => t.ms === 3000).length, 0);
 });
 
 test('repli du nom : aucune minuterie sans tuile à logo ; destroy l’annule', () => {
   const a = mount({ catalog: [{ id: 'x', name: 'Inconnue', color: '#113ccf', type: 'tv' }], deferRich: true });
-  assert.equal(a.tm.pending().filter((t) => t.ms === 400).length, 0);
+  assert.equal(a.tm.pending().filter((t) => t.ms === 3000).length, 0);
   const b = mount({ catalog: [NETFLIX], deferRich: true });
   b.p.enrich();
-  assert.equal(b.tm.pending().filter((t) => t.ms === 400).length, 1);
+  assert.equal(b.tm.pending().filter((t) => t.ms === 3000).length, 1);
   b.p.destroy();
-  assert.equal(b.tm.pending().filter((t) => t.ms === 400).length, 0);
+  assert.equal(b.tm.pending().filter((t) => t.ms === 3000).length, 0);
 });
 
 test('enrich : un logo qui échoue laisse le nom ; deux appels ne doublent rien', () => {
@@ -774,7 +774,7 @@ test('enrich : un logo qui échoue laisse le nom ; deux appels ne doublent rien'
   assert.equal(made.length, 1);
   assert.equal(byClass(p.el, 'tuile')[0].textContent, '');
   made[0].onerror();
-  assert.equal(byClass(p.el, 'tuile')[0].textContent, 'Netflix', 'logo en échec : le nom, sans attendre 400 ms');
+  assert.equal(byClass(p.el, 'tuile')[0].textContent, 'Netflix', 'logo en échec : le nom, sans attendre le délai');
   assert.equal(byClass(p.el, 'tuile')[0].children.length, 0);
 });
 
@@ -907,12 +907,12 @@ test('diagnostic : marque « logos » quand tous sont posés ou en échec, « no
   made[1].onerror(); // logo YouTube illisible, pas d'icône TV : le nom, et la tuile compte comme traitée
   assert.equal(byClass(p.el, 'tuile')[1].textContent, 'YouTube');
   assert.ok('logos' in H.marks, 'tous traités : marque logos');
-  tm.pending().filter((t) => t.ms === 400).forEach((t) => t.fn());
+  tm.pending().filter((t) => t.ms === 3000).forEach((t) => t.fn());
   assert.equal(byClass(p.el, 'tuile')[0].textContent, '', 'Netflix a son logo : le repli ne touche rien');
   assert.equal(Object.keys(H.marks).some((k) => k.startsWith('noms en repli')), false);
   const late = mount({ catalog: [NETFLIX], deferRich: true, doc: imgDoc().doc });
   late.p.enrich();
-  late.tm.pending().filter((t) => t.ms === 400).forEach((t) => t.fn());
+  late.tm.pending().filter((t) => t.ms === 3000).forEach((t) => t.fn());
   assert.ok('noms en repli ×1' in H.marks, 'repli joué : marque avec le nombre de tuiles');
   clear();
 });

@@ -51,7 +51,9 @@ var TINT_DELAY_MS = 150; // la teinte ne suit qu'après cet arrêt du focus ; le
 // Tuile à logo encore muette ce délai après le DÉBUT du chargement des logos (enrich, après la 1re peinture) : son nom s'affiche
 // (le logo le remplacera s'il arrive). Compté depuis le premier rendu, il échoirait pendant le script de démarrage sur la Frame
 // (+583 ms mesurés avant firstPaint) et les noms s'afficheraient dès la 1re image.
-var NAME_DELAY_MS = 400;
+// TV2 (Tizen 4, 08/11) : logos posés 1,3 s après enrich ; à 400 ms les 7 noms s’affichaient ~200 ms. Un logo illisible
+// échoue tout de suite (onerror → nom) : ce délai ne couvre qu’un chargement bloqué, il peut donc être long.
+var NAME_DELAY_MS = 3000;
 
 var PASTILLES: Array<{ name: PastilleName; label: string }> = [
   { name: 'reglages', label: 'Réglages' },
