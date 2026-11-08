@@ -1,16 +1,20 @@
-Issue : codé
+Issue : partiel
+
+Codé, testé, installé sur la Frame ; reste à faire : Stéphane doit confirmer à l'écran (critère « vu par Stéphane »).
 
 Fait (08/11/2026) :
-- Étape 1 (Stéphane) consignée : TV2 à l'heure (15h33, 8/11/26), aucune mise à jour du logiciel proposée.
-- Étape 2 : une seule installation de la page vide en required_version="4.0" (copie temporaire, apps/blank inchangé),
-  IP via une copie temporaire de .local/tizen.env.tv2 (supprimée ensuite). Sortie complète dans docs/tv-status.md (section TV2,
-  « Résultat du test »), sans IP ni DUID.
-- Erreur de TV2 : `install failed[118012]` seulement ; vd_appinstall sur Tizen 4 ne donne pas le texte long.
-- Hypothèse « horloge » écartée ; « nouvelle CA » retenue (très probable, non prouvée par le texte) ; SHA-512 reste seule alternative.
+- Pilule « Âge » dans chaque bibliothèque, à côté de « Tri » et « Non vus » : Entrée fait défiler Tous → Tous publics → -10 ans → -12 ans.
+  Mémorisée par bibliothèque (prefs.plexLibrary[clé].age, sans changer le schéma ; « Tous » retire le champ).
+- Grille filtrée par le serveur (contentRating=… sur /all et /firstCharacter) : compteur, pagination et barre alpha justes.
+  Vérifié sur le vrai serveur (scripts/plex/probe-age-filter.mjs). Le filtre est sensible à la casse : les codes viennent des
+  classifications présentes dans la bibliothèque (≈ 1 Ko, en cache 1 h), triées par la table d'age.ts.
+- Rangées « En cours » / « Ajoutés récemment » filtrées localement ; non classés masqués dès qu'un âge est choisi.
+- Sur « Tous » : mêmes URL, mêmes clés de cache, aucune requête de plus (testé).
+- Tests : codes par âge sur les valeurs réelles du serveur, défilement de la pilule, mémorisation, rangées, cas sans code. npm run check vert (753).
+- Coût : plex.js +2,1 Ko minifié (+0,7 Ko gzip), app.js inchangé (docs/decisions.md).
+- Aperçu navigateur sur le vrai serveur : captures age-series-rangees.jpg et age-series-grille.jpg publiées sur la carte.
+- Frame : install.sh → « install completed » + app présente (côté SDK seulement, consigné dans docs/tv-status.md).
 
-Pas fait :
-- Message long (« Invalid certificate chain ») : la TV ne le donne pas ; l'obtenir demanderait une 2e installation via `tizen install`.
-- Essai en signature SHA-256 : proposé, non essayé (accord requis).
-- Ce que TV2 affichait à l'écran pendant l'installation : à confirmer par Stéphane.
-
-Non touchés : .local/tizen.env, firmware de TV2.
+Pas fait / à noter :
+- Pas encore vu sur la Frame par Stéphane.
+- Classification issue de l'agent de métadonnées : quelques séries ados (Malcolm, Doctor Who, Bref…) sont TV-PG et passent en « -10 ans ».
