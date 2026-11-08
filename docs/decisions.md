@@ -1021,7 +1021,8 @@ premier rendu minimal (ci-dessus) posait le nom, puis `enrich()` le remplaçait 
   fichiers locaux du `.wgt` : un logo illisible échoue tout de suite (`onerror` → nom), le délai ne couvre qu'un chargement
   bloqué ; 3 s = plus de deux fois la durée mesurée sur TV2.
 - **Vérifié sur la Frame après le correctif (08/11)** : aucun nom vu par Stéphane ; `firstPaint +449` (+583 au dernier relevé),
-  `enriched +665`, `logos +1354` ms (≈ 690 ms après enrich), pas de repli. TV2 : aucun nom vu non plus.
+  `enriched +665`, `logos +1354` ms (≈ 690 ms après enrich), pas de repli ; latence min 11 / méd 18 / max 89 ms
+  (dernier relevé : méd 18 / max 298). TV2 : aucun nom vu non plus.
 - **Diagnostic (touche 0)** : marque `logos` quand tous les logos sont posés ou en échec (mesure leur durée sur la TV) ;
   marque `noms en repli ×N` seulement si le repli a joué (N tuiles ont montré leur nom).
 - `setCatalog` (après Découvrir) passe par le même chemin : plus d'`<img>` posée vide dans la tuile.

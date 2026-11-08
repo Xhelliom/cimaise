@@ -254,7 +254,8 @@ Piste trouvée en ligne ([Apps2Samsung PR #990](https://github.com/Apps2Samsung/
   `homeBuilt/firstPaint/interactive +449`, `painted +638`, `enriched +665`, `logos +1354` ms, **pas de `noms en repli`** ;
   mémoire JS 10 Mo. Comparaison : dernier relevé de `firstPaint` sur la Frame +583 ms (docs/decisions.md, « Avant ») →
   pas de recul. Les logos mettent ≈ 690 ms après `enrich()` sur la Frame : un délai de 400 ms aurait montré les noms ici aussi.
-- **Non relevé** : latence touche→focus sur la Frame (aucun appui enregistré avant la touche 0) ; dernier relevé : max 298 ms.
+- **Latence touche→focus sur la Frame** (même version, ~20 appuis gauche/droite, recopiée par Stéphane) : **min 11 / méd 18 /
+  max 89 ms**. Dernier relevé : méd 18 / max 298 ms → pas de recul, max sous la cible de 100 ms. Cause du max non relevée.
 
 ### Questions pour Stéphane
 

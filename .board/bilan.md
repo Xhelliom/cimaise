@@ -1,4 +1,4 @@
-Issue : partiel
+Issue : codé
 
 Fait :
 - Premier rendu : une tuile à logo n'a que sa couleur de marque ; logo posé en fondu d'opacity 150 ms (mention « officiel »
@@ -12,6 +12,8 @@ Fait :
   Sur la Frame les logos arrivent ≈ 690 ms après enrich.
 - Tests 761/761 ; app.js 40,55 Ko / 100. Installé sur Frame et TV2. Commits ffe24a2, 461e451, 3d07893, 9190312 et suivant.
 
+- Critère 3 rempli : latence touche→focus sur la Frame min 11 / méd 18 / max 89 ms (dernier relevé méd 18 / max 298) ;
+  firstPaint +449 ms (dernier relevé +583). Aucun recul.
+
 Pas fait :
-- Latence touche→focus sur la Frame non relevée (aucun appui avant la touche 0 sur la photo) : le critère 3 reste à
-  compléter. Dernier relevé sur la Frame : max 298 ms. Dans l'aperçu : identique avant/après.
+- Logo en échec non provoqué sur la TV (couvert par les tests seulement).
