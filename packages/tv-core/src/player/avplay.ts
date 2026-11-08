@@ -1,7 +1,8 @@
 // Wrapper typé de webapis.avplay : seul point d'appel à AVPlay (HANDOFF §5.4).
 // Rappels `(err)` plutôt que Promise (cible ES5 sans polyfill). L'API réelle vient de
 // getWebapis() ; les tests injectent une fausse API via `opts.api`.
-import { getWebapis } from '../device';
+import { getWebapis, webapisInfo } from '../device';
+import { avLog } from '../diag';
 
 export type PlayerState = 'NONE' | 'IDLE' | 'READY' | 'PLAYING' | 'PAUSED';
 export type TrackKind = 'audio' | 'text';
@@ -17,6 +18,8 @@ export interface PlayerEvents {
   onSubtitle?: (text: string, durationMs: number) => void;
   // Sous-titre externe refusé par AVPlay : la lecture continue sans (distinct de onError, fatal).
   onSubtitleError?: (err: Error) => void;
+  // Choix de piste (audio ou texte) refusé par AVPlay : la lecture continue sur la piste en cours (distinct de onError, fatal).
+  onTrackError?: (err: Error, kind: TrackKind) => void;
   // Position visée par une rafale d'appuis ±, en attente d'application ; null quand le seek est parti ou abandonné.
   onSeekPending?: (targetMs: number | null, stepMs?: number) => void;
   // Un seek échoué n'arrête pas la lecture : on reste où on est (distinct de onError, fatal).
@@ -73,6 +76,34 @@ function toError(e: any): Error {
   return new Error('AVPlay : ' + msg);
 }
 
+// Journal du diagnostic : « nom: message » de l'exception (WebAPIException a name, code, message).
+function errText(e: any): string {
+  if (!e) return 'inconnue';
+  return (e.name ? e.name + (e.code !== undefined ? '#' + e.code : '') + ': ' : '') + (e.message || String(e));
+}
+// Ni hôte (IP du serveur) ni query (X-Plex-Token) dans le journal affiché : la ligne est photographiée.
+function shortUrl(u: string): string {
+  var q = u.indexOf('?');
+  return (q >= 0 ? u.slice(0, q) : u).replace(/^([a-z]+:\/\/)[^\/]*/i, '$1…');
+}
+var envLogged = false;
+
+// Tizen 4 (2018) : sans <object type="application/avplayer"> dans la page, AVPlay n'a pas de surface d'affichage
+// (guide Samsung « Using AVPlay » : l'élément de lecture est cet object). La Frame (Tizen 5) lit sans ; on ne l'ajoute
+// qu'en repli, après un PLAYER_ERROR_INVALID_OPERATION, une seule fois.
+var AV_OBJECT = 'application/avplayer';
+function canAddObject(d: any): boolean {
+  if (!d || typeof d.querySelector !== 'function' || typeof d.createElement !== 'function' || !d.body) return false;
+  try { return !d.querySelector('object[type="' + AV_OBJECT + '"]'); } catch (e) { return false; }
+}
+function addObject(d: any): void {
+  var ob = d.createElement('object');
+  ob.setAttribute('type', AV_OBJECT);
+  ob.style.cssText = 'position:fixed;left:0;top:0;width:100%;height:100%';
+  d.body.insertBefore(ob, d.body.firstChild);
+}
+function invalidOp(e: any): boolean { return String(e && e.message ? e.message : e).indexOf('INVALID_OPERATION') >= 0; }
+
 function parseInfo(raw: any): { [k: string]: any } {
   if (typeof raw !== 'string') return raw || {};
   try { return JSON.parse(raw); } catch (e) { return { raw: raw }; }
@@ -102,6 +133,25 @@ export function createPlayer(opts?: PlayerOptions): Player {
   function api(): any { return o.api || getWebapis().avplay; }
   function fail(e: any): void { if (o.onError) o.onError(toError(e)); }
   function guard(fn: () => void): void { try { fn(); } catch (e) { fail(e); } }
+  // Index de la piste active de ce type (getCurrentStreamInfo), -1 si inconnu.
+  function current(a: any, type: string): number {
+    try {
+      var l = a.getCurrentStreamInfo() || [];
+      for (var i = 0; i < l.length; i++) if (l[i].type === type) return l[i].index;
+    } catch (e) { /* méthode absente : on tente la sélection */ }
+    return -1;
+  }
+  function st(a: any): string { try { return a.getState(); } catch (e) { return '?'; } }
+  // Appel AVPlay journalisé : état avant→après, ou l'exception (relancée telle quelle).
+  function call(a: any, name: string, fn: () => any): any {
+    var s0 = st(a);
+    try { var r = fn(); avLog(name + ' ' + s0 + '→' + st(a)); return r; }
+    catch (e) { avLog(name + ' ' + s0 + ' ✗ ' + errText(e)); throw e; }
+  }
+  // Ouverture en cours : un onerror arrivé avant la fin d'open() termine l'ouverture (repli possible) au lieu d'être fatal.
+  var openFail: ((e: Error) => void) | null = null;
+  // Repli <object> encore possible tant qu'aucune image n'a été jouée : relance l'ouverture courante.
+  var gotTime = false, retried = false, reopen: (() => void) | null = null;
 
   var gen = 0; // incrémenté à chaque release() : les événements d'un flux fermé sont ignorés
 
@@ -111,9 +161,10 @@ export function createPlayer(opts?: PlayerOptions): Player {
       onbufferingstart: function () { if (o.onBuffering) o.onBuffering(true, 0); },
       onbufferingprogress: function (p: number) { if (o.onBuffering) o.onBuffering(true, p); },
       onbufferingcomplete: function () { if (o.onBuffering) o.onBuffering(false, 100); },
-      oncurrentplaytime: function (ms: number) { lastTime = ms; if (o.onTime) o.onTime(ms + off); },
+      oncurrentplaytime: function (ms: number) { if (!gotTime) { gotTime = true; avLog('1re image ' + ms + ' ms'); } lastTime = ms; if (o.onTime) o.onTime(ms + off); },
       onstreamcompleted: function () { if (o.onEnd) o.onEnd(); },
       onerror: function (type: any) {
+        avLog('onerror ' + type + ' (état ' + st(api()) + ')');
         // PLAYER_ERROR_SEEK_FAILED : le flux continue, seul le seek a échoué.
         // Jamais fatal, quel que soit l'état : déjà signalé par le rappel d'erreur du seek → avalé (il peut arriver
         // après que le seek suivant est parti) ; sinon il appartient au seek en vol, ou à défaut est signalé tel quel.
@@ -124,7 +175,10 @@ export function createPlayer(opts?: PlayerOptions): Player {
           else if (o.onSeekError) o.onSeekError(err);
           return;
         }
-        fail(new Error('AVPlay : erreur de lecture ' + type));
+        var e = new Error('AVPlay : erreur de lecture ' + type);
+        if (openFail) { openFail(e); return; }
+        if (!gotTime && reopen && !retried && invalidOp(e) && canAddObject(doc)) { reopen(); return; }
+        fail(e);
       },
       onsubtitlechange: function (duration: number, text: string) { if (o.onSubtitle) o.onSubtitle(text, duration); }
     };
@@ -159,7 +213,10 @@ export function createPlayer(opts?: PlayerOptions): Player {
       drain();
     }
     try {
-      api().seekTo(target - off, function () { end(null); }, function (e: any) { end(toError(e)); });
+      var a = api();
+      call(a, 'seekTo ' + (target - off), function () {
+        a.seekTo(target - off, function () { avLog('seekTo ok'); end(null); }, function (e: any) { avLog('seekTo ✗ ' + errText(e)); end(toError(e)); });
+      });
     } catch (e) { end(toError(e)); }
   }
   function requestSeek(ms: number, done?: (err: Error | null) => void): void {
@@ -219,8 +276,8 @@ export function createPlayer(opts?: PlayerOptions): Player {
     resetSeek();
     opened = false;
     var a = api();
-    try { a.stop(); } catch (e) { /* déjà arrêté */ }
-    try { a.close(); } catch (e) { /* déjà fermé */ }
+    try { call(a, 'stop', function () { a.stop(); }); } catch (e) { /* déjà arrêté */ }
+    try { call(a, 'close', function () { a.close(); }); } catch (e) { /* déjà fermé */ }
   }
 
   function onVisibility(): void {
@@ -231,49 +288,97 @@ export function createPlayer(opts?: PlayerOptions): Player {
   }
   if (doc) doc.addEventListener('visibilitychange', onVisibility);
 
+  // Une ouverture : open → setListener → setDisplayRect → setDisplayMethod → [setExternalSubtitlePath] → prepareAsync → [seekTo] → play.
+  // done appelé une seule fois (le rappel d'erreur de prepareAsync et un onerror peuvent arriver tous les deux).
+  function attempt(u: string, oo: OpenOptions, done: (err: Error | null) => void): void {
+    var a: any, fin = false;
+    function finish(err: Error | null): void {
+      if (fin) return;
+      fin = true;
+      openFail = null;
+      if (err) { avLog('ouverture ✗ ' + err.message); release(); }
+      done(err);
+    }
+    try {
+      a = api();
+      if (!envLogged) { envLogged = true; avLog(webapisInfo()); }
+      if (opened) release();
+      url = u;
+      lastTime = 0;
+      gotTime = false;
+      openFail = function (e) { finish(e); };
+      call(a, 'open ' + shortUrl(u), function () { a.open(u); });
+      opened = true;
+      call(a, 'setListener', function () { a.setListener(listener()); });
+      var r = oo.rect || { x: 0, y: 0, w: 1920, h: 1080 };
+      call(a, 'setDisplayRect ' + r.x + ',' + r.y + ',' + r.w + ',' + r.h, function () { a.setDisplayRect(r.x, r.y, r.w, r.h); });
+      // Sans cela AVPlay étire l'image au rectangle (un 2.39 remplit l'écran, observé sur la Frame) : letterbox = rapport d'aspect gardé, bandes noires.
+      // Non fatal : une TV sans cette méthode lit quand même (étirée).
+      try { call(a, 'setDisplayMethod', function () { a.setDisplayMethod('PLAYER_DISPLAY_MODE_LETTER_BOX'); }); } catch (e) { /* méthode absente */ }
+      // AVPlay ne dessine jamais les sous-titres : il envoie le texte par onsubtitlechange, que la page affiche. Pas de setSilentSubtitle(true) ici
+      // (il couperait ces événements) ; l'appelant l'active/coupe avec setSubtitlesVisible selon la piste choisie.
+      if (oo.subtitleUrl) {
+        try { call(a, 'setExternalSubtitlePath', function () { a.setExternalSubtitlePath(oo.subtitleUrl); }); }
+        catch (e) { if (o.onSubtitleError) o.onSubtitleError(toError(e)); }
+      }
+    } catch (e) {
+      finish(toError(e));
+      return;
+    }
+    var mine = gen;
+    try {
+      call(a, 'prepareAsync', function () {
+        a.prepareAsync(function () {
+          if (fin || mine !== gen) return;
+          avLog('prepareAsync ok (état ' + st(a) + ')');
+          try {
+            if (oo.startMs && oo.startMs > 0) {
+              // seekTo exige l'état READY : reprise avant play
+              call(a, 'seekTo ' + oo.startMs, function () {
+                a.seekTo(oo.startMs, function () {
+                  avLog('seekTo ok');
+                  guard(function () { call(a, 'play', function () { a.play(); }); });
+                  finish(null);
+                }, function (e: any) { avLog('seekTo ✗ ' + errText(e)); finish(toError(e)); });
+              });
+              return;
+            }
+            call(a, 'play', function () { a.play(); });
+            finish(null);
+          } catch (e) {
+            finish(toError(e));
+          }
+        }, function (e: any) {
+          if (fin || mine !== gen) return;
+          avLog('prepareAsync ✗ ' + errText(e));
+          finish(toError(e));
+        });
+      });
+    } catch (e) { finish(toError(e)); }
+  }
+
   var p: Player = {
     open: function (u, oo, done) {
-      var a: any;
-      try {
-        a = api();
-        if (opened) release();
-        url = u;
-        lastTime = 0;
-        a.open(u);
-        opened = true;
-        a.setListener(listener());
-        var r = oo.rect || { x: 0, y: 0, w: 1920, h: 1080 };
-        a.setDisplayRect(r.x, r.y, r.w, r.h);
-        // Sans cela AVPlay étire l'image au rectangle (un 2.39 remplit l'écran, observé sur la Frame) : letterbox = rapport d'aspect gardé, bandes noires.
-        // Non fatal : une TV sans cette méthode lit quand même (étirée).
-        try { a.setDisplayMethod('PLAYER_DISPLAY_MODE_LETTER_BOX'); } catch (e) { /* méthode absente */ }
-        // AVPlay ne dessine jamais les sous-titres : il envoie le texte par onsubtitlechange, que la page affiche. Pas de setSilentSubtitle(true) ici
-        // (il couperait ces événements) ; l'appelant l'active/coupe avec setSubtitlesVisible selon la piste choisie.
-        if (oo.subtitleUrl) {
-          try { a.setExternalSubtitlePath(oo.subtitleUrl); } catch (e) { if (o.onSubtitleError) o.onSubtitleError(toError(e)); }
-        }
-      } catch (e) {
-        release();
-        done(toError(e));
-        return;
+      retried = false;
+      // Repli Tizen 4 : INVALID_OPERATION sans <object application/avplayer> → on l'ajoute et on rouvre, une fois.
+      function tryObject(): boolean {
+        if (retried || !canAddObject(doc)) return false;
+        retried = true;
+        addObject(doc);
+        avLog('repli : <object ' + AV_OBJECT + '> ajouté, 2e essai');
+        return true;
       }
-      a.prepareAsync(function () {
-        try {
-          if (oo.startMs && oo.startMs > 0) {
-            // seekTo exige l'état READY : reprise avant play
-            a.seekTo(oo.startMs, function () { guard(function () { a.play(); }); done(null); }, function (e: any) { release(); done(toError(e)); });
-            return;
-          }
-          a.play();
-          done(null);
-        } catch (e) {
-          release();
-          done(toError(e));
-        }
-      }, function (e: any) { release(); done(toError(e)); });
+      reopen = function () {
+        if (!tryObject()) return;
+        timers.setTimeout(function () { attempt(u, oo, function (err) { if (err) fail(err); }); }, 0);
+      };
+      attempt(u, oo, function (err) {
+        if (err && invalidOp(err) && tryObject()) { attempt(u, oo, done); return; }
+        done(err);
+      });
     },
-    play: function () { guard(function () { api().play(); }); },
-    pause: function () { guard(function () { api().pause(); }); },
+    play: function () { guard(function () { var a = api(); call(a, 'play', function () { a.play(); }); }); },
+    pause: function () { guard(function () { var a = api(); call(a, 'pause', function () { a.pause(); }); }); },
     seekTo: function (ms, done) { requestSeek(ms, done); },
     holdSeek: function (on) { hold = on; if (!on) dropTarget(); },
     cancelSeek: dropTarget,
@@ -287,7 +392,7 @@ export function createPlayer(opts?: PlayerOptions): Player {
     },
     forward: function () { press(1); },
     rewind: function () { press(-1); },
-    stop: function () { guard(function () { api().stop(); }); },
+    stop: function () { guard(function () { var a = api(); call(a, 'stop', function () { a.stop(); }); }); },
     close: function () { release(); },
     getState: function () { try { return api().getState(); } catch (e) { return 'NONE'; } },
     getPosition: function () { try { return api().getCurrentTime() + off; } catch (e) { return lastTime + off; } },
@@ -305,10 +410,19 @@ export function createPlayer(opts?: PlayerOptions): Player {
       } catch (e) { fail(e); }
       return out;
     },
+    // Tizen 4 (TV2, 2018) : resélectionner la piste déjà active lève PLAYER_ERROR_INVALID_OPERATION (observé : AUDIO1 = piste par défaut) ;
+    // la Frame l'accepte. On saute donc la piste active, et un refus n'arrête jamais la lecture (onTrackError, pas onError).
     selectTrack: function (kind, index) {
-      guard(function () { api().setSelectTrack(kind === 'audio' ? 'AUDIO' : 'TEXT', index); });
+      if (!opened) return;
+      var a = api(), t = kind === 'audio' ? 'AUDIO' : 'TEXT';
+      if (current(a, t) === index) { avLog('setSelectTrack ' + t + index + ' déjà active'); return; }
+      try { call(a, 'setSelectTrack ' + t + index, function () { a.setSelectTrack(t, index); }); }
+      catch (e) { if (o.onTrackError) o.onTrackError(toError(e), kind); }
     },
-    setSubtitlesVisible: function (visible) { guard(function () { api().setSilentSubtitle(!visible); }); },
+    setSubtitlesVisible: function (visible) {
+      if (!opened) return;
+      guard(function () { var a = api(); call(a, 'setSilentSubtitle ' + !visible, function () { a.setSilentSubtitle(!visible); }); });
+    },
     destroy: function () {
       if (doc) doc.removeEventListener('visibilitychange', onVisibility);
       release();
