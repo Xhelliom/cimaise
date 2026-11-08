@@ -240,6 +240,13 @@ Piste trouvée en ligne ([Apps2Samsung PR #990](https://github.com/Apps2Samsung/
 - **Observé physiquement (Stéphane)** : l'accueil de TV2 s'affiche en grille de tuiles.
 - **Frame non réinstallée** : son CSS ne gagne qu'un bloc qu'elle ignore ; pas de réinstallation nécessaire.
 
+### Accueil : plus de nom avant le logo au démarrage (2026-11-08)
+
+- **Réponse du SDK** : Frame et TV2, « install completed » + app présente dans la liste (mise à jour sur place, `cimaise001`).
+- **Non observé encore** : au lancement à froid, les tuiles doivent apparaître en aplats de couleur, puis les logos en fondu,
+  sans jamais montrer le nom d’une app à logo. À confirmer par Stéphane, avec le diagnostic (touche 0) : `firstPaint` et
+  latence max à comparer avec les relevés précédents.
+
 ### Questions pour Stéphane
 
 - Faire la mise à jour du firmware de TV2 si elle existe ? (Mise à jour officielle Samsung, pas un firmware modifié ; mais irréversible, et TV2 ne servirait alors plus de témoin « Tizen 4 d'origine ».)
