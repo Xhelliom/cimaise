@@ -104,3 +104,13 @@ export function listInstalledApps(onOk: (apps: InstalledApp[]) => void, onErr?: 
     if (onErr) onErr(new DeviceError('LIST_FAILED', 'Inventaire des apps impossible : ' + (err && err.message ? err.message : 'erreur inconnue')));
   });
 }
+
+// IDs des apps lancées (tizen.application.getAppsContext, privilège application.info). Asynchrone ; cb([]) si l'appel échoue.
+// Hors TV : DeviceError NO_TIZEN.
+export function runningAppIds(cb: (ids: string[]) => void): void {
+  getTizen().application.getAppsContext(function (list: any[]) {
+    var out: string[] = [];
+    for (var i = 0; i < list.length; i++) if (list[i] && typeof list[i].appId === 'string') out.push(list[i].appId);
+    cb(out);
+  }, function () { cb([]); });
+}
