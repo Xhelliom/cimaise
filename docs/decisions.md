@@ -1096,3 +1096,44 @@ diagnostic touche 0) ; ms, passes à froid séparées par « / » :
 
 Lecture : dans le bruit des deux côtés (max isolés à 42–52 ms, cause « inconnue », avant comme après ; ×4 identique). Comme
 noté plus haut, l'aperçu ne reproduit pas le coût de la TV : **à confirmer sur la Frame** (diagnostic après démarrage à froid).
+
+## 2026-11-08 — Fond d'écran Unsplash du jour sur l'accueil
+
+**Décision.** Une photo Unsplash par jour sur l'accueil, posée **après** la 1re peinture et `enrich()` (jamais avant l'accueil
+interactif), en fondu d'opacity sur le fond teinté ; voile sombre en dégradé CSS fixe, aucun flou ni `filter`. Clé d'accès
+dans `.local/unsplash.env`, posée en mémoire (`window.__cimaiseUnsplash`) par `scripts/build/local-config.mjs` dans la
+**copie empaquetée** seulement, avec `<access origin>` pour `https://api.unsplash.com` et `https://images.unsplash.com`
+(jamais dans `apps/tv/config.xml`). Sans clé : aucun appel, aucune ligne dans les Réglages, fond teinté inchangé.
+
+- **Requêtes** : au plus **un** `GET /photos/random` par jour et par jeu de réglages (`topics=<id>` ou `query=…`,
+  `orientation=landscape` sauf « Photos en portrait : Oui », `content_filter=high`). Résultat dans `cimaise.v1`
+  (`prefs.wallpaperDay` : jour, signature des réglages, URL imgix, auteur, lien, `download_location`). Rappels : après
+  `enrich()`, à la fermeture des Réglages, au retour au premier plan (`visibilitychange`). Aucune minuterie ajoutée.
+  Thèmes : `GET /topics` à l'ouverture de la section « Fond d'écran », cache 30 jours (`prefs.unsplashTopics`).
+  Clé de démo Unsplash : 50 requêtes/heure, très au-dessus de cet usage.
+- **Règles de l'API Unsplash** : image chargée depuis `images.unsplash.com` (URL `raw` de l'API + paramètres imgix,
+  `ixid` conservé), crédit « Photo : <auteur> / Unsplash » avec liens `utm_source=cimaise&utm_medium=referral`, et
+  `download_location` appelé **une fois** par photo, quand elle s'affiche (onload, marqué `tracked`).
+- **Hors ligne / erreur** (réseau, 403 quota, 404 recherche sans résultat, JSON illisible) : l'image d'hier (servie par le
+  cache HTTP : `cache-control: max-age=31536000`), sinon l'`<img>` échoue et la teinte reste ; aucune exception.
+- **Réglages** : ligne « Fond d'écran » en tête (seulement avec une clé) : Source (Désactivé / thèmes officiels / Recherche
+  libre, aux flèches), Recherche (clavier à l'écran de tv-core, vide = retour au thème), Changer d’image (demande de Stéphane : nouveau tirage au retour à l’accueil, l’image courante reste en secours hors ligne), Photos en portrait (Non par
+  défaut ; Oui = orientation libre, photo portrait entière à la hauteur de l'écran, centrée sur la teinte). Défaut :
+  thème Wallpapers (`bo8jQKTaE0Y`, relevé dans `/topics` le 08/11). Pas de migration de schéma : clés facultatives.
+
+**Coût mesuré (aperçu navigateur, à confirmer sur la Frame).**
+
+| Poste | Avant | Après |
+|---|---|---|
+| `app.js` (JS initial) | 41,8 Ko | 47,4 Ko (+5,5 Ko : modèle, tirage, couche photo) |
+| `settings.js` (différé) | 39,7 Ko | 44,0 Ko |
+| `.wgt` signé | 190 Ko | 214 Ko (aucun asset : l'image vient du réseau) |
+| Image 1920×1080 q70 | — | 200 Ko (paysage calme) à 613 Ko (feuillage) ; ~1 s au 1er téléchargement |
+| Image 1280×720 q70 (même photo calme) | — | 97 Ko |
+| Mémoire décodée (l × h × 4) | — | 7,9 Mo en 1920×1080, 3,5 Mo en 1280×720 (hors tas JS : `performance.memory` n'en voit rien) |
+| Tas JS avant / après la pose | — | 6,4 / 6,4 Mo |
+
+Taille retenue : **1920×1080** (taille réelle d'affichage). Bascule prévue en 1280×720 (`PHOTO_W/PHOTO_H` dans
+`packages/launcher/src/wallpaper/model.ts`, l'`<img>` reste étirée à 1920×1080) si la Frame montre un coût : latence
+de focus dégradée par la couche photo, ou rechargement de l'app à cause de la mémoire. La ligne `fond:` du diagnostic
+(touche 0) donne taille, poids, durée, mémoire décodée estimée et tas JS avant / après.

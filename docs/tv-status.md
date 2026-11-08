@@ -63,6 +63,7 @@ Ce qui a été vu à l'écran ou constaté sur la TV.
 
 Ce que `sdb`, le packager ou le SDK ont répondu. Ne prouve pas un succès visible.
 
+- **2026-11-08, fond d’écran Unsplash du jour (Frame, builds 2faf55a puis 41a7d95 avec « Changer d’image »)** : `package.sh apps/tv/dist` (avec `unsplash.env` : clé en mémoire, origines api. et images.unsplash.com déclarées dans la copie) → `dist/cimaise.wgt` signé (214 Ko) ; `install.sh` → « install completed » (vd_appinstall, 2,4 s, `cmd_ret:0`) et `cimaise001.Cimaise` présent dans la liste. App non lancée par le script ; photo, crédit, firstPaint, latence et ligne `fond:` du diagnostic **à relever par Stéphane sur la TV** (non testé).
 - **2026-11-08, pilule « Âge » sur l'accueil Plex (Frame, build f1c334b)** : `package.sh apps/tv/dist` → `dist/cimaise.wgt` signé (190 Ko) ; `install.sh` → « install completed » (repli vd_appinstall, 2,2 s, `cmd_ret:0`) et `cimaise001.Cimaise` présent dans la liste ; `launch.sh` → « launched ».
 - **2026-11-08, filtre par âge des bibliothèques Plex (Frame)** : `package.sh apps/tv/dist` → `dist/cimaise.wgt` signé (190 Ko) ; `install.sh` → « install completed » (vd_appinstall, 2,3 s, `cmd_ret:0`) et `cimaise001.Cimaise` présent dans la liste. App non lancée par le script ; rendu à l’écran à confirmer par Stéphane.
 - **2026-11-07, « bouton cimaise » (HTTP, aucune écriture sur la TV ni dans HA)** :

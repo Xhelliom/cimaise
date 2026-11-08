@@ -7,6 +7,7 @@ import { Router, lazy, chunkLoader, Panel } from '../../../packages/tv-core/src/
 import { createHome, loadHomeMode, saveHomeMode, loadHomeTiles, saveHomeTiles, loadSmartHubTarget } from '../../../packages/launcher/src/home';
 import { loadCatalog, saveCatalog, launchEntry } from '../../../packages/launcher/src/catalog';
 import { MODULES, moduleEnabled, setModuleEnabled, visibleCatalog, mergeHidden, removedModules, ensureTile, addNewTiles } from '../../../packages/launcher/src/modules';
+import { refreshWallpaper, packagedKey } from '../../../packages/launcher/src/wallpaper';
 import { xhrHttp, haConfigFromPrefs, listScenes, activateScene, quickScenes, normalizeChosen, saveHaConfig, saveHaScenes } from '../../../packages/widgets/src/index';
 
 interface Chunk { createPanel(arg?: any): Panel; createProbePanel?(arg?: any): Panel; createSettingsPanel?(arg?: any): Panel; createOverseerrProbe?(): Panel; }
@@ -51,6 +52,12 @@ function openSmartHub(): void {
 function refreshScenes(): void {
   if (!moduleEnabled('scenes', loadStored().prefs)) { home.setScenes([]); return; } // module masqué : aucune requête vers Home Assistant
   quickScenes(xhrHttp, loadStored().prefs, function (list) { home.setScenes(list); });
+}
+
+// Fond d'écran Unsplash du jour : jamais avant l'accueil interactif (après enrich), puis au retour des Réglages et au retour
+// au premier plan (le jour a pu changer). Sans clé dans le paquet : aucun appel, fond teinté.
+function refreshPhoto(): void {
+  refreshWallpaper({ http: xhrHttp, key: packagedKey(), show: function (p, onShown) { home.setPhoto(p, onShown); } });
 }
 
 var home = createHome({
@@ -151,6 +158,7 @@ var home = createHome({
         onClose: function () {
           router.pop();
           if (scenesDirty) { scenesDirty = false; refreshScenes(); } // la rangée suit les choix, sans minuterie
+          refreshPhoto(); // réglages du fond changés : nouvelle image ; sinon l'image du jour, déjà posée, ne bouge pas
           if (syncNewTiles(loadStored().prefs)) home.setCatalog(visibleCatalog(catalog, loadStored().prefs)); // Overseerr configuré à l'instant
         }
       });
@@ -206,6 +214,8 @@ afterPaint(function () {
   home.enrich();
   mark('enriched');
   refreshScenes();
+  refreshPhoto();
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) refreshPhoto(); });
   // Sans TV (aperçu), l'appel lève en signalant l'absence de TV ; l'accueil reste fonctionnel.
   if (hasTizen()) {
     try { registerKeys(REGISTER_KEYS); } catch (e) { /* l'erreur est déjà signalée (console + bandeau) */ }

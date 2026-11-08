@@ -23,7 +23,10 @@ export function noteEvent(name: string, t?: number): void {
   events.push({ t: t === undefined ? Date.now() : t, name: name });
   if (events.length > EVENT_KEEP) events.shift();
 }
-function usedHeap(): number {
+// Lignes libres du diagnostic (ex. « fond » : poids, durée et mémoire de la photo de l'accueil), une par clé.
+var notes: { [k: string]: string } = {};
+export function diagNote(k: string, text: string): void { notes[k] = text; }
+export function usedHeap(): number {
   var mem: any = typeof performance !== 'undefined' ? (performance as any).memory : null;
   return mem && typeof mem.usedJSHeapSize === 'number' ? mem.usedJSHeapSize : -1;
 }
@@ -120,6 +123,7 @@ export function report(): string {
   var st = latencyStats();
   if (st) lines.push('latence touche→frame: min ' + st.min + ' / méd ' + st.median + ' / max ' + st.max + ' ms (' + st.n + ')');
   if (st) lines.push('cause du max: max ' + st.max + ' ms (' + st.maxCause + ')');
+  for (var n in notes) if (notes.hasOwnProperty(n)) lines.push(n + ': ' + notes[n]);
   lines.push('Plex', plexReport());
   lines.push('userAgent: ' + (typeof navigator !== 'undefined' ? navigator.userAgent : '(absent)'));
   return lines.join('\n');

@@ -7,6 +7,7 @@ import { fillIds } from '../catalog/model';
 import { knownApp } from '../catalog/known-apps';
 import { HaSettings, ScenesView, createScenesView } from './scenes';
 import { OverseerrSettings, createOverseerrView } from './overseerr';
+import { WallpaperSettings, createWallpaperView } from './wallpaper';
 
 // Une ligne de la section « Apps intégrées » : l'état vient du registre (modules/), le propriétaire persiste.
 export interface ModuleRow { id: string; name: string; enabled: boolean; hasSettings: boolean; }
@@ -26,6 +27,7 @@ export interface SettingsOptions {
   onModuleSettings?: (id: string) => void;   // réglages propres d'un module autre que Scènes (ex. Plex) : le propriétaire les ouvre
   ha?: HaSettings;                           // réglages du module Scènes (Home Assistant), ouverts depuis « Apps intégrées »
   ov?: OverseerrSettings;                    // réglages du module Overseerr (adresse, clé, test), ouverts depuis « Apps intégrées »
+  wp?: WallpaperSettings;                    // section « Fond d'écran » (Unsplash) ; absente sans clé = ligne non proposée
   moduleEnabled?: (id: string) => boolean;   // état relu en quittant les réglages d'un module (la saisie peut le rendre « configuré »)
   onClose: () => void;
   doc?: Document;
@@ -74,7 +76,8 @@ export function createSettings(opts: SettingsOptions): Panel {
   var mods = (opts.modules || []).map(function (m) { return { id: m.id, name: m.name, enabled: m.enabled, hasSettings: m.hasSettings }; });
   var modView = false;                  // section « Apps intégrées » ouverte
   var modRow = 0, modChip = 0;          // module focalisé ; 0 = interrupteur, 1 = Réglages
-  var row = 0;      // -3 = Apps intégrées ; -2 = affichage de l'accueil ; -1 = tuiles à l'écran ; 0 = bouton Découvrir ; 1..n = catalogue ; ensuite apps découvertes
+  var lead = opts.wp ? 1 : 0;   // ligne « Fond d'écran » tout en haut : décale la liste d'une ligne
+  var row = 0;      // -4 = Fond d'écran ; -3 = Apps intégrées ; -2 = affichage de l'accueil ; -1 = tuiles à l'écran ; 0 = bouton Découvrir ; 1..n = catalogue ; ensuite apps découvertes
   var chip = 0;
   var grabbed = false;
   var status = '';
@@ -110,9 +113,9 @@ export function createSettings(opts: SettingsOptions): Panel {
 
   // Ligne sélectionnable -> position dans la liste (le titre de section occupe une ligne non sélectionnable).
   function posOf(r: number): number {
-    return r + 3 + (found.length && r > catalog.length ? 1 : 0);
+    return r + 3 + lead + (found.length && r > catalog.length ? 1 : 0);
   }
-  function totalPos(): number { return 4 + catalog.length + (found.length ? 1 + found.length : 0); }
+  function totalPos(): number { return 4 + lead + catalog.length + (found.length ? 1 + found.length : 0); }
 
   function absRow(node: HTMLElement, pos: number): HTMLElement {
     node.style.top = pos * ROW_H + 'px';
@@ -135,27 +138,31 @@ export function createSettings(opts: SettingsOptions): Panel {
     var vue = div('vue'), list = div('liste');
     list.style.transform = 'translateY(' + (offset ? -offset : 0) + 'px)';
     var total = totalPos();
-    var from = Math.max(-3, Math.floor(offset / ROW_H) - 5), to = Math.min(total - 4, Math.ceil(offset / ROW_H) + 7); // pos = position visuelle - 3
+    var from = Math.max(-3 - lead, Math.floor(offset / ROW_H) - 5 - lead), to = Math.min(total - 4 - lead, Math.ceil(offset / ROW_H) + 7 - lead); // pos = position visuelle - 3 - lead
     var inCat: { [id: string]: boolean } = {};
     for (var q = 0; q < catalog.length; q++) if (catalog[q].id) inCat[catalog[q].id] = true;
     for (var pos = from; pos <= to; pos++) {
-      if (pos === -3) {
+      if (pos === -4) {
+        var wl = div('ligne bouton' + (row === -4 ? ' focus' : ''));
+        wl.appendChild(div('nom', 'Fond d’écran'));
+        list.appendChild(absRow(wl, 0));
+      } else if (pos === -3) {
         if (!mods.length) continue; // aucun module intégré : la ligne n'existe pas
         var sl = div('ligne bouton' + (row === -3 ? ' focus' : ''));
         sl.appendChild(div('nom', 'Apps intégrées'));
-        list.appendChild(absRow(sl, 0));
+        list.appendChild(absRow(sl, lead));
       } else if (pos === -2) {
         var ml = div('ligne bouton' + (row === -2 ? ' focus' : ''));
         ml.appendChild(div('nom', 'Affichage de l’accueil'));
         ml.appendChild(div('puce' + (row === -2 ? ' focus' : ''), mode === 'grille' ? 'Grille' : 'Une rangée'));
-        list.appendChild(absRow(ml, 1));
+        list.appendChild(absRow(ml, 1 + lead));
       } else if (pos === -1) {
         var tl = div('ligne bouton' + (row === -1 ? ' focus' : ''));
         tl.appendChild(div('nom', 'Tuiles à l’écran'));
         tl.appendChild(div('puce' + (row === -1 ? ' focus' : ''), '' + tiles));
-        list.appendChild(absRow(tl, 2));
+        list.appendChild(absRow(tl, 2 + lead));
       } else if (pos === 0) {
-        list.appendChild(absRow(div('ligne bouton' + (row === 0 ? ' focus' : ''), 'Découvrir les apps installées'), 3));
+        list.appendChild(absRow(div('ligne bouton' + (row === 0 ? ' focus' : ''), 'Découvrir les apps installées'), 3 + lead));
       } else if (pos <= catalog.length) {
         var i = pos - 1, on = row === pos;
         var line = div('ligne' + (on ? ' focus' : '') + (on && grabbed ? ' saisie' : ''));
@@ -164,9 +171,9 @@ export function createSettings(opts: SettingsOptions): Panel {
         for (var c = 0; c < CHIPS.length; c++) {
           if (on) line.appendChild(div('puce' + (chip === c ? ' focus' : ''), CHIPS[c]));
         }
-        list.appendChild(absRow(line, pos + 3));
+        list.appendChild(absRow(line, pos + 3 + lead));
       } else if (pos === catalog.length + 1) {
-        list.appendChild(absRow(div('titre-section', 'Apps installées'), pos + 3));
+        list.appendChild(absRow(div('titre-section', 'Apps installées'), pos + 3 + lead));
       } else {
         var f = pos - catalog.length - 2, fon = row === catalog.length + 1 + f;
         var fl = div('ligne' + (fon ? ' focus' : ''));
@@ -176,7 +183,7 @@ export function createSettings(opts: SettingsOptions): Panel {
         fl.appendChild(nom);
         if (inCat[found[f].id]) fl.appendChild(div('deja', 'Au catalogue'));
         else if (fon) fl.appendChild(div('puce focus', 'Ajouter'));
-        list.appendChild(absRow(fl, pos + 3));
+        list.appendChild(absRow(fl, pos + 3 + lead));
       }
     }
     list.style.height = total * ROW_H + 'px';
@@ -269,6 +276,14 @@ export function createSettings(opts: SettingsOptions): Panel {
     render();
   }
 
+  function openWallpaper(): void {
+    if (!opts.wp) return;
+    view = createWallpaperView(doc, opts.wp, render);
+    viewTitle = 'Fond d’écran';
+    view.open();
+    render();
+  }
+
   // Retour depuis les réglages d'un module : l'interrupteur reflète l'état enregistré (saisir la clé peut activer le module).
   function closeView(): void {
     view = null;
@@ -277,7 +292,8 @@ export function createSettings(opts: SettingsOptions): Panel {
 
   function clampRow(): void {
     if (row >= rowCount()) row = rowCount() - 1;
-    if (row < (mods.length ? -3 : -2)) row = mods.length ? -3 : -2;
+    var min = opts.wp ? -4 : mods.length ? -3 : -2;
+    if (row < min) row = min;
   }
 
   function press(k: Key): boolean {
@@ -309,6 +325,7 @@ export function createSettings(opts: SettingsOptions): Panel {
     }
     if (k === 'up' || k === 'down') {
       row += k === 'up' ? -1 : 1;
+      if (row === -3 && !mods.length) row += k === 'up' ? -1 : 1;   // pas de modules : la ligne n'existe pas
       clampRow();
       chip = 0;
     } else if (k === 'left' || k === 'right') {
@@ -316,6 +333,7 @@ export function createSettings(opts: SettingsOptions): Panel {
       else if (row === -1) stepTiles(k === 'left' ? -1 : 1, false);
       else if (inCatalog) chip = Math.max(0, Math.min(CHIPS.length - 1, chip + (k === 'left' ? -1 : 1)));
     } else if (k === 'enter') {
+      if (row === -4) { openWallpaper(); return true; }
       if (row === -3) { modView = true; modRow = 0; modChip = 0; render(); return true; }
       if (row === -2) { toggleMode(); render(); return true; }
       if (row === -1) { stepTiles(1, true); render(); return true; }
