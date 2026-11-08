@@ -8,9 +8,9 @@ set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 load_env
 require_vars TV_IP APP_ID
-WGT="${1:-$(ls -t "$REPO_ROOT"/dist/*.wgt 2>/dev/null | head -n1)}"
+WGT="${1:-$(ls -t "$DIST_DIR"/*.wgt 2>/dev/null | head -n1)}"
 [ -f "${WGT:-}" ] || die ".wgt introuvable (lancer package.sh d'abord)"
-[ "$(dirname "$(realpath "$WGT")")" = "$REPO_ROOT/dist" ] || die "le .wgt doit être dans dist/"
+[ "$(dirname "$(realpath "$WGT")")" = "$DIST_DIR" ] || die "le .wgt doit être dans $DIST_REL/ (paquet signé pour cette cible)"
 
 # La TV relit la commande vd_appinstall dans son shell : seul [A-Za-z0-9._-] est sûr dans le nom.
 case "$(basename "$WGT")" in
@@ -18,7 +18,7 @@ case "$(basename "$WGT")" in
 esac
 
 sdb_session '
-  WGT="/work/dist/$1"; APP="$2"
+  WGT="/work/$3/$1"; APP="$2"
   PKG_ID="${APP%%.*}"
   REMOTE_DIR=/home/owner/share/tmp/sdk_tools
   echo "→ sdb install (transfert)"
@@ -35,5 +35,5 @@ sdb_session '
   echo "→ vérification de la présence de l'\''app dans la liste"
   LIST="$(sdb -s "$T" shell 0 applist 2>&1 || true)"
   grep -q -- "$APP" <<<"$LIST" || { echo "erreur : $APP absent de la liste des apps de la TV" >&2; exit 1; }
-' "$(basename "$WGT")" "$APP_ID"
+' "$(basename "$WGT")" "$APP_ID" "$DIST_REL"
 echo "OK côté SDK : install completed + app présente. À confirmer sur l'écran de la TV."

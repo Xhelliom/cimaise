@@ -1,10 +1,9 @@
 # Fonctions communes aux scripts Tizen. À sourcer, pas à exécuter.
-# Tout ce qui est secret ou propre à la TV vient de .local/tizen.env (ignoré par git).
+# Tout ce qui est secret ou propre à la TV vient de .local/tizen.env (ou .local/tizen.env.tv2 avec CIMAISE_TV=tv2).
 
 TIZEN_SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$TIZEN_SCRIPTS_DIR/../.." && pwd)"
 LOCAL_DIR="${CIMAISE_LOCAL_DIR:-$REPO_ROOT/.local}"
-ENV_FILE="$LOCAL_DIR/tizen.env"
 IMAGE="${CIMAISE_TIZEN_IMAGE:-cimaise-tizen:5.6}"
 DOCKER="${DOCKER:-docker}"
 # Options `docker run` supplémentaires (ex. affichage X11) ; un script les remplit avant run_in_container.
@@ -12,13 +11,29 @@ DOCKER_RUN_EXTRA=()
 
 die() { echo "erreur : $*" >&2; exit 1; }
 
-# Charge .local/tizen.env sans jamais l'afficher.
+# Cible TV. Sans CIMAISE_TV : la Frame, comportement d'origine (.local/tizen.env, paquets dans dist/).
+# CIMAISE_TV=tv2 : .local/tizen.env.tv2, paquets dans dist/tv2/ (jamais d'installation croisée).
+# Liste fermée : toute autre valeur est refusée, pour ne jamais retomber par erreur sur une autre TV.
+case "${CIMAISE_TV:-}" in
+  "")  ENV_FILE="$LOCAL_DIR/tizen.env"; DIST_REL=dist ;;
+  tv2) ENV_FILE="$LOCAL_DIR/tizen.env.tv2"; DIST_REL=dist/tv2 ;;
+  *)   die "CIMAISE_TV=« $CIMAISE_TV » inconnue : laisser vide (Frame) ou tv2" ;;
+esac
+DIST_DIR="$REPO_ROOT/$DIST_REL"
+
+# Charge le fichier d'env de la cible sans jamais l'afficher.
 load_env() {
-  [ -f "$ENV_FILE" ] || die "$ENV_FILE introuvable (copier scripts/tizen/tizen.env.example vers .local/tizen.env)"
+  [ -f "$ENV_FILE" ] || die "$ENV_FILE introuvable (copier scripts/tizen/tizen.env.example vers $ENV_FILE)"
   set -a
   # shellcheck disable=SC1090
   . "$ENV_FILE"
   set +a
+  # TV2 refuse la signature Samsung : son env doit désigner un autre profil que « cimaise » (celui de la Frame).
+  if [ "${CIMAISE_TV:-}" = tv2 ]; then
+    [ -n "${SIGN_PROFILE:-}" ] && [ "$SIGN_PROFILE" != cimaise ] \
+      || die "$ENV_FILE : SIGN_PROFILE doit être le profil TV2 (cimaise-tv2), pas « ${SIGN_PROFILE:-} »"
+    echo "cible : TV2 (${TV_IP:-?}), profil ${SIGN_PROFILE}, paquets dans $DIST_REL/" >&2
+  fi
 }
 
 require_vars() {
