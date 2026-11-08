@@ -96,6 +96,7 @@ export function plexReport(): string {
 // Journal AVPlay (lecteur) : un appel par ligne, état avant→après, exception. Sur window comme les mesures (plex.js l'écrit,
 // app.js l'affiche). Rien en boucle : seulement les appels ponctuels (open, prepare, play, seek, stop…), jamais oncurrentplaytime.
 export var AV_KEEP = 30;
+var AV_SHOWN = 20;
 var localAv: string[] = [];
 function avStore(): string[] {
   if (typeof window === 'undefined') return localAv;
@@ -110,7 +111,8 @@ export function avLog(line: string): void {
   if (l.length > AV_KEEP) l.shift();
 }
 export function resetAvLog(): void { localAv = []; avT0 = 0; if (typeof window !== 'undefined') (window as any).__cimaiseAvLog = []; }
-export function avReport(): string { return avStore().join('\n'); }
+// last : n'afficher que les dernières lignes (l'écran de diagnostic ne défile pas ; la ligne fautive est toujours la plus récente).
+export function avReport(last?: number): string { var l = avStore(); return (last && l.length > last ? l.slice(l.length - last) : l).join('\n'); }
 
 export function report(): string {
   var base = marks.scriptLoaded, lines: string[] = [];
@@ -130,8 +132,9 @@ export function toggleDiag(): void {
   el = document.createElement('pre');
   el.style.cssText = 'position:fixed;top:0;left:0;margin:0;padding:16px;background:#000;color:#0f0;font:20px monospace;max-width:1888px;word-break:break-all;z-index:9999';
   var ic = iconReport();
-  var av = avReport();
-  el.textContent = report() + (av ? '\n\nAVPlay:\n' + av : '') + (ic ?'\n\nicônes:\n' + ic : '') + '\n\n[1] Sonde formats (lecture directe d’un échantillon par catégorie)\n[2] Sonde Overseerr (HTTPS, lecture seule)';
+  // AVPlay en tête : le bloc pousserait sinon ses dernières lignes (l'erreur) sous le bas de l'écran (vu sur TV2).
+  var av = avReport(AV_SHOWN);
+  el.textContent = (av ? 'AVPlay (dernières lignes):\n' + av + '\n\n' : '') + report() + (ic ?'\n\nicônes:\n' + ic : '') + '\n\n[1] Sonde formats (lecture directe d’un échantillon par catégorie)\n[2] Sonde Overseerr (HTTPS, lecture seule)';
   document.body.appendChild(el);
 }
 
