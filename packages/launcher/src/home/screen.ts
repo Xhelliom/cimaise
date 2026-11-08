@@ -1,4 +1,4 @@
-import { noteEvent } from '../../../tv-core/src/diag';
+import { noteEvent, mark } from '../../../tv-core/src/diag';
 import { applyIcon } from '../../../tv-core/src/icon';
 import { Key } from '../../../tv-core/src/keys';
 import { Focus } from '../../../tv-core/src/focus';
@@ -30,7 +30,8 @@ export interface HomeOptions {
   mode?: HomeMode;   // défaut : grille
   tiles?: number;    // tuiles à l'écran : 4 (défaut), 5 ou 6
   doc?: Document;
-  // Premier rendu minimal : tuiles avec leur nom, sans logo ni teinte ni description ; enrich() ajoute le reste après la 1re peinture.
+  // Premier rendu minimal : tuiles sur leur couleur de marque (le nom seulement pour une app sans logo), sans <img> ni teinte ni
+  // description ; enrich() charge les logos après la 1re peinture.
   deferRich?: boolean;
 }
 
@@ -40,13 +41,19 @@ export interface HomePanel extends Panel {
   setTiles(n: number): void;
   setScenes(list: SceneItem[]): void;   // rangée de pastilles scène (au plus 6) ; liste vide = rangée retirée
   notify(text: string): void;   // petit message à l'écran (disparaît seul)
-  enrich(): void;               // après la 1re peinture : teinte, description et logos (chargés hors DOM, posés une fois prêts)
+  enrich(): void;               // après la 1re peinture : teinte, description et logos (chargés hors DOM, posés en fondu une fois prêts)
 }
 
 var MESSAGE_MS = 4000;
 var SCENES_MAX = 6;
 var SCENE_MARK_MS = 1500; // « ✓ » (et la pastille allumée) restent ce temps après la réponse
 var TINT_DELAY_MS = 150; // la teinte ne suit qu'après cet arrêt du focus ; le focus, lui, bouge tout de suite
+// Tuile à logo encore muette ce délai après le DÉBUT du chargement des logos (enrich, après la 1re peinture) : son nom s'affiche
+// (le logo le remplacera s'il arrive). Compté depuis le premier rendu, il échoirait pendant le script de démarrage sur la Frame
+// (+583 ms mesurés avant firstPaint) et les noms s'afficheraient dès la 1re image.
+// TV2 (Tizen 4, 08/11) : logos posés 1,3 s après enrich ; à 400 ms les 7 noms s’affichaient ~200 ms. Un logo illisible
+// échoue tout de suite (onerror → nom) : ce délai ne couvre qu’un chargement bloqué, il peut donc être long.
+var NAME_DELAY_MS = 3000;
 
 var PASTILLES: Array<{ name: PastilleName; label: string }> = [
   { name: 'reglages', label: 'Réglages' },
@@ -110,6 +117,9 @@ export function createHome(opts: HomeOptions): HomePanel {
   var tiles: HTMLElement[] = [];
   // Logos posés dont la 1re peinture n'a pas encore eu lieu (ni par le pré-décodage, ni à l'écran).
   var unpainted: Array<{ tile: HTMLElement; file: string; pre: boolean }> = [];
+  // Tuiles à logo qui n'affichent encore rien (ni logo, ni nom) ; une seule minuterie ponctuelle leur rend leur nom.
+  var muettes: HTMLElement[] = [], nameTimer: any = null;
+  var logosWanted = 0, logosDone = 0; // diagnostic : marque « logos » quand tous sont posés ou en échec
   var grid = new Focus(0, per);
   var chips = new Focus(PASTILLES.length, PASTILLES.length);
   var zone: 'tiles' | 'scenes' | 'pastilles' = 'tiles';
@@ -233,21 +243,23 @@ export function createHome(opts: HomeOptions): HomePanel {
     while (rail.firstChild) rail.removeChild(rail.firstChild);
     tiles = [];
     unpainted = [];
+    muettes = [];
+    logosWanted = logosDone = 0;
     for (var i = 0; i < catalog.length; i++) {
       var t = div('tuile');
       var k = knownApp(catalog[i].name), bg = k ? k.bg : catalog[i].color;
       t.style.background = bg;
       t.style.color = tileInk(bg);
+      // Logo attendu : la tuile reste un aplat de marque, sans texte, jusqu'au logo (ou au nom en repli, voir muettes).
       // Sans logo large : le nom, jamais l'icône carrée de la TV (sauf app sans nom).
-      if (k && k.logoUrl && rich) {
-        applyIcon(doc, t, catalog[i].icon || '', catalog[i].name, catalog[i].name, k.logoUrl);
-        if (k.tag && t.firstChild) { (t.firstChild as HTMLElement).className = 'avec-mention'; t.appendChild(div('mention', k.tag)); }
-      }
+      if (k && k.logoUrl && catalog[i].name) muettes.push(t);
       else if (catalog[i].name) t.textContent = catalog[i].name;
       else applyIcon(doc, t, catalog[i].icon || '', '', '?');
       tiles.push(t);
       rail.appendChild(t);
     }
+    if (nameTimer !== null) { timer.clear(nameTimer); nameTimer = null; }
+    if (rich) loadLogos();
     grid.setCount(catalog.length);
     if (!catalog.length) zone = 'pastilles';
     grid.cols = cols();
@@ -272,20 +284,51 @@ export function createHome(opts: HomeOptions): HomePanel {
     });
   }
 
-  // Logo d'une tuile : l'image est chargée hors DOM, puis posée à la place du nom une fois prête ; en cas d'échec le nom reste.
+  // Lance le chargement des logos et, seulement maintenant, la minuterie de repli des noms (une seule pour toutes les tuiles).
+  function loadLogos(): void {
+    logosWanted = muettes.length;
+    logosDone = 0;
+    if (muettes.length) nameTimer = timer.set(function () {
+      nameTimer = null;
+      if (muettes.length) mark('noms en repli ×' + muettes.length);
+      while (muettes.length) speak(muettes[0]);
+    }, NAME_DELAY_MS);
+    for (var j = 0; j < tiles.length; j++) addLogo(tiles[j], catalog[j]);
+  }
+  function logoDone(): void { if (++logosDone === logosWanted) mark('logos'); }
+
+  // Tuile muette (logo pas encore là) : elle prend son nom ; sans effet si le logo est déjà posé.
+  function speak(t: HTMLElement): void {
+    var m = muettes.indexOf(t);
+    if (m >= 0) muettes.splice(m, 1);
+    var i = tiles.indexOf(t);
+    if (i >= 0 && !t.firstChild) t.textContent = catalog[i].name;
+  }
+
+  // Logo d'une tuile : l'image est chargée hors DOM, puis posée une fois prête, à opacité 0 ; la classe vu lance le fondu
+  // (transition CSS). Le style est calculé entre les deux (getComputedStyle : style seul, pas de mise en page), sinon pas de
+  // fondu. En cas d'échec, le nom s'affiche.
   function addLogo(t: HTMLElement, e: CatalogEntry): void {
     var k = knownApp(e.name);
     if (!k || !k.logoUrl || !e.name) return;
     var holder = div('');
     applyIcon(doc, holder, e.icon || '', e.name, e.name, k.logoUrl, function (img) {
+      var m = muettes.indexOf(t);
+      if (m >= 0) muettes.splice(m, 1);
+      logoDone();
       if (t.textContent) t.textContent = '';
       t.appendChild(img);
-      if (k!.tag) { img.className = 'avec-mention'; t.appendChild(div('mention', k!.tag)); }
+      var mention = k!.tag ? div('mention', k!.tag) : null;
+      if (mention) t.appendChild(mention);
+      var view = doc.defaultView;
+      if (view && view.getComputedStyle) void view.getComputedStyle(img).opacity;
+      img.className = mention ? 'avec-mention vu' : 'vu';
+      if (mention) mention.className = 'mention vu'; // même fondu que le logo
       var src: string = (img as any).src || '';
       unpainted.push({ tile: t, file: src.replace(/^.*\//, ''), pre: false });
       notePaintedLogos(); // déjà à l'écran : la 1re peinture est celle de la pose
       predecode(src, t);
-    });
+    }, function () { speak(t); logoDone(); });
   }
 
   // Message transitoire : un seul élément, masqué par la classe, retiré par une minuterie ponctuelle.
@@ -419,7 +462,7 @@ export function createHome(opts: HomeOptions): HomePanel {
       enriched = true;
       if (rich) return;
       rich = true;
-      for (var i = 0; i < tiles.length; i++) addLogo(tiles[i], catalog[i]);
+      loadLogos();
       shownKey = '';
       paint();
     },
@@ -452,6 +495,7 @@ export function createHome(opts: HomeOptions): HomePanel {
       if (stopNet) { try { stopNet(); } catch (e) { /* écoute déjà retirée */ } stopNet = null; }
       if (fadeTimer !== null) { timer.clear(fadeTimer); fadeTimer = null; }
       if (tintTimer !== null) { timer.clear(tintTimer); tintTimer = null; }
+      if (nameTimer !== null) { timer.clear(nameTimer); nameTimer = null; }
       if (msgTimer !== null) { timer.clear(msgTimer); msgTimer = null; }
       clearSceneTimers();
     }
