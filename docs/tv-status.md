@@ -279,6 +279,22 @@ Le lancement des apps et les touches marchaient sur TV2 (certificat public Tizen
 - **Latence touche→focus sur la Frame** (même version, ~20 appuis gauche/droite, recopiée par Stéphane) : **min 11 / méd 18 /
   max 89 ms**. Dernier relevé : méd 18 / max 298 ms → pas de recul, max sous la cible de 100 ms. Cause du max non relevée.
 
+### Icône de l'app dans la barre du Smart Hub (Frame, 2026-11-08)
+
+- **Constat de départ (photo de Stéphane, 08/11)** : la tuile cimaise de la barre est plus haute que large ; les autres apps
+  (Plex, TV en direct…) ont une tuile paysage remplie par leur visuel. Icône d'alors : carré 117×117.
+- **Essais, tous sur la Frame (TV2 non touchée)**, avec `apps/tv/icon.png` en 512×423 RVB :
+  1. Installation par-dessus (version 0.0.1). SDK : « install completed » + app présente. **Vu : toujours l'ancienne tuile.**
+  2. Redémarrage complet de la TV. **Vu : toujours l'ancienne.**
+  3. Installation par-dessus en version 0.0.2. SDK : « install completed ». **Vu : toujours l'ancienne.**
+  4. Avec l'accord explicite de Stéphane (perte du jeton Plex et des réglages acceptée) : **désinstallation depuis la TV**, puis
+     installation propre. SDK : « install completed ». **Vu : tuile toujours verticale.** Stéphane pense voir encore l'icône
+     carrée ; non tranché (les deux icônes se ressemblent : comparaison publiée sur la carte, photo demandée).
+- **Non vérifiable par le SDK** : `sdb shell` (lecture de l'icône installée) répond `closed` sur la Frame.
+- **Hypothèse** : le Smart Hub de 2019 donne une tuile de format fixe aux apps hors Store, quelle que soit l'icône de
+  `config.xml` ; les tuiles paysage viennent des visuels du Seller Office. Non confirmé par une source Samsung.
+- **Non testé** : variante 1:1 transparente ; réinitialisation du Smart Hub (écartée : efface les connexions de toutes les apps).
+
 ### Questions pour Stéphane
 
 - Faire la mise à jour du firmware de TV2 si elle existe ? (Mise à jour officielle Samsung, pas un firmware modifié ; mais irréversible, et TV2 ne servirait alors plus de témoin « Tizen 4 d'origine ».)

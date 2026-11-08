@@ -1022,6 +1022,13 @@ centré à 92 %. Rendu `resvg -w 512 -h 423`, puis `oxipng -o max --strip all` :
 **Coût.** Uniquement le poids du `.wgt` (PNG déjà compressé : quasiment le même écart dans le zip), soit environ 175 Ko au
 total pour un budget de 1,5 Mo. Aucun effet sur le JS ni sur le démarrage (image lue par le Smart Hub, jamais par l'app).
 
+**Résultat sur la Frame (2026-11-08) : pas de tuile paysage.** Installation par-dessus, redémarrage complet, version passée à
+0.0.2 (`config.xml`, pour invalider un éventuel cache par version), puis désinstallation et installation propre avec l'accord
+explicite de Stéphane : la tuile reste verticale (détail des essais dans `docs/tv-status.md`). Recherche web : aucune source ne
+documente l'affichage de l'`<icon>` d'une app hors Store dans la barre ; seules pistes trouvées, désinstaller/réinstaller (fait)
+et réinitialiser le Smart Hub (écartée : efface les connexions de toutes les apps). **On garde l'icône 512×423** (nette,
+conforme au format Samsung, coût +30,7 Ko) ; prochain essai proposé : variante 1:1 transparente.
+
 ### Accueil : plus de nom d'app avant le logo au démarrage (2026-11-08)
 
 Remarque de Stéphane (08/11) : au lancement, les tuiles montrent leur nom une fraction de seconde avant le logo. Cause : le
