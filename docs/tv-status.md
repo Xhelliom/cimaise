@@ -141,7 +141,7 @@ Le code décimal est la forme courte de `install failed[118, -NN]` affiché par 
 
 ### Hypothèses (de la plus probable à la moins probable)
 
-1. **Nouvelle CA Samsung inconnue de TV2 (probable).** Le firmware 1360 de TV2 ne connaît pas la chaîne de 2025 ; la Frame (T-MSMDEUC-1500.9) la connaît. Tout colle : DUID présent, lecture du paquet passée, refus à l'étape certificat, réponse de Samsung. *Non vérifié* : le texte complet de l'erreur sur TV2 (on n'a que le code), ni l'existence d'un firmware plus récent pour TV2.
+1. **Nouvelle CA Samsung inconnue de TV2 (probable).** Le firmware 1360 de TV2 ne connaît pas la chaîne de 2025 ; la Frame (T-MSMDEUC-1500.9) la connaît. Tout colle : DUID présent, lecture du paquet passée, refus à l'étape certificat, réponse de Samsung. *Non vérifié* : le texte complet de l'erreur sur TV2 (on n'a que le code), ni l'existence d'un firmware plus récent pour TV2. *(08/11 : la TV ne donne que le code ; aucune mise à jour proposée. Voir « Résultat du test ».)*
 2. **Horloge de TV2 fausse (peu probable, vérifiable en 10 s).** Les certificats ne sont valides qu'à partir du 29/10/2026 09:06 UTC ; une TV en retard les verrait « pas encore valides ».
 3. **Algorithme SHA-512 non géré par Tizen 4 (peu probable).** Le packager actuel signe en RSA-SHA512 ; aucune source trouvée ne le relie à -12. À ne creuser que si 1 et 2 tombent.
 
@@ -152,6 +152,57 @@ Le code décimal est la forme courte de `install failed[118, -NN]` affiché par 
 1. **Sans action sur la TV** : Stéphane lit l'heure et la date de TV2, et regarde si une mise à jour existe (Paramètres → Assistance → Mise à jour du logiciel → Mettre à jour maintenant ; ne pas l'installer sans décision).
 2. **Une installation** de la page vide en `required_version="4.0"` (copie temporaire du `config.xml`, `apps/blank` non modifié), avec l'IP de TV2 passée par une **copie temporaire** de `.local/tizen.env.tv2` (jamais `.local/tizen.env`), en gardant **toute la sortie** de `sdb install` / `vd_appinstall` : on cherche `Invalid certificate chain …<-3>` (confirme l'hypothèse 1) ou `expired / not yet valid` (hypothèse 2).
 3. Lecture : chaîne invalide + aucune mise à jour du firmware → TV2 ne pourra plus installer d'app signée aujourd'hui ; on arrête le banc Tizen 4.
+
+### Résultat du test (2026-11-08)
+
+**Observé physiquement (Stéphane, devant TV2, 08/11)** : TV2 affiche **15h33 le 8/11/26**, heure et date correctes. Paramètres → Assistance → Mise à jour du logiciel : **aucune mise à jour proposée** (rien installé).
+
+**Réponse du SDK (une seule installation)** : page vide `cimaiseblk.Blank`, copie temporaire du `config.xml` en `required_version="4.0"` (`apps/blank` inchangé), signée par le packager officiel avec le profil « cimaise » (RSA-SHA512), IP de TV2 lue dans une copie temporaire de `.local/tizen.env.tv2` (`.local/tizen.env` non touché). `sdb connect` a échoué au premier essai, réussi au second (`UE49NU7175`, `platform_version:4.0`). Sortie complète (IP masquée) :
+
+```
+=== sdb install ===
+WARNING: Your data are to be sent over an unencrypted connection and could be read by others.
+pushed              cimaise-blank.wgt	100%	     13KB	    0KB/s
+closed
+1 file(s) pushed. 0 file(s) skipped.
+/work/dist/cimaise-blank.wgt     48KB/s (14067 bytes in 0.283s)
+[code retour sdb install: 1]
+=== push + vd_appinstall ===
+closed                                   ← mkdir via « sdb shell » refusé
+pushed              cimaise-blank.wgt	100%	     13KB	    0KB/s
+1 file(s) pushed. 0 file(s) skipped.
+install cimaiseblk
+package_path /home/owner/share/tmp/sdk_tools/cimaise-blank.wgt
+was_install_app return WAS_TRUE
+app_id[cimaiseblk] install start
+app_id[cimaiseblk] installing[7]
+app_id[cimaiseblk] installing[10]
+app_id[cimaiseblk] installing[13]
+app_id[cimaiseblk] installing[15]
+app_id[cimaiseblk] installing[18]
+app_id[cimaiseblk] installing[21]
+app_id[cimaiseblk] installing[23]
+app_id[cimaiseblk] install failed[118012]
+spend time for wascmd is [1345]ms
+cmd_ret:0
+=== présence dans la liste ===
+cimaiseblk absent de la liste
+```
+
+- **Texte exact de l'erreur de TV2 : `install failed[118012]`, rien de plus.** `vd_appinstall` sur Tizen 4 n'affiche que le code : ni « Check certificate error », ni « Invalid certificate chain », ni « expired / not yet valid ». `sdb install` s'arrête à `closed` (transfert seul, comme sur la Frame). `sdb shell 0 date` répond aussi `closed` : l'heure n'est lisible qu'à l'écran.
+- Même code et même étape (23 %) que le 31/10 : résultat **reproduit**.
+
+**Hypothèses après le test :**
+1. **Nouvelle CA inconnue de TV2 : retenue, très probable, mais pas prouvée par le texte** (TV2 ne donne pas le message long). Faits concordants : -12 = vérification du certificat, DUID présent, lecture du paquet passée, firmware 1360 sans mise à jour disponible, réponse de Samsung (Tizen.Issues #139).
+2. **Horloge fausse : écartée** (heure et date correctes à l'écran).
+3. **SHA-512 non géré par Tizen 4 : seule alternative restante, non testée.**
+
+**Conclusion** : en l'état (firmware 1360, aucune mise à jour proposée), **TV2 n'installe pas d'app signée avec nos certificats**. Rien à corriger côté projet ; la Frame n'est pas concernée.
+
+**Pistes suivantes (non essayées, chacune demande l'accord de Stéphane) :**
+- Obtenir le message long sans toucher à la TV autrement : `tizen install` (CLI du SDK) au lieu de `vd_appinstall` affiche d'ordinaire `[118, -12], reason: …` ; c'est une **nouvelle installation** sur TV2.
+- Écarter l'hypothèse 3 : signer une copie en **RSA-SHA256**. Le packager actuel signe en SHA-512 sans option visible ; il faudrait une autre version du SDK ou une resignature, à étudier avant tout essai (une signature XML faite main a déjà été rejetée par la Frame).
+- Sinon, arrêter le banc Tizen 4 (TV2 n'est pas une cible).
 
 ### Questions pour Stéphane
 
