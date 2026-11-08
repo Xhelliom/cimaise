@@ -232,6 +232,28 @@ Piste trouvée en ligne ([Apps2Samsung PR #990](https://github.com/Apps2Samsung/
 - **Frame non touchée** : paquet Frame refait sans installation ; empreintes identiques au paquet Samsung du 30/10 (auteur `52:41:87…77:32`, distributeur `5B:7A:D6…58:F6`), `required_version="5.0"`.
 - **Non testé sur TV2** : lancement des apps natives (`application.launch`), Plex/AVPlay (`webapis`), Home Assistant ; certificat de niveau public Tizen, pas Samsung.
 
+### TV2 : lecture Plex en `PLAYER_ERROR_INVALID_OPERATION` — cause et correctif (2026-11-08)
+
+Le lancement des apps et les touches marchaient sur TV2 (certificat public Tizen) ; la lecture Plex échouait sur certains films, pas sur tous. Un journal AVPlay a été ajouté au diagnostic (touche 0) : chaque appel, état avant→après, exception (nom#code: message), URL sans hôte ni token.
+
+**Observé physiquement (Stéphane, photos du diagnostic de TV2)** :
+- `webapis` se charge : `avplay 3.0`, `tizen 4.0`. `productinfo.getVersion/getFirmware/getRealModel` → `SecurityError` (privilège `productinfo` non déclaré dans `config.xml`, pas utilisé par l'app ; sans lien avec la lecture).
+- Haunt (2019) (HEVC 8 bits, E-AC3 5.1) **se lit** : `open` NONE→IDLE, `setListener`, `setDisplayRect`, `setDisplayMethod` IDLE→IDLE, `prepareAsync ok (état READY)`, `play` READY→PLAYING, `setSelectTrack AUDIO2` PLAYING→PLAYING, 1re image.
+- Longlegs (2024) (HEVC, E-AC3 5.1, 1re piste audio fr-CA par défaut) **échoue** : même suite jusqu'à `play` READY→PLAYING, puis
+  **`setSelectTrack AUDIO1 PLAYING ✗ TypeMismatchError#17: PLAYER_ERROR_INVALID_OPERATION`**, puis `stop`, `close` (notre lecteur traitait ce refus comme fatal).
+- **Cause** : TV2 refuse de **resélectionner la piste audio déjà active** (AUDIO1 = piste par défaut, `selected` côté serveur). Passer à une autre piste (AUDIO2 sur Haunt) marche. La Frame accepte la resélection (lisait déjà ces films).
+- **Ce n'est pas le certificat** : `open`, `prepareAsync` et `play` réussissent sous le certificat public Tizen ; seul l'appel `setSelectTrack` sur la piste active est refusé, et il passe sur une autre piste. La doc Samsung AVPlay n'exige aucun privilège pour ces méthodes (seul `drmplay`, pour `setDrm`/`getUID`) ; le privilège `avplay` n'est plus utilisé depuis 2015.
+
+**Correctif** (`packages/tv-core/src/player/avplay.ts`, commun aux deux TV) : `selectTrack` saute la piste déjà active (`getCurrentStreamInfo`) ; un refus de `setSelectTrack` n'arrête plus la lecture (`onTrackError` → « Piste audio indisponible » / « Sous-titres indisponibles », la lecture continue) ; plus d'appel de piste ou de sous-titres sur un lecteur fermé.
+
+**Réponse du SDK** : TV2 (`CIMAISE_TV=tv2`) et Frame : « install completed », app dans la liste, lancement envoyé.
+
+**Observé physiquement (Stéphane) après correctif** : **Longlegs se lit sur TV2** ; **la Frame lit toujours un film et le changement de piste audio y marche**.
+
+**Non testé / non déclenché** :
+- Le repli `<object type="application/avplayer">` (ajouté avant d'avoir le journal, sur l'hypothèse « pas de surface d'affichage sous Tizen 4 ») ne s'est **jamais déclenché** : aucun `INVALID_OPERATION` à l'ouverture sur TV2. Inactif tant que cette erreur n'arrive pas à l'ouverture ; à retirer si on veut un code sans hypothèse.
+- Sur TV2 : sous-titres externes (`setExternalSubtitlePath`), reprise (`seekTo` avant `play`), transcodage HLS, changement de piste manuel.
+
 ### Accueil en grille sur TV2 : repli flexbox sans CSS Grid (2026-11-08)
 
 - **Cause** : Chromium 56 (TV2) ne connaît pas CSS Grid (arrive en 57) ; `display:grid` ignoré → tuiles empilées en liste.

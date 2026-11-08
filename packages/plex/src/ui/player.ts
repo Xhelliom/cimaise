@@ -111,6 +111,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number, ch
   var tSession = newTranscodeSession(identityOf(arg)), tActive = false;
   // Sous-titres rendus par la page (AVPlay n'est réveillé que pour une piste choisie) : subsOn = la piste choisie est lue par AVPlay (interne ou externe), pas incrustée.
   var extFailed = false, subsOn = false, subTimer: any = null, seriesKey = item.grandparentRatingKey;
+  var trackRefused: string | null = null; // dernier choix de piste refusé par AVPlay (onTrackError)
   // Mesure (diagnostic) : Entrée sur Lire → première image (1er temps de lecture signalé par AVPlay).
   var t0 = Date.now(), awaitFrame = false;
   var hideTimer: any = null, endTimer: any = null, lastMs = 0;
@@ -412,6 +413,15 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number, ch
         state.textContent = 'Sous-titres indisponibles';
         showBar();
       },
+      // Piste refusée (TV2, Tizen 4) : la lecture continue sur la piste en cours.
+      onTrackError: function (_e, kind) {
+        if (closed) return;
+        trackRefused = kind;
+        if (kind === 'text') { setSubs(false); clearSub(); }
+        if (mode !== 'play') return;
+        state.textContent = kind === 'audio' ? 'Piste audio indisponible' : 'Sous-titres indisponibles';
+        showBar();
+      },
       onEnd: atEnd,
       onError: fail,
       onSuspend: function (pos) { suspendPos = pos; leave(false); }
@@ -512,8 +522,9 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number, ch
     else if (plan!.subtitleMode === 'external' || plan!.subtitleMode === 'converted') {
       for (var i = tracks.length - 1; i >= 0 && !t; i--) if (tracks[i].kind === 'text') t = tracks[i];
     }
+    trackRefused = null;
     if (t) p.selectTrack('text', t.index);
-    setSubs(!!t);
+    setSubs(!!t && trackRefused !== 'text');
   }
 
   function prefs(): LangPrefs { return langPrefsFor(seriesKey, arg.store); }
