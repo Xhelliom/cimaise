@@ -10,9 +10,14 @@ export function getSections(http: Http, id: Identity, s: ServerRef, cb: Callback
 
 // Tri et filtre faits par le serveur, pagination intacte : `sort` est une valeur Plex (titleSort, addedAt:desc, year:desc ;
 // à égalité le serveur départage par titre), `unwatched` ne garde que les non vus (séries : au moins un épisode non vu).
-export interface LibraryView { sort: string; unwatched: boolean; }
+// `ratings` : filtre par âge, classifications gardées (contentRating=G,PG ; OU logique, sensible à la casse : vérifié sur le
+// serveur le 08/11, « g » ne trouve rien). Absent = tout ; jamais vide (l'appelant n'interroge pas le serveur sans code permis).
+export interface LibraryView { sort: string; unwatched: boolean; ratings?: string[] | null; }
 export var TITLE_VIEW: LibraryView = { sort: 'titleSort', unwatched: false };
-export function viewQuery(v: LibraryView): string { return 'sort=' + v.sort + (v.unwatched ? '&unwatched=1' : ''); }
+export function filterQuery(v: { unwatched?: boolean; ratings?: string[] | null }): string {
+  return (v.unwatched ? '&unwatched=1' : '') + (v.ratings && v.ratings.length ? '&contentRating=' + v.ratings.map(encodeURIComponent).join(',') : '');
+}
+export function viewQuery(v: LibraryView): string { return 'sort=' + v.sort + filterQuery(v); }
 
 // Pagination par en-têtes X-Plex-Container-Start / -Size.
 export function getSectionItems(http: Http, id: Identity, s: ServerRef, sectionKey: string, start: number, size: number, cb: Callback<Page>, view?: LibraryView) {
@@ -25,12 +30,36 @@ export function getSectionItems(http: Http, id: Identity, s: ServerRef, sectionK
 }
 
 // Index alphabétique : nombre de titres par première lettre, dans l'ordre du tri par titre (# d'abord).
-// `unwatched` : même filtre que la grille (vérifié sur le serveur : les tailles somment au total filtré).
-export function getFirstCharacter(http: Http, id: Identity, s: ServerRef, sectionKey: string, cb: Callback<Letter[]>, unwatched?: boolean) {
-  return serverGet(http, id, s, '/library/sections/' + encodeURIComponent(sectionKey) + '/firstCharacter' + (unwatched ? '?unwatched=1' : ''), null, function (err, j) {
+// `filter` : même filtre que la grille (vérifié sur le serveur, non vus et âge : les tailles somment au total filtré).
+export function getFirstCharacter(http: Http, id: Identity, s: ServerRef, sectionKey: string, cb: Callback<Letter[]>, filter?: { unwatched?: boolean; ratings?: string[] | null }) {
+  var q = filter ? filterQuery(filter) : '';
+  return serverGet(http, id, s, '/library/sections/' + encodeURIComponent(sectionKey) + '/firstCharacter' + (q ? '?' + q.slice(1) : ''), null, function (err, j) {
     if (err) return cb(err);
     var d = container(j).Directory || [], out: Letter[] = [];
     for (var i = 0; i < d.length; i++) out.push({ title: String(d[i].title), size: Number(d[i].size) || 0 });
+    cb(null, out);
+  });
+}
+
+// Classifications présentes dans une bibliothèque (≈ 1 Ko) : orthographe exacte du serveur pour le filtre par âge.
+export function getSectionRatings(http: Http, id: Identity, s: ServerRef, sectionKey: string, cb: Callback<string[]>) {
+  return serverGet(http, id, s, '/library/sections/' + encodeURIComponent(sectionKey) + '/contentRating', null, function (err, j) {
+    if (err) return cb(err);
+    var d = container(j).Directory || [], out: string[] = [];
+    for (var i = 0; i < d.length; i++) if (d[i].title) out.push(String(d[i].title));
+    cb(null, out);
+  });
+}
+
+// Séries d'une bibliothèque dont la classification est dans `ratings` (filtre par âge de l'accueil) : seuls les ratingKey
+// sont gardés. Les saisons des rangées de l'accueil n'ont pas de contentRating (vérifié le 08/11) : on les juge sur leur série.
+// Mesuré le 08/11 : 11 séries (-10 ans) ≈ 21 Ko de JSON, 30 (-12 ans) ≈ 55 Ko ; /library/metadata/k1,k2… coûte 165 Ko pour 9
+// séries et includeFields est ignoré par le serveur, d'où ce choix.
+export function getShowKeys(http: Http, id: Identity, s: ServerRef, sectionKey: string, ratings: string[], cb: Callback<string[]>) {
+  return serverGet(http, id, s, '/library/sections/' + encodeURIComponent(sectionKey) + '/all?type=2' + filterQuery({ ratings: ratings }), null, function (err, j) {
+    if (err) return cb(err);
+    var l = items(j), out: string[] = [];
+    for (var i = 0; i < l.length; i++) out.push(String(l[i].ratingKey));
     cb(null, out);
   });
 }
