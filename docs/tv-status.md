@@ -232,6 +232,14 @@ Piste trouvée en ligne ([Apps2Samsung PR #990](https://github.com/Apps2Samsung/
 - **Frame non touchée** : paquet Frame refait sans installation ; empreintes identiques au paquet Samsung du 30/10 (auteur `52:41:87…77:32`, distributeur `5B:7A:D6…58:F6`), `required_version="5.0"`.
 - **Non testé sur TV2** : lancement des apps natives (`application.launch`), Plex/AVPlay (`webapis`), Home Assistant ; certificat de niveau public Tizen, pas Samsung.
 
+### Accueil en grille sur TV2 : repli flexbox sans CSS Grid (2026-11-08)
+
+- **Cause** : Chromium 56 (TV2) ne connaît pas CSS Grid (arrive en 57) ; `display:grid` ignoré → tuiles empilées en liste.
+- **Correctif** : bloc `@supports not (display:grid)` dans `home.css` (flex-wrap, largeurs en px, marges à la place de `grid-gap`). La Frame (Grid) l'ignore : aperçu Chromium, rendu avant/après identique au pixel (4/5/6 tuiles, rangées 1 et 2).
+- **Réponse du SDK** : `CIMAISE_TV=tv2` install → « install completed » ; launch → « resumed ».
+- **Observé physiquement (Stéphane)** : l'accueil de TV2 s'affiche en grille de tuiles.
+- **Frame non réinstallée** : son CSS ne gagne qu'un bloc qu'elle ignore ; pas de réinstallation nécessaire.
+
 ### Questions pour Stéphane
 
 - Faire la mise à jour du firmware de TV2 si elle existe ? (Mise à jour officielle Samsung, pas un firmware modifié ; mais irréversible, et TV2 ne servirait alors plus de témoin « Tizen 4 d'origine ».)
