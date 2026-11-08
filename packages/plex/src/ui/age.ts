@@ -24,3 +24,38 @@ export function ageLabel(code?: string | null): string | null {
   var bare = c.replace(/^[a-z]{2}\//, '').replace(/^fsk\s*/, '');
   return AGE.hasOwnProperty(bare) ? AGE[bare] : null;
 }
+
+// ---- Filtre par âge d'une bibliothèque ----
+// Rang de chaque libellé (plus petit = plus jeune public). Code inconnu ou non classé : -1 (masqué dès qu'un âge est choisi).
+var RANK: { [label: string]: number } = { 'Tous publics': 0, '-10 ans': 1, '-12 ans': 2, '-16 ans': 3, '-18 ans': 4 };
+export function ageRank(code?: string | null): number {
+  var l = ageLabel(code);
+  return l && RANK.hasOwnProperty(l) ? RANK[l] : -1;
+}
+
+// Choix proposés sur la pilule, dans l'ordre où Entrée les fait défiler. `max` : rang le plus élevé gardé ; absent = tout.
+export interface AgeFilter { id: string; label: string; max?: number; }
+export var AGE_FILTERS: AgeFilter[] = [
+  { id: 'all', label: 'Tous' },
+  { id: 'tp', label: 'Tous publics', max: 0 },
+  { id: '10', label: '-10 ans', max: 1 },
+  { id: '12', label: '-12 ans', max: 2 }
+];
+export function ageFilter(id?: string | null): AgeFilter {
+  for (var i = 0; i < AGE_FILTERS.length; i++) if (AGE_FILTERS[i].id === id) return AGE_FILTERS[i];
+  return AGE_FILTERS[0];
+}
+// Titre gardé par le filtre (séries : la classification de la série ; un épisode porte la même, vérifié le 08/11).
+export function ageAllowed(code: string | null | undefined, f: AgeFilter): boolean {
+  if (f.max === undefined) return true;
+  var r = ageRank(code);
+  return r >= 0 && r <= f.max;
+}
+// Codes à passer au serveur (contentRating=…) : parmi les classifications présentes dans la bibliothèque, telles que le
+// serveur les écrit (filtre sensible à la casse), celles que la table ci-dessus place à cet âge ou moins. null = pas de filtre.
+export function ageCodes(present: string[], f: AgeFilter): string[] | null {
+  if (f.max === undefined) return null;
+  var out: string[] = [];
+  for (var i = 0; i < present.length; i++) if (ageAllowed(present[i], f) && out.indexOf(present[i]) < 0) out.push(present[i]);
+  return out;
+}

@@ -91,6 +91,7 @@ export function createBand(doc: Document, s: ServerRef, timers: Timers | null): 
   }
 
   function text(it: Item): void {
+    info.style.display = '';
     title.textContent = headTitle(it);
     var sl = subLine(it);
     sub.textContent = sl;
@@ -115,7 +116,18 @@ export function createBand(doc: Document, s: ServerRef, timers: Timers | null): 
   return {
     el: root,
     show: function (it) {
-      if (!it) return;
+      // null (filtre par âge qui vide l'accueil) : texte masqué, image effacée ; rien si déjà vide.
+      if (!it) {
+        if (!cur) return;
+        cur = null;
+        if (typing !== null && timers) timers.clearTimeout(typing);
+        typing = null;
+        info.style.display = 'none';
+        title.textContent = '';
+        want = null;
+        schedule();
+        return;
+      }
       if (cur && cur.ratingKey === it.ratingKey && cur.viewOffset === it.viewOffset && cur.summary === it.summary) return;
       var first = !cur;
       cur = it;

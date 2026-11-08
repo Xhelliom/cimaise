@@ -6,6 +6,8 @@ Modèle exact et firmware : à relever en M0.
 
 Ce qui a été vu à l'écran ou constaté sur la TV.
 
+- **Pilule « Âge » sur l'accueil Plex, reprise par les bibliothèques (2026-11-08, build f1c334b).** App installée puis lancée (voir « Réponse du SDK »), puis deux questions posées à Stéphane, chacune avec des réponses proposées. **Accueil** — question : pilule « Âge : Tous » au bout de la ligne Accueil · Films · Séries ? en « -10 ans », les rangées En cours, Ajoutés récemment et Pas encore vus ne montrent-elles plus que du contenu enfant (saisons de séries enfants comprises, par ex. Grizzy) ? le bandeau suit-il ? Réponse de Stéphane, mot pour mot : « Tout est conforme » (réponse proposée, décrite ainsi : « Pilule au bout des onglets ; en -10 ans, les 3 rangées ne montrent que du contenu enfant, saisons comprises ; bandeau cohérent »). **Reprise** — question : en ouvrant Séries (ou Films) avec « -10 ans » à l'accueil, la pilule de la bibliothèque affiche-t-elle « Âge : -10 ans » d'office, grille réduite ? puis « Tous » à l'accueil rend-il les rangées complètes ? Réponse de Stéphane, mot pour mot : « Tout est conforme » (réponse proposée, décrite ainsi : « La bibliothèque reprend -10 ans d'office ; « Tous » à l'accueil rend les rangées complètes »). Pas de texte libre ni de photo.
+- **Filtre par âge des bibliothèques Plex sur la Frame (2026-11-08, build 67083af).** App lancée par `launch.sh` (réponse du SDK : « launched »), puis deux questions posées à Stéphane, chacune avec des réponses proposées. **Films** — question : pilule « Âge » à côté de Tri et Non vus ? puis, après Entrée jusqu’à « Tous publics » ou « -10 ans », la grille, le compteur et les rangées En cours / Ajoutés récemment sont-ils réduits ? Réponse de Stéphane, mot pour mot : « Tout est conforme » (réponse proposée, décrite ainsi : « Pilule « Âge » à côté de Tri et Non vus ; après Entrée, grille, compteur et rangées réduits »). **Séries** — question : « -10 ans » (≈ 11 séries attendues), choix retrouvé en rouvrant la bibliothèque, retour à « Tous » = grille complète ? Réponse de Stéphane, mot pour mot : « Tout est conforme » (réponse proposée, décrite ainsi : « ≈ 11 séries en -10 ans, choix retrouvé à la réouverture, « Tous » rend la grille complète »). Pas de texte libre ni de photo : le nombre exact de séries affichées n’a pas été relevé.
 - **Sous-titres sur la Frame, lecture directe (2026-10-30, build 0c099db + caa9407).** Stéphane a joué trois épisodes avec un sous-titre actif. Question posée pour chacun : texte affiché, synchrone avec la voix, toujours là après un saut (±10 s et saut long). Réponse de Stéphane (choix « OK partout » dans les trois cas, sans autre commentaire) :
   - SRT interne : *Bluey* S1E1, piste anglaise → « OK partout » ;
   - SRT externe : *Rick and Morty* S1E5 → « OK partout » ;
@@ -61,6 +63,8 @@ Ce qui a été vu à l'écran ou constaté sur la TV.
 
 Ce que `sdb`, le packager ou le SDK ont répondu. Ne prouve pas un succès visible.
 
+- **2026-11-08, pilule « Âge » sur l'accueil Plex (Frame, build f1c334b)** : `package.sh apps/tv/dist` → `dist/cimaise.wgt` signé (190 Ko) ; `install.sh` → « install completed » (repli vd_appinstall, 2,2 s, `cmd_ret:0`) et `cimaise001.Cimaise` présent dans la liste ; `launch.sh` → « launched ».
+- **2026-11-08, filtre par âge des bibliothèques Plex (Frame)** : `package.sh apps/tv/dist` → `dist/cimaise.wgt` signé (190 Ko) ; `install.sh` → « install completed » (vd_appinstall, 2,3 s, `cmd_ret:0`) et `cimaise001.Cimaise` présent dans la liste. App non lancée par le script ; rendu à l’écran à confirmer par Stéphane.
 - **2026-11-07, « bouton cimaise » (HTTP, aucune écriture sur la TV ni dans HA)** :
   - HA, lecture (`/api/states`, `/api/services`, `/api/config/config_entries/entry`) : la Frame est gérée par l'intégration **custom `samsungtv_smart`** (ollo69, v0.14.5, entrée « Samsung The Frame », chargée), entité **`media_player.samsung_the_frame`** (+ `remote.samsung_the_frame`, état `unknown`). L'entrée native `samsungtv` de la Frame existe mais est **ignorée** (`source: ignore`, non chargée) ; l'entrée native `samsungtv` chargée est celle de TV2. Attributs de la Frame : `source_list` = `TV`, `HDMI` seulement (aucune liste d'apps configurée), `art_mode_status`, `app_id`/`source` = `TV/HDMI`. Services : `media_player.play_media`, `select_source`, `remote.send_command`, `samsungtv_smart.set_art_mode`, `samsungtv_smart.select_picture_mode`.
   - `POST :8001/api/v2/applications/cimaise001.Cimaise` (a) 23:32:41 → `true`, 200, **5,19 s** ; (b) 23:33:47 → `true`, 200, 5,16 s ; (c) 23:34:33 → `true`, 200, 5,15 s. La réponse HTTP arrive après l'affichage (< 2 s vu par Stéphane) : ces 5 s ne mesurent pas la latence. `GET` de cimaise avant et 4 s après chaque `POST` : toujours `"running":false,"visible":false`, **même avec cimaise à l'écran** (confirmé : non fiable).
@@ -249,6 +253,14 @@ Le lancement des apps et les touches marchaient sur TV2 (certificat public Tizen
 **Non testé / non déclenché** :
 - Le repli `<object type="application/avplayer">` (ajouté avant d'avoir le journal, sur l'hypothèse « pas de surface d'affichage sous Tizen 4 ») ne s'est **jamais déclenché** : aucun `INVALID_OPERATION` à l'ouverture sur TV2. Inactif tant que cette erreur n'arrive pas à l'ouverture ; à retirer si on veut un code sans hypothèse.
 - Sur TV2 : sous-titres externes (`setExternalSubtitlePath`), reprise (`seekTo` avant `play`), transcodage HLS, changement de piste manuel.
+
+### Accueil en grille sur TV2 : repli flexbox sans CSS Grid (2026-11-08)
+
+- **Cause** : Chromium 56 (TV2) ne connaît pas CSS Grid (arrive en 57) ; `display:grid` ignoré → tuiles empilées en liste.
+- **Correctif** : bloc `@supports not (display:grid)` dans `home.css` (flex-wrap, largeurs en px, marges à la place de `grid-gap`). La Frame (Grid) l'ignore : aperçu Chromium, rendu avant/après identique au pixel (4/5/6 tuiles, rangées 1 et 2).
+- **Réponse du SDK** : `CIMAISE_TV=tv2` install → « install completed » ; launch → « resumed ».
+- **Observé physiquement (Stéphane)** : l'accueil de TV2 s'affiche en grille de tuiles.
+- **Frame non réinstallée** : son CSS ne gagne qu'un bloc qu'elle ignore ; pas de réinstallation nécessaire.
 
 ### Questions pour Stéphane
 

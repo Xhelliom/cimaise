@@ -831,3 +831,28 @@ test('rendu différé : la mention « officiel » arrive avec le logo de Plex of
   assert.equal(o.children[1].className, 'mention');
   assert.equal(o.children[1].textContent, 'officiel');
 });
+
+// --- Repli sans CSS Grid (TV2 : Chromium 56) ---
+test('repli sans Grid : flex dans @supports not (display:grid), Grid de la Frame intact, largeurs qui tiennent dans le bac', () => {
+  const css = cssOf().replace(/\/\*[\s\S]*?\*\//g, '');
+  // La Frame (Grid) garde ses règles d'origine, hors de tout @supports.
+  assert.match(css, /\n\.home \.rail\{padding:44px;display:grid;grid-template-columns:repeat\(4,1fr\);grid-gap:40px;/);
+  assert.match(css, /\n\.home\.n5 \.rail\{grid-template-columns:repeat\(5,1fr\)\}/);
+  assert.match(css, /\n\.home\.n6 \.rail\{grid-template-columns:repeat\(6,1fr\)\}/);
+  const m = /@supports not \(display:grid\)\{([\s\S]*?\})\s*\}/.exec(css);
+  assert.ok(m, 'bloc @supports not (display:grid) absent');
+  const fb = m[1];
+  assert.doesNotMatch(fb, /nth-child/);
+  for (const sel of fb.match(/[^{}]+(?=\{)/g)) assert.match(sel.trim(), /^\.home(\.n\d)?:not\(\.rangee\) /, 'mode une rangée intouché : ' + sel);
+  const rail = /\.home:not\(\.rangee\) \.rail\{([^}]*)\}/.exec(fb)[1];
+  assert.match(rail, /display:flex/); assert.match(rail, /flex-wrap:wrap/); assert.match(rail, /grid-gap:0/);
+  assert.match(rail, new RegExp('margin:-' + H.GAP + 'px 0 0 -' + H.GAP + 'px'));
+  assert.match(fb, new RegExp('\\.home:not\\(\\.rangee\\) \\.tuile\\{[^}]*flex:none[^}]*margin:' + H.GAP + 'px 0 0 ' + H.GAP + 'px'));
+  const width = (n) => Number(new RegExp((n === 4 ? '\\.home' : '\\.home\\.n' + n) + ':not\\(\\.rangee\\) \\.tuile\\{[^}]*width:([\\d.]+)px').exec(fb)[1]);
+  for (const n of [4, 5, 6]) {
+    const w = width(n), content = H.BAC_W - 2 * H.PAD + H.GAP; // rail élargi d'un écart par la marge négative
+    assert.ok(w <= H.tileW(n) && w > H.tileW(n) - 0.05, n + ' colonnes : ' + w + ' vs ' + H.tileW(n));
+    assert.ok(Math.floor(w * 64) / 64 * n + n * H.GAP <= content, n + ' tuiles tiennent sur une rangée (LayoutUnit 1/64 px)');
+    assert.ok((w + 1 / 64) * (n + 1) + (n + 1) * H.GAP > content, 'la ' + (n + 1) + 'e tuile passe à la ligne');
+  }
+});

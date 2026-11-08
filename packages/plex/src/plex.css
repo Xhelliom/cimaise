@@ -240,3 +240,5 @@
 .plex-home .plex-tab{background:rgba(40,40,44,.75);color:rgba(255,255,255,.8)}
 .plex-home .plex-tab.here{color:#111;background:#e5a00d}
 .plex-home .plex-tab.focus{color:#fff}
+.plex-home .plex-tab.plex-age-tab.on{color:#e5a00d;box-shadow:inset 0 0 0 3px #e5a00d}
+.plex-home .plex-tab.plex-age-tab.on.focus{box-shadow:0 0 0 6px #fff;transform:scale(1.06)}

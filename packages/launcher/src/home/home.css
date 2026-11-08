@@ -43,6 +43,15 @@
 .home.n6 .rail{grid-template-columns:repeat(6,1fr)}
 .home.n6 .tuile{height:136px;border-radius:29px;font-size:30px;padding:0 14px}
 .home.rangee.n6 .tuile{width:238px}
+/* Repli sans CSS Grid (Chromium 56, Tizen 4 : TV2). Ignoré par la Frame (Chromium 63 gère Grid) : son rendu reste celui ci-dessus.
+   Flex à retour à la ligne ; grid-gap = marge haute et gauche de chaque tuile, compensée par une marge négative du rail (aucun nth-child).
+   Largeurs en px, 1fr arrondi par défaut au 1/100 : une rangée ne déborde jamais d’un 1/64 px. La navigation ne lit pas le CSS (model.ts). */
+@supports not (display:grid){
+.home:not(.rangee) .rail{display:flex;flex-wrap:wrap;align-items:flex-start;margin:-40px 0 0 -40px;grid-gap:0}
+.home:not(.rangee) .tuile{flex:none;width:378px;margin:40px 0 0 40px}
+.home.n5:not(.rangee) .tuile{width:294.39px}
+.home.n6:not(.rangee) .tuile{width:238.65px}
+}
 .home .tuile.focus{transform:scale(1.1);box-shadow:0 0 0 6px rgba(255,255,255,.92);position:relative;z-index:1}
 .home .message{position:absolute;left:100px;top:630px;max-width:1720px;padding:18px 36px;border-radius:36px;font-size:32px;font-weight:500;background:rgba(255,255,255,.92);color:#111;z-index:5;opacity:0}
 .home .message.on{opacity:1}

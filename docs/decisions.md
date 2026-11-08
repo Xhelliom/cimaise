@@ -949,3 +949,53 @@ de `c.http` : l'index en arrière-plan échouait (« http is not a function » d
 ## 2026-11-08 — TV2 (Tizen 4.0) : signature avec les anciens certificats Tizen du SDK
 
 TV2 refuse les certificats Samsung émis en 2025 (118012, aucune mise à jour du logiciel proposée). Elle accepte un paquet signé avec un auteur **Tizen** (CLI du SDK) et le signataire distributeur **public historique** du SDK (Tizen Test CA 2012) : la page vide s'affiche (vu par Stéphane). Décision : pour TV2 seulement, un second profil de signature ; la Frame garde le profil Samsung. Auteur TV2 conservé dans `.local/certs/` (identité stable). Reste à valider cimaise elle-même (privilèges `webapis`/AVPlay, touches, lancement d'apps) avant d'en faire une cible. Coût : aucun pour l'app.
+
+## Bibliothèque Plex : filtre par âge (2026-11-08)
+
+Demande de Stéphane : accéder vite au contenu des enfants, sans mode enfant global, sans code, sans réglage. Une troisième
+pilule « Âge » dans chaque bibliothèque, à côté du tri et de « Non vus » : Tous (défaut) → Tous publics → -10 ans → -12 ans,
+à Entrée. Mémorisée par bibliothèque dans `prefs.plexLibrary[clé].age` (champ ajouté sans changer le schéma, absent = Tous ;
+revenir à Tous retire le champ).
+
+- **Grille : filtre serveur** `contentRating=G,PG` sur `/library/sections/{id}/all` et `/firstCharacter` : pagination,
+  compteur et barre alphabétique restent justes. Vérifié sur le serveur du homelab (`scripts/plex/probe-age-filter.mjs`,
+  lecture seule) : les totaux égalent la somme des comptes par classification (Films : G 26, G+PG 80, -12 ans 193 ;
+  Séries : TV-Y 3, -10 ans 11, -12 ans 30), l'index alphabétique somme au même total, et le filtre se combine à `unwatched=1`.
+- **Le filtre est sensible à la casse** (`g` ne trouve rien, `G` 26). Les codes ne sont donc pas devinés depuis la table :
+  on lit les classifications présentes dans la bibliothèque (`/library/sections/{id}/contentRating`, ≈ 1 Ko, en cache une
+  heure) et on garde, **telles que le serveur les écrit**, celles que la table d'`age.ts` place à l'âge choisi ou moins
+  (`ageCodes`, testée sur les valeurs réelles). Les non classés (`Not Rated`, `Passed`, `None`, vide) n'y sont jamais.
+  Aucune classification permise : pas de requête, « Aucun titre de cet âge. ».
+- **Rangées « En cours » / « Ajoutés récemment » : filtre local** sur `contentRating`, sans requête. Séries : la rangée
+  « Ajoutés récemment » porte les séries elles-mêmes ; les épisodes « En cours » portent la classification de leur série
+  (vérifié sur les 6 épisodes en cours le 08/11).
+- **Sur « Tous » : rien ne change** — mêmes URL, mêmes clés de cache, pas de requête `/contentRating`.
+
+Coût : `plex.js` (chargé à la demande) 108,28 → 110,36 Ko (+2,1 Ko minifié, +0,7 Ko gzip) ; `app.js` inchangé ; une requête
+d'≈ 1 Ko à la première activation par bibliothèque, puis le cache.
+
+Limite connue : la classification vient de l'agent de métadonnées. Quelques séries ados sont classées TV-PG aux États-Unis
+(Malcolm, Doctor Who, Bref…) et passent donc en « -10 ans ». Corriger, si besoin, la classification dans Plex.
+
+### Suite : pilule « Âge » sur l'accueil Plex (2026-11-08)
+
+Demande de Stéphane après l'essai sur la Frame : « j'aurais bien mis la pilule dès l'accueil ». Même pilule (Tous → Tous
+publics → -10 ans → -12 ans), au bout de la ligne Rechercher · roue dentée · onglets (Droite depuis le dernier onglet).
+
+- **Filtre local** des rangées En cours, Ajoutés récemment et Pas encore vus (`ageAllowed`, même table) : non classés
+  masqués, rangée vidée masquée, bandeau sur le premier élément restant (vidé si plus rien ne passe).
+- **Saisons : classification de leur série.** Sur le serveur (08/11), les saisons de ces rangées n'ont pas de
+  `contentRating` (7 sur 50 dans Ajoutés récemment, 10 sur 50 dans Pas encore vus) : sans rien de plus, Bluey ou Paw
+  Patrol disparaîtraient. Quand un âge est choisi, chaque bibliothèque de séries donne ses séries permises
+  (`/library/sections/{id}/contentRating` ≈ 1 Ko, puis `/all?type=2&contentRating=…`) ; seuls les ratingKey sont gardés
+  en cache une heure. Mesuré : ≈ 21 Ko de JSON pour -10 ans (11 séries), ≈ 55 Ko pour -12 ans (30 séries), une seule fois par
+  âge et par heure. Écartés : `/library/metadata/k1,k2,…` (165 Ko pour 9 séries) et `includeFields` (ignoré par le serveur).
+  Une saison reste masquée le temps que la réponse arrive.
+- **Mémorisée** dans `prefs.plexHomeAge` (champ ajouté sans changer le schéma ; absent = Tous, « Tous » retire le champ).
+- **Repris par les bibliothèques (choix de Stéphane, 08/11)** : l'âge de l'accueil est le défaut de chaque bibliothèque ; un
+  âge choisi dans une bibliothèque et différent de celui de l'accueil est gardé pour elle et reste prioritaire (y compris
+  « Tous »). Choisir dans une bibliothèque le même âge que l'accueil n'écrit rien : elle continue de suivre l'accueil.
+- Sur « Tous » : mêmes rangées, mêmes requêtes qu'avant.
+
+Coût : `plex.js` (chargé à la demande) 110,36 → 112,71 Ko (+2,4 Ko minifié, +0,6 Ko gzip) ; `app.css` +0,2 Ko ;
+`app.js` inchangé. Réseau : rien sur « Tous » ; sinon les deux requêtes des séries permises ci-dessus, mises en cache.
