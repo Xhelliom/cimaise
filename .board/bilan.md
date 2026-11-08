@@ -1,10 +1,16 @@
 Issue : codé
 
-Fait (tests et documentation, aucun code de l'app modifié, rien d'écrit dans HA ni sur la TV) :
-- HA en lecture : la Frame est gérée par `samsungtv_smart` (custom, ollo69 v0.14.5), entité `media_player.samsung_the_frame` ; l'entrée native `samsungtv` de la Frame est ignorée.
-- `POST` Smart View testé dans les 3 états, vu par Stéphane : depuis Netflix ou le Smart Hub, cimaise revient en < 2 s en reprenant son état ; si cimaise est déjà affichée, rien ne se passe. Pas d'autorisation demandée.
-- Un appel HA `media_player.play_media` (type app) : cimaise s'ouvre (< 2 s), mais seulement après qu'une demande d'autorisation « Home Assistant » a été acceptée → voie retenue : `rest_command` (le POST Smart View).
-- TV Plus au premier plan : HA affiche `TV/HDMI` comme partout ailleurs ; l'API Smart View renvoie 404 pour TV Plus ; `running`/`visible` non fiables (confirmé). HA ne peut pas savoir que TV Plus est à l'écran ; il faudrait que cimaise signale qu'elle est masquée (piste 6).
-- Consigné dans docs/tv-status.md (observé / réponses HTTP / non testé) et conclu dans docs/home-button.md.
+Fait (08/11/2026) :
+- Étape 1 (Stéphane) consignée : TV2 à l'heure (15h33, 8/11/26), aucune mise à jour du logiciel proposée.
+- Étape 2 : une seule installation de la page vide en required_version="4.0" (copie temporaire, apps/blank inchangé),
+  IP via une copie temporaire de .local/tizen.env.tv2 (supprimée ensuite). Sortie complète dans docs/tv-status.md (section TV2,
+  « Résultat du test »), sans IP ni DUID.
+- Erreur de TV2 : `install failed[118012]` seulement ; vd_appinstall sur Tizen 4 ne donne pas le texte long.
+- Hypothèse « horloge » écartée ; « nouvelle CA » retenue (très probable, non prouvée par le texte) ; SHA-512 reste seule alternative.
 
-Pas fait (hors périmètre de cette carte) : création du `rest_command` dans HA, test du POST lancé depuis HA lui-même, mode Art / veille, SmartThings, `getAppsContext()` (simple analyse, l'app n'a pas été modifiée).
+Pas fait :
+- Message long (« Invalid certificate chain ») : la TV ne le donne pas ; l'obtenir demanderait une 2e installation via `tizen install`.
+- Essai en signature SHA-256 : proposé, non essayé (accord requis).
+- Ce que TV2 affichait à l'écran pendant l'installation : à confirmer par Stéphane.
+
+Non touchés : .local/tizen.env, firmware de TV2.
