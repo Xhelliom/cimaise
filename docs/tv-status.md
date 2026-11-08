@@ -243,6 +243,12 @@ Piste trouvée en ligne ([Apps2Samsung PR #990](https://github.com/Apps2Samsung/
 ### Accueil : plus de nom avant le logo au démarrage (2026-11-08)
 
 - **Réponse du SDK** : Frame et TV2, « install completed » + app présente dans la liste (mise à jour sur place, `cimaise001`).
+- **Observé sur TV2 (photo du diagnostic par Stéphane, 08/11, user agent Tizen 4.0)**, version avec repli à 400 ms compté depuis
+  `enrich()` : `storageRead +23`, `catalogLoaded +39`, `homeBuilt/firstPaint/interactive +627`, `painted +770`, `enriched +787`,
+  **`noms en repli ×7 +1884`**, `logos +2083` ms ; mémoire JS 10 Mo. Les 7 noms se sont donc affichés ≈ 200 ms avant les
+  logos. Latence non relevée (aucun appui avant la touche 0). Aucun relevé antérieur de `firstPaint` sur TV2 pour comparer.
+  → délai porté à 3 s (voir decisions.md), réinstallé sur les deux TV.
+- **Réponse « Aucun nom » de Stéphane** au lancement à froid : à rattacher à la bonne TV (la photo jointe est celle de TV2).
 - **Non observé encore** : au lancement à froid, les tuiles doivent apparaître en aplats de couleur, puis les logos en fondu,
   sans jamais montrer le nom d’une app à logo. À confirmer par Stéphane, avec le diagnostic (touche 0) : `firstPaint` et
   latence max à comparer avec les relevés précédents.

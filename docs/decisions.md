@@ -1011,10 +1011,15 @@ premier rendu minimal (ci-dessus) posait le nom, puis `enrich()` le remplaçait 
   (la mention « officiel » suit le même fondu). Entre les deux, `getComputedStyle(img).opacity` force le calcul du style
   (pas de mise en page) ; sans lui, pas de fondu. Le test CSS interdit `@keyframes`/`animation` : transition seulement.
 - **Le nom en repli** : si toutes les variantes échouent (`applyIcon` reçoit `onFailed`), ou si la tuile est encore muette
-  400 ms après le **début du chargement des logos** (`enrich()`, après la 1re peinture ; **une** minuterie ponctuelle pour
+  **3 s** après le **début du chargement des logos** (`enrich()`, après la 1re peinture ; **une** minuterie ponctuelle pour
   toutes les tuiles, annulée par `destroy`/`setCatalog`) ; un logo arrivé plus tard remplace alors le nom. Compté depuis le
   premier rendu (1re version), le délai pouvait échoir pendant le script de démarrage de la Frame (+583 ms relevés avant
   `firstPaint`) : les noms seraient apparus dès la 1re image, exactement le défaut signalé.
+- **Délai porté de 400 ms à 3 s (mesure sur TV2, 08/11, photo du diagnostic)** : `enriched +787` → `noms en repli ×7 +1884` →
+  `logos +2083` ms. Les logos mettent ≈ 1,3 s après `enrich()` sur TV2 ; la minuterie (prévue à +1187, servie à +1884, fil
+  principal occupé par le chargement et le décodage) a montré les 7 noms ≈ 200 ms : le défaut signalé. Les logos sont des
+  fichiers locaux du `.wgt` : un logo illisible échoue tout de suite (`onerror` → nom), le délai ne couvre qu'un chargement
+  bloqué ; 3 s = plus de deux fois la durée mesurée sur TV2.
 - **Diagnostic (touche 0)** : marque `logos` quand tous les logos sont posés ou en échec (mesure leur durée sur la TV) ;
   marque `noms en repli ×N` seulement si le repli a joué (N tuiles ont montré leur nom).
 - `setCatalog` (après Découvrir) passe par le même chemin : plus d'`<img>` posée vide dans la tuile.
@@ -1022,7 +1027,7 @@ premier rendu minimal (ci-dessus) posait le nom, puis `enrich()` le remplaçait 
   rendu, suspect relevé sur la Frame) ; la couleur de marque, elle, est sur la tuile dès le premier rendu.
 - Titre et description sous les tuiles : inchangés.
 
-Coût : +0,4 Ko de JS environ, +2 règles CSS, une minuterie ponctuelle de 400 ms au démarrage, aucune ressource.
+Coût : +0,5 Ko de JS environ, +3 règles CSS, une minuterie ponctuelle de 3 s après `enrich()`, aucune ressource.
 
 Avant (HEAD 34d3a2d) / après, aperçu bridé (Chromium 155 sans écran, 1920×1080, 20 appuis gauche/droite espacés de 400 ms,
 diagnostic touche 0) ; ms, passes à froid séparées par « / » :
