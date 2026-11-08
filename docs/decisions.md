@@ -1000,6 +1000,54 @@ publics → -10 ans → -12 ans), au bout de la ligne Rechercher · roue dentée
 Coût : `plex.js` (chargé à la demande) 110,36 → 112,71 Ko (+2,4 Ko minifié, +0,6 Ko gzip) ; `app.css` +0,2 Ko ;
 `app.js` inchangé. Réseau : rien sur « Tous » ; sinon les deux requêtes des séries permises ci-dessus, mises en cache.
 
+## Icône de l'app au format paysage 512×423 (2026-11-08)
+
+**Constat (Stéphane, photo du 08/11).** Dans la barre du Smart Hub de la Frame, la tuile de cimaise (icône carrée 117×117)
+est plus haute que large, alors que les autres apps ont une tuile paysage remplie par leur visuel.
+
+**Format vérifié dans la doc Samsung (lue directement le 2026-11-08).**
+- *Smart TV Application Design Q&A* (developer.samsung.com/smarttv/design/smart-tv-application-design-qa.html), Q3 :
+  « The 117x117 px icon is an application icon used when you test your TV application. It is not shown on published
+  applications. » L'icône des apps publiées est celle déposée au Seller Office, affichée « when the published application
+  is installed on a TV ».
+- *App Icons and Screenshots* (developer.samsung.com/smarttv/design/app-icons-and-screenshots.html) : « 512x423 Application
+  Icon », **PNG 24 bits RVB (sans transparence)**, < 300 Ko, image simple avec de l'espace autour ; et, pour les TV récentes,
+  un couple logo + fond 1920×1080. Aucune des deux pages ne parle de l'`<icon>` de `config.xml` : appliquer 512×423 à notre
+  icône est une **extrapolation**, à valider à l'œil sur la Frame.
+
+**Icône.** `packages/launcher/brand/icon.svg` : fond de la tuile verre-2 plein cadre (512×423) et symbole de `logo.svg`
+centré à 92 %. Rendu `resvg -w 512 -h 423`, puis `oxipng -o max --strip all` : PNG RVB 8 bits sans alpha, **37 092 octets**
+(117×117 : 5 648 octets ; **+31 444 octets**, +30,7 Ko). `config.xml` inchangé (`<icon src="icon.png"/>`).
+
+**Coût.** Uniquement le poids du `.wgt` (PNG déjà compressé : quasiment le même écart dans le zip), soit environ 175 Ko au
+total pour un budget de 1,5 Mo. Aucun effet sur le JS ni sur le démarrage (image lue par le Smart Hub, jamais par l'app).
+
+**Résultat sur la Frame (2026-11-08) : pas de tuile paysage.** Installation par-dessus, redémarrage complet, version passée à
+0.0.2 (`config.xml`, pour invalider un éventuel cache par version), puis désinstallation et installation propre avec l'accord
+explicite de Stéphane : la tuile reste verticale (détail des essais dans `docs/tv-status.md`). Recherche web : aucune source ne
+documente l'affichage de l'`<icon>` d'une app hors Store dans la barre ; seules pistes trouvées, désinstaller/réinstaller (fait)
+et réinitialiser le Smart Hub (écartée : efface les connexions de toutes les apps). **On garde l'icône 512×423** (nette,
+conforme au format Samsung, coût +30,7 Ko) ; prochain essai proposé : variante 1:1 transparente.
+
+**Mise à jour, même soir : résolu avec la tuile « cimaise » en 512×423.** Stéphane attendait la tuile avec le mot (`tile.svg`),
+pas le symbole seul : avec le symbole seul (fond plein ou transparent), il ne distinguait pas l'ancienne icône de la nouvelle.
+Il a ensuite confirmé que la tuile était déjà plus large avec la 512×423. Essais suivants, tous installés **par-dessus** (pas de
+nouvelle désinstallation), icône rafraîchie à chaque fois :
+- variante **1:1 transparente** (`brand/icon-carre.svg`, 512×512 RVBA, 26 091 o) : installée, sans retour de Stéphane, abandonnée ;
+- **tuile 16:9 avec le mot** (640×360, 31 023 o) : affichée mais **écrasée** horizontalement. Le Smart Hub étire donc l'icône
+  dans une tuile de format fixe, plus étroite que du 16:9 ;
+- **tuile avec le mot recadrée en 512×423** (`brand/icon-tuile.svg`, recadrage de `tile.svg`) : non déformée, le texte rend
+  bien, mais la tuile reste **moins allongée** que celles de Netflix ou Plex. Acceptée « pour cette fois » (Stéphane, 08/11).
+  **Retenue.**
+
+**Conclusion.** Pour une app hors Store sur la Frame 2019, le Smart Hub affiche l'`<icon>` de `config.xml` dans une tuile de
+format fixe ≈ 512×423, en l'étirant au besoin : il faut fournir l'icône à ce format. Les apps du Store ont des tuiles plus
+allongées, tirées des visuels du Seller Office : **hors d'atteinte** avec l'`<icon>` de `config.xml` (aucun réglage trouvé). Le premier refus de rafraîchir (cache) a
+cessé après la désinstallation ; depuis, une installation par-dessus suffit.
+
+**Coût retenu.** `apps/tv/icon.png` (tuile 512×423, RVB) : **29 175 octets**, soit +23 527 o par rapport au 117×117. `.wgt`
+signé : 215 189 o (budget 1,5 Mo). Aucun effet sur le JS ni sur le démarrage.
+
 ### Accueil : plus de nom d'app avant le logo au démarrage (2026-11-08)
 
 Remarque de Stéphane (08/11) : au lancement, les tuiles montrent leur nom une fraction de seconde avant le logo. Cause : le
