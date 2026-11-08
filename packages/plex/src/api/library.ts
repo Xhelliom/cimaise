@@ -51,6 +51,19 @@ export function getSectionRatings(http: Http, id: Identity, s: ServerRef, sectio
   });
 }
 
+// Séries d'une bibliothèque dont la classification est dans `ratings` (filtre par âge de l'accueil) : seuls les ratingKey
+// sont gardés. Les saisons des rangées de l'accueil n'ont pas de contentRating (vérifié le 08/11) : on les juge sur leur série.
+// Mesuré le 08/11 : 11 séries (-10 ans) ≈ 21 Ko de JSON, 30 (-12 ans) ≈ 55 Ko ; /library/metadata/k1,k2… coûte 165 Ko pour 9
+// séries et includeFields est ignoré par le serveur, d'où ce choix.
+export function getShowKeys(http: Http, id: Identity, s: ServerRef, sectionKey: string, ratings: string[], cb: Callback<string[]>) {
+  return serverGet(http, id, s, '/library/sections/' + encodeURIComponent(sectionKey) + '/all?type=2' + filterQuery({ ratings: ratings }), null, function (err, j) {
+    if (err) return cb(err);
+    var l = items(j), out: string[] = [];
+    for (var i = 0; i < l.length; i++) out.push(String(l[i].ratingKey));
+    cb(null, out);
+  });
+}
+
 export function getOnDeck(http: Http, id: Identity, s: ServerRef, cb: Callback<Item[]>) {
   return serverGet(http, id, s, '/library/onDeck', null, function (err, j) { err ? cb(err) : cb(null, items(j)); });
 }

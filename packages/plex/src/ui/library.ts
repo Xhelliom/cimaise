@@ -27,20 +27,31 @@ export var SORTS = [
 var TITLE = 1;
 
 // Choix d'une bibliothèque : prefs.plexLibrary[clé de section] = { sort, unwatched, age } dans cimaise.v1
-// (champs ajoutés sans changer le schéma : absent ou inconnu = tri par titre, tout afficher, tous âges).
+// (champs ajoutés sans changer le schéma : absent ou inconnu = tri par titre, tout afficher, âge de l'accueil).
+// Âge : celui choisi sur l'accueil (prefs.plexHomeAge, absent = Tous) sert de défaut ; un âge choisi dans la bibliothèque
+// et différent de celui de l'accueil est gardé pour elle et reste prioritaire (choix de Stéphane, 08/11).
+export function loadHomeAge(store?: Storage): string { return ageFilter(loadStored(store).prefs.plexHomeAge).id; }
+export function saveHomeAge(id: string, store?: Storage): void {
+  try {
+    var data = loadStored(store);
+    if (id === AGE_FILTERS[0].id) delete data.prefs.plexHomeAge; else data.prefs.plexHomeAge = id;   // « Tous » : rien d'écrit
+    saveStored(data, store);
+  } catch (e) { /* stockage refusé : le choix vaut pour cette ouverture seulement */ }
+}
 export interface LibraryChoice { sort: string; unwatched: boolean; age?: string; }
 export function loadLibraryChoice(sectionKey: string, store?: Storage): LibraryChoice {
   var all = loadStored(store).prefs.plexLibrary, v = all && typeof all === 'object' ? all[sectionKey] : null;
   var sort = v && typeof v.sort === 'string' ? v.sort : SORTS[TITLE].id;
   for (var i = 0; i < SORTS.length && SORTS[i].id !== sort; i++) { /* recherche */ }
-  return { sort: i < SORTS.length ? sort : SORTS[TITLE].id, unwatched: !!(v && v.unwatched === true), age: ageFilter(v && v.age).id };
+  return { sort: i < SORTS.length ? sort : SORTS[TITLE].id, unwatched: !!(v && v.unwatched === true), age: v && typeof v.age === 'string' ? ageFilter(v.age).id : loadHomeAge(store) };
 }
+function homeAge(data: any): string { return ageFilter(data.prefs.plexHomeAge).id; }
 export function saveLibraryChoice(sectionKey: string, choice: LibraryChoice, store?: Storage): void {
   try {
     var data = loadStored(store);
     var all = data.prefs.plexLibrary && typeof data.prefs.plexLibrary === 'object' ? data.prefs.plexLibrary : {};
     var o: any = { sort: choice.sort, unwatched: choice.unwatched };
-    if (choice.age && choice.age !== AGE_FILTERS[0].id) o.age = choice.age;   // « Tous » : rien d'écrit
+    if (choice.age && choice.age !== homeAge(data)) o.age = choice.age;   // même âge que l'accueil : il le suit, rien d'écrit
     all[sectionKey] = o;
     data.prefs.plexLibrary = all;
     saveStored(data, store);

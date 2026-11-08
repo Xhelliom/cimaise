@@ -1,5 +1,5 @@
 import { Callback, Http, Identity, Item, Letter, Page, Section, ServerRef } from '../api/types';
-import { getChildren, getFirstCharacter, getMetadata, getOnDeck, getRecentlyAdded, getRecentlyAddedUnwatched, getSectionItems, getSectionOnDeck, getSectionRatings, getSectionRecent, getSections, LibraryView, TITLE_VIEW, filterQuery, viewQuery } from '../api/library';
+import { getChildren, getFirstCharacter, getMetadata, getOnDeck, getRecentlyAdded, getRecentlyAddedUnwatched, getSectionItems, getSectionOnDeck, getSectionRatings, getShowKeys, getSectionRecent, getSections, LibraryView, TITLE_VIEW, filterQuery, viewQuery } from '../api/library';
 import { Cache } from './cache';
 
 export type Cancel = () => void;
@@ -61,6 +61,8 @@ export interface Data {
   letters(sectionKey: string, on: On<Letter[]>, err?: Err, view?: LibraryView): Cancel;
   // Classifications présentes dans la bibliothèque (filtre par âge), en cache une heure comme la liste des bibliothèques.
   ratings(sectionKey: string, on: On<string[]>, err?: Err): Cancel;
+  // ratingKey des séries de la bibliothèque classées dans `codes` (filtre par âge des saisons de l'accueil), en cache une heure.
+  showKeys(sectionKey: string, codes: string[], on: On<string[]>, err?: Err): Cancel;
   metadata(ratingKey: string, on: On<Item>, err?: Err, withOnDeck?: boolean): Cancel;
   children(ratingKey: string, on: On<Item[]>, err?: Err): Cancel;
   // Retour de lecture : la fiche est corrigée sur place, « En cours » et les parents (saison, série) sont rechargés.
@@ -179,6 +181,9 @@ export function createData(http: Http, id: Identity, s: ServerRef, cache: Cache)
       // Sans filtre : clé d'origine ; non vus seuls : ':u' (cache déjà présent) ; sinon la requête elle-même.
       var f = view ? filterQuery(view) : '', q = !f ? '' : f === '&unwatched=1' ? ':u' : ':' + f;
       return load<Letter[]>('l:' + key + q, TTL_PAGE, function (cb) { return getFirstCharacter(http, id, s, key, cb, view); }, same, on, err);
+    },
+    showKeys: function (key, codes, on, err) {
+      return load<string[]>('sk:' + key + ':' + codes.join(','), TTL_SECTIONS, function (cb) { return getShowKeys(http, id, s, key, codes, cb); }, same, on, err);
     },
     ratings: function (key, on, err) {
       return load<string[]>('cr:' + key, TTL_SECTIONS, function (cb) { return getSectionRatings(http, id, s, key, cb); }, same, on, err);

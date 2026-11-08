@@ -178,7 +178,7 @@ test('accueil : deux rangées et des onglets de bibliothèques, affichage imméd
   const cold = deps({ store, http: fakeHttp([], { silent: true }) });
   const p = ui.createHomePanel(cold.arg);
   assert.deepEqual(shownTitles(p), ['En cours', 'Ajoutés récemment'], '« Pas encore vus » vide : masquée');
-  assert.deepEqual(byClass(p.el, 'plex-tab').map((n) => n.textContent), ['Accueil', 'Films', 'Séries'], 'onglets depuis le cache (bibliothèques vidéo seulement)');
+  assert.deepEqual(byClass(p.el, 'plex-tab').map((n) => n.textContent), ['Accueil', 'Films', 'Séries', 'Âge : Tous'], 'onglets depuis le cache (bibliothèques vidéo seulement), pilule Âge au bout');
   assert.ok(texts(p.el).some((t) => /Titre de série 1/.test(t)), 'tuiles de la rangée En cours déjà là');
   const s = srcs(byClass(p.el, 'plex-home-rows')[0]);
   assert.ok(s.length > 0);
@@ -253,8 +253,12 @@ test('accueil, en-tête sur une ligne : Rechercher · roue · onglets parcourus 
   assert.deepEqual(focused(), ['plex-search-btn'], 'Haut, Haut depuis la rangée → Rechercher (comme avant)');
   p.onKey('right'); p.onKey('right');
   assert.deepEqual(focused(), ['Films'], 'roue → 1er onglet');
-  p.onKey('right'); p.onKey('right'); p.onKey('right');
-  assert.deepEqual(focused(), ['Séries'], 'Droite bornée au dernier onglet');
+  p.onKey('right');
+  assert.deepEqual(focused(), ['Séries']);
+  p.onKey('right'); p.onKey('right');
+  assert.deepEqual(focused(), ['Âge : Tous'], 'dernier onglet → pilule Âge, Droite bornée');
+  p.onKey('left');
+  assert.deepEqual(focused(), ['Séries'], 'Gauche revient au dernier onglet');
   p.onKey('left'); p.onKey('left');
   assert.deepEqual(focused(), ['plex-gear-btn'], 'Gauche depuis le 1er onglet → roue dentée (« Accueil » n’est pas focalisable)');
   p.onKey('left');
@@ -711,6 +715,116 @@ test('âge : aucune classification permise dans la bibliothèque → aucune page
   assert.ok(texts(p.el).includes('Aucun titre de cet âge.'));
   assert.ok(bar(p).classList.contains('off'));
   p.destroy();
+});
+
+// ---- filtre par âge sur l'accueil --------------------------------------------------------------------------------
+function homeAgeRoutes() {
+  const m = (n, cr, type = 'movie') => ({ ratingKey: String(n), type, title: 'H' + n + ' ' + (cr || '?'), contentRating: cr, thumb: '/t/' + n });
+  const list = (...l) => JSON.stringify({ MediaContainer: { Metadata: l } });
+  return [
+    [/\/library\/onDeck/, list(m(1, 'TV-MA', 'episode'), m(2, 'TV-Y', 'episode'), m(3, 'PG-13'))],
+    [/\/library\/recentlyAdded\?unwatched=1/, list(m(4, 'R'), m(5), m(6, 'NC-17'))],
+    [/\/library\/recentlyAdded/, list(m(7, 'G'), m(8, 'Not Rated'), m(9, 'PG'), m(10, 'R'),
+      { ratingKey: '11', type: 'season', title: 'Saison 1', parentRatingKey: '50', parentTitle: 'Série enfants' },
+      { ratingKey: '12', type: 'season', title: 'Saison 2', parentRatingKey: '60', parentTitle: 'Série adultes' })],
+    // Bibliothèque de séries (clé 2) : classifications présentes, puis séries permises pour les codes demandés.
+    [/\/library\/sections\/2\/contentRating/, JSON.stringify({ MediaContainer: { Directory: [{ title: 'TV-Y' }, { title: 'TV-PG' }, { title: 'TV-MA' }] } })],
+    [/\/library\/sections\/2\/all\?type=2&contentRating=/, (req) => JSON.stringify({ MediaContainer: { Metadata: /TV-Y/.test(req.url) ? [{ ratingKey: '50' }] : [] } })],
+    ...serverRoutes(),
+  ];
+}
+const homeRow = (p, k) => byClass(byClass(p.el, 'plex-row')[k], 'vlabel').map((x) => x.textContent).filter(Boolean);
+const agePillOf = (p) => byClass(p.el, 'plex-age-tab')[0];
+const bandTitle = (p) => byClass(p.el, 'plex-band-title')[0].textContent;
+
+test('accueil, âge : sur « Tous », rangées entières, rien d’écrit, aucune requête liée à l’âge', async () => {
+  const store = memStore();
+  const d = deps({ store, http: fakeHttp(homeAgeRoutes()) });
+  const p = ui.createHomePanel(d.arg);
+  await tick(); await tick();
+  assert.equal(agePillOf(p).textContent, 'Âge : Tous');
+  assert.ok(!agePillOf(p).classList.contains('on'));
+  assert.deepEqual(shownTitles(p), ['En cours', 'Ajoutés récemment', 'Pas encore vus']);
+  assert.equal(homeRow(p, 1).length, 6, 'tout, saisons comprises');
+  assert.ok(!d.arg.http.calls.some((c) => /contentRating/.test(c.url)), 'aucune requête liée à l’âge');
+  assert.equal(JSON.parse(store.getItem('cimaise.v1') || '{"prefs":{}}').prefs.plexHomeAge, undefined);
+  p.destroy();
+});
+
+test('accueil, âge : pilule au bout des onglets ; filtre local des 3 rangées, non classés masqués, rangée vide masquée, bandeau suivant', async () => {
+  const store = memStore();
+  const d = deps({ store, http: fakeHttp(homeAgeRoutes()) });
+  const p = ui.createHomePanel(d.arg);
+  await tick(); await tick();
+  let before = d.arg.http.calls.length;
+  p.onKey('up'); p.onKey('right'); p.onKey('right');        // Films → Séries → Âge
+  assert.ok(agePillOf(p).classList.contains('focus'));
+  p.onKey('enter');                                         // Tous publics
+  assert.deepEqual([agePillOf(p).textContent, agePillOf(p).classList.contains('on')], ['Âge : Tous publics', true]);
+  assert.deepEqual(shownTitles(p), ['En cours', 'Ajoutés récemment'], '« Pas encore vus » vidée : masquée');
+  assert.deepEqual(homeRow(p, 0), ['H2 TV-Y']);
+  assert.deepEqual(homeRow(p, 1), ['H7 G'], 'non classé (Not Rated) masqué ; saisons en attente de leur série');
+  await tick(); await tick();
+  assert.deepEqual(d.arg.http.calls.slice(before).map((c) => c.url.replace(/^.*\/library/, '')),
+    ['/sections/2/contentRating', '/sections/2/all?type=2&contentRating=TV-Y'], 'séries permises : bibliothèque de séries seulement');
+  assert.equal(homeRow(p, 1).length, 2, 'saison de la série permise affichée');
+  assert.ok(byClass(byClass(p.el, 'plex-row')[1], 'vlabel').some((x) => /Série enfants/.test(x.textContent)), 'saison de la série enfants');
+  assert.ok(!byClass(p.el, 'vlabel').some((x) => /Série adultes/.test(x.textContent)), 'saison d’une série non permise masquée');
+  before = d.arg.http.calls.length;
+  assert.equal(bandTitle(p), 'H2 TV-Y', 'bandeau sur le 1er élément restant');
+  p.onKey('enter');                                         // -10 ans
+  await tick(); await tick();
+  assert.equal(homeRow(p, 1).filter((t) => /^H/.test(t)).join(','), 'H7 G,H9 PG');
+  p.onKey('enter');                                         // -12 ans
+  await tick(); await tick();
+  assert.deepEqual(homeRow(p, 0), ['H2 TV-Y', 'H3 PG-13']);
+  assert.ok(d.arg.http.calls.slice(before).every((c) => /\/sections\/2\/all\?type=2&contentRating=/.test(c.url)), 'seule requête : les séries permises du nouvel âge');
+  assert.equal(JSON.parse(store.getItem('cimaise.v1')).prefs.plexHomeAge, '12');
+  p.onKey('down');
+  assert.equal(byClass(p.el, 'focus').length, 1, 'Bas → rangée');
+  p.destroy();
+  const q = ui.createHomePanel(deps({ store, http: fakeHttp(homeAgeRoutes()) }).arg);
+  await tick(); await tick();
+  assert.equal(agePillOf(q).textContent, 'Âge : -12 ans', 'mémorisé');
+  assert.equal(homeRow(q, 1).filter((t) => /^H/.test(t)).join(','), 'H7 G,H9 PG');
+  q.onKey('up'); q.onKey('right'); q.onKey('right'); q.onKey('enter');   // → Tous
+  assert.equal(JSON.parse(store.getItem('cimaise.v1')).prefs.plexHomeAge, undefined, 'Tous : champ retiré');
+  assert.deepEqual(shownTitles(q), ['En cours', 'Ajoutés récemment', 'Pas encore vus']);
+  q.destroy();
+});
+
+test('accueil, âge : tout filtré → aucune rangée, bandeau vidé, focus sur la pilule', async () => {
+  const store = memStore();
+  const routes = [[/\/library\/(onDeck|recentlyAdded)/, JSON.stringify({ MediaContainer: { Metadata: [{ ratingKey: '1', type: 'movie', title: 'Adulte', contentRating: 'R' }] } })], ...serverRoutes()];
+  const p = ui.createHomePanel(deps({ store, http: fakeHttp(routes) }).arg);
+  await tick(); await tick();
+  p.onKey('up'); p.onKey('right'); p.onKey('right'); p.onKey('enter');
+  assert.deepEqual(shownTitles(p), []);
+  assert.equal(bandTitle(p), '');
+  assert.equal(p.onKey('down'), true, 'Bas sans rangée : retenu');
+  assert.ok(agePillOf(p).classList.contains('focus'));
+  p.destroy();
+});
+
+test('âge : celui de l’accueil sert de défaut aux bibliothèques ; un choix propre à une bibliothèque reste prioritaire', async () => {
+  const store = memStore();
+  store.setItem('cimaise.v1', JSON.stringify({ version: 4, prefs: { plexHomeAge: '10' } }));
+  assert.equal(ui.loadLibraryChoice('1', store).age, '10', 'défaut repris de l’accueil');
+  const d = deps({ store, http: fakeHttp(ageRoutes()) });
+  const p = ui.createLibraryPanel(d.arg, { key: '1', title: 'Films' });
+  await tick(); await tick();
+  assert.equal(pills(p)[2].textContent, 'Âge : -10 ans');
+  assert.ok(allCalls(d).some((c) => /contentRating=G,PG(&|$)/.test(c.url)), 'grille filtrée dès l’ouverture');
+  p.onKey('up'); p.onKey('right'); p.onKey('right'); p.onKey('enter');   // -10 → -12 : propre à Films
+  p.destroy();
+  assert.equal(JSON.parse(store.getItem('cimaise.v1')).prefs.plexLibrary[1].age, '12');
+  const h = JSON.parse(store.getItem('cimaise.v1')); h.prefs.plexHomeAge = 'tp'; store.setItem('cimaise.v1', JSON.stringify(h));
+  assert.equal(ui.loadLibraryChoice('1', store).age, '12', 'choix de la bibliothèque prioritaire');
+  assert.equal(ui.loadLibraryChoice('2', store).age, 'tp', 'autre bibliothèque : suit l’accueil');
+  h.prefs.plexLibrary[1].age = 'all'; store.setItem('cimaise.v1', JSON.stringify(h));
+  assert.equal(ui.loadLibraryChoice('1', store).age, 'all', '« Tous » choisi dans la bibliothèque : gardé malgré l’accueil');
+  ui.saveLibraryChoice('2', { sort: 'title', unwatched: false, age: 'tp' }, store);
+  assert.equal(JSON.parse(store.getItem('cimaise.v1')).prefs.plexLibrary[2].age, undefined, 'même âge que l’accueil : rien d’écrit, il le suit');
 });
 
 // ---- fiche ---------------------------------------------------------------------------------------------------

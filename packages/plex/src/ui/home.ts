@@ -9,6 +9,8 @@ import { createSettingsPanel } from './settings';
 import { createSearchPanel, ensureSearch } from './search';
 import { POSTER } from './images';
 import { createBand } from './band';
+import { AGE_FILTERS, ageAllowed, ageCodes, ageFilter } from './age';
+import { loadHomeAge, saveHomeAge } from './library';
 
 // Bandeau (maquette du 07/11, variante A) : fixe sur les 480 px du haut, avec l'en-tête sur une ligne (Rechercher, roue dentée,
 // onglets). Les rangées défilent dessous, dans une zone découpée (.plex-home-rows, y = 488) : la rangée active y est toujours
@@ -18,8 +20,9 @@ var GAP = 48;
 // L'index des titres (recherche) se construit en arrière-plan une fois l'accueil posé : il ne dispute rien au premier affichage.
 var INDEX_DELAY = 1500;
 
-interface Hub { title: string; box: HTMLElement; list: VirtualList; items: any[]; }
-type Zone = 'head' | 'tabs' | 'rows';
+// `all` : rangée telle que reçue ; `items` : ce qui passe le filtre par âge (les mêmes sur « Tous »).
+interface Hub { title: string; box: HTMLElement; list: VirtualList; items: any[]; all: any[]; }
+type Zone = 'head' | 'tabs' | 'age' | 'rows';
 
 // Roue dentée en CSS (6 blocs, 0 image, 0 SVG) : 4 barres croisées = 8 dents, un disque, un trou de la couleur du bouton.
 function gear(doc: Document): HTMLElement {
@@ -32,7 +35,8 @@ function gear(doc: Document): HTMLElement {
 
 // Accueil (maquettes du 30/10 et du 07/11) : bandeau de l'élément sélectionné, en-tête sur une ligne (« Rechercher un film,
 // une série… », roue dentée des Réglages Plex, onglets en pilules des bibliothèques), puis les rangées En cours, Ajoutés
-// récemment et Pas encore vus. Haut depuis la 1re rangée → onglets.
+// récemment et Pas encore vus. Haut depuis la 1re rangée → onglets. Au bout de la ligne, la pilule « Âge » filtre les rangées
+// localement (aucune requête) et sert de défaut aux bibliothèques (prefs.plexHomeAge, absent = Tous).
 // Les rangées vides disparaissent ; les rangées à plus d'une rangée du visible (au-dessus comme en dessous) sont libérées ;
 // une rangée partiellement visible garde ses images.
 export function createHomePanel(arg: PlexArg): Panel {
@@ -69,6 +73,9 @@ export function createHomePanel(arg: PlexArg): Panel {
   var tabEls: HTMLElement[] = [];
   var cancels: Array<() => void> = [];
   var held = false;
+  var age = loadHomeAge(arg.store);
+  var showSecs = '';   // bibliothèques de séries pour lesquelles les séries permises ont été demandées
+  var agePill = el(doc, 'plex-tab');
 
   function loaded(): boolean { return visible().length > 0 || sections.length > 0; }
   function visible(): Hub[] { return hubs.filter(function (h) { return h.items.length > 0; }); }
@@ -86,7 +93,7 @@ export function createHomePanel(arg: PlexArg): Panel {
 
   function addHub(title: string, tile: (it: any, withImage: boolean) => any, open: (it: any) => void): Hub {
     var box = el(doc, 'plex-row'), more = el(doc, 'plex-more');
-    var h: Hub = { title: title, box: box, items: [], list: null as any };
+    var h: Hub = { title: title, box: box, items: [], all: [], list: null as any };
     h.list = createRow({
       container: box, doc: doc, count: 0, itemW: POSTER.w, itemH: POSTER.h + 72, gap: GAP, viewportW: 1800, viewportH: POSTER.h + 72, edge: more,
       render: function (i) { return h.items[i] ? tile(h.items[i], wants(h)) : null; },
@@ -108,7 +115,10 @@ export function createHomePanel(arg: PlexArg): Panel {
     tabsBox.appendChild(el(doc, 'plex-tab here', 'Accueil'));
     tabEls = [];
     for (var i = 0; i < l.length; i++) { var t = el(doc, 'plex-tab', l[i].title); tabsBox.appendChild(t); tabEls.push(t); }
+    tabsBox.appendChild(agePill);
     if (tabIdx > l.length - 1) tabIdx = Math.max(0, l.length - 1);
+    var keys = l.map(function (x) { return x.type === 'show' ? x.key : ''; }).join(',');
+    if (keys !== showSecs) { showSecs = keys; loadShows(); }
     relayout();
   }
 
@@ -140,6 +150,9 @@ export function createHomePanel(arg: PlexArg): Panel {
     searchBtn.className = z === 'head' && headIdx === 0 ? 'plex-search-btn focus' : 'plex-search-btn';
     gearBtn.className = z === 'head' && headIdx === 1 ? 'plex-gear-btn focus' : 'plex-gear-btn';
     for (var t = 0; t < tabEls.length; t++) tabEls[t].className = z === 'tabs' && t === tabIdx ? 'plex-tab focus' : 'plex-tab';
+    var a = ageFilter(age);
+    agePill.textContent = 'Âge : ' + a.label;
+    agePill.className = 'plex-tab plex-age-tab' + (a.max !== undefined ? ' on' : '') + (z === 'age' ? ' focus' : '');
     status.textContent = loaded() ? '' : status.textContent;
     follow();
   }
@@ -147,15 +160,62 @@ export function createHomePanel(arg: PlexArg): Panel {
   // Bandeau : l'élément sélectionné de la rangée active (il garde le dernier quand le focus monte dans l'en-tête).
   function follow(): void {
     var v = visible(), h = v[active];
-    if (!h) return;
+    if (!h) { if (shownOnce) band.show(null); return; }   // filtre qui vide tout : bandeau vide
     if (current() === 'rows' || !shownOnce) { shownOnce = true; band.show(h.items[h.list.focus.index] || null); }
   }
   var shownOnce = false;
 
-  function setItems(h: Hub, items: any[]): void {
-    h.items = items;
-    h.list.setCount(items.length);
+  // Saison (sans contentRating) : gardée si sa série est dans `shows` ; tant que la liste n'est pas arrivée, masquée.
+  var shows: { [rk: string]: boolean } = {};
+  var showCancels: Array<() => void> = [];
+  function keep(l: any[]): any[] {
+    var a = ageFilter(age);
+    if (a.max === undefined) return l;
+    return l.filter(function (it) {
+      if (it.type === 'season' && !it.contentRating) return !!(it.parentRatingKey && shows[it.parentRatingKey]);
+      return ageAllowed(it.contentRating, a);
+    });
+  }
+  // Séries permises de chaque bibliothèque de séries (classifications présentes → codes de l'âge → séries) ; aucune sur « Tous ».
+  function loadShows(): void {
+    for (var i = 0; i < showCancels.length; i++) showCancels[i]();
+    showCancels = [];
+    shows = {};
+    var a = ageFilter(age);
+    if (a.max === undefined) return;
+    for (var j = 0; j < sections.length; j++) if (sections[j].type === 'show') (function (key: string) {
+      showCancels.push(c.data.ratings(key, function (present) {
+        var codes = ageCodes(present, a) as string[];
+        if (!codes.length) return;
+        showCancels.push(c.data.showKeys(key, codes, function (keys) {
+          for (var k = 0; k < keys.length; k++) shows[keys[k]] = true;
+          refilter();
+        }, quiet));
+      }, quiet));
+    })(sections[j].key);
+  }
+  function quiet(): void { /* séries inconnues : leurs saisons restent masquées */ }
+  // Liste des séries arrivée : rangées refiltrées, le focus reste sur place (borné).
+  function refilter(): void {
+    for (var i = 0; i < hubs.length; i++) { hubs[i].items = keep(hubs[i].all); hubs[i].list.setCount(hubs[i].items.length); }
     relayout();
+  }
+  function setItems(h: Hub, items: any[]): void {
+    h.all = items;
+    h.items = keep(items);
+    h.list.setCount(h.items.length);
+    relayout();
+  }
+  // Âge changé : rangées refiltrées sur place, sans requête ; chacune revient à son début, le bandeau suit le 1er élément restant.
+  function setAge(id: string): void {
+    age = id;
+    saveHomeAge(id, arg.store);
+    loadShows();
+    for (var i = 0; i < hubs.length; i++) { hubs[i].items = keep(hubs[i].all); hubs[i].list.reset(); hubs[i].list.setCount(hubs[i].items.length); }
+    active = 0;
+    relayout();
+    var v = visible();
+    band.show(v.length ? v[0].items[0] : null);
   }
 
   function fail(e: Error): void { if (!loaded()) status.textContent = 'Serveur Plex injoignable : ' + e.message; }
@@ -184,7 +244,7 @@ export function createHomePanel(arg: PlexArg): Panel {
   // bandeau : Haut, Haut depuis la 1re rangée mène toujours à la recherche) ; Haut depuis Rechercher ou la roue est retenu.
   function headKey(k: Key): boolean {
     if (k === 'enter') { c.nav.push(headIdx === 0 ? createSearchPanel(arg) : createSettingsPanel(arg)); return true; }
-    if (k === 'right' && headIdx === 1 && sections.length) { tabIdx = 0; return go('tabs'); }
+    if (k === 'right' && headIdx === 1) { if (sections.length) { tabIdx = 0; return go('tabs'); } return go('age'); }
     if (k === 'left' || k === 'right') { headIdx = k === 'left' ? 0 : 1; relayout(); return true; }
     if (k === 'down') return visible().length ? go('rows') : true;
     return k === 'up';
@@ -192,10 +252,19 @@ export function createHomePanel(arg: PlexArg): Panel {
   function tabsKey(k: Key): boolean {
     if (k === 'enter') { var s = sections[tabIdx]; c.nav.push(createLibraryPanel(arg, { key: s.key, title: s.title, type: s.type })); return true; }
     if (k === 'left' && tabIdx === 0) { headIdx = 1; return go('head'); }
+    if (k === 'right' && tabIdx === sections.length - 1) return go('age');
     if (k === 'left' || k === 'right') { tabIdx = Math.max(0, Math.min(sections.length - 1, tabIdx + (k === 'left' ? -1 : 1))); relayout(); return true; }
     if (k === 'down') return visible().length ? go('rows') : true;
     if (k === 'up') { headIdx = 0; return go('head'); }
     return false;
+  }
+
+  function ageKey(k: Key): boolean {
+    if (k === 'enter') { var i = 0; while (AGE_FILTERS[i].id !== ageFilter(age).id) i++; setAge(AGE_FILTERS[(i + 1) % AGE_FILTERS.length].id); return true; }
+    if (k === 'left') { if (sections.length) { tabIdx = sections.length - 1; return go('tabs'); } headIdx = 1; return go('head'); }
+    if (k === 'down') return visible().length ? go('rows') : true;
+    if (k === 'up') { headIdx = 0; return go('head'); }
+    return k === 'right';
   }
 
   return {
@@ -204,6 +273,7 @@ export function createHomePanel(arg: PlexArg): Panel {
       zone = current();
       if (zone === 'head') return headKey(k);
       if (zone === 'tabs') return tabsKey(k);
+      if (zone === 'age') return ageKey(k);
       if (k === 'up' && active === 0) return go(sections.length ? 'tabs' : 'head');
       var v = visible();
       if (k === 'down') { if (active >= v.length - 1) return false; active++; relayout(); return true; }
@@ -214,6 +284,6 @@ export function createHomePanel(arg: PlexArg): Panel {
     },
     suspend: function () { held = true; band.release(); for (var i = 0; i < hubs.length; i++) hubs[i].list.release(); },
     resume: function () { held = false; for (var i = 0; i < hubs.length; i++) hubs[i].list.restore(); band.restore(); relayout(); loadDeck(); },
-    destroy: function () { if (indexT !== null && timers) timers.clearTimeout(indexT); if (deckCancel) deckCancel(); for (var i = 0; i < cancels.length; i++) cancels[i](); for (var j = 0; j < hubs.length; j++) hubs[j].list.release(); band.destroy(); }
+    destroy: function () { for (var sc = 0; sc < showCancels.length; sc++) showCancels[sc](); if (indexT !== null && timers) timers.clearTimeout(indexT); if (deckCancel) deckCancel(); for (var i = 0; i < cancels.length; i++) cancels[i](); for (var j = 0; j < hubs.length; j++) hubs[j].list.release(); band.destroy(); }
   };
 }
