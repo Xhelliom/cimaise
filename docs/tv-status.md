@@ -210,6 +210,16 @@ cimaiseblk absent de la liste
 
 **Conclusion** : la piste « message long » est épuisée. Il reste la piste SHA-256, mais elle n'y changerait probablement rien : même en SHA-256, les certificats sont émis par les CA intermédiaires de juin 2025, que Samsung dit inconnues des anciens modèles. **TV2 reste bloquée tant que Samsung ne propose pas de mise à jour du logiciel.**
 
+### TV2 débloquée avec les anciens certificats « Tizen » du SDK (2026-11-08)
+
+Piste trouvée en ligne ([Apps2Samsung PR #990](https://github.com/Apps2Samsung/Apps2Samsung/pull/990) : une TV Tizen 5.0 de 2019 refuse les chaînes récentes mais accepte l'ancien signataire public « Tizen Test CA » de 2012).
+
+- **Signature** : certificat auteur **Tizen** créé par la CLI du SDK officiel (`tizen certificate`, Tizen Developers CA, sans compte Samsung ni DUID), distributeur = signataire **public historique** fourni par le SDK (`tools/certificate-generator/certificates/distributor/sdk-public/tizen-distributor-signer.p12`, « Tizen Public Distributor Signer », CA « Tizen Test CA » 2012, expirée en 2022). Profil temporaire hors de `.local/tizen-studio-data` : le profil « cimaise » (Samsung) de la Frame est inchangé. Auteur conservé dans `.local/certs/tv2-tizen-author.p12` (identité à garder pour les mises à jour sur TV2).
+- **Réponse du SDK** : `tizen install` → « install completed », app dans `applist` ; `tizen run` → « successfully launched ». Premier essai par erreur avec le dossier source (`apps/blank` au lieu de `apps/blank/dist`) : écran noir, comme l'incident du 29/10 ; réinstallé depuis `dist`.
+- **Observé physiquement (Stéphane)** : la page vide s'ouvre sur TV2 et affiche **l'heure et les horodatages**.
+- **Conclusion** : le refus 118012 venait bien de la chaîne Samsung 2025 inconnue de TV2 ; une chaîne plus ancienne, fournie par le SDK officiel, passe. Aucun root, aucune modification de la TV.
+- **Non testé** : cimaise elle-même sur TV2. Ce certificat est de niveau public Tizen (pas Samsung) : `webapis` (AVPlay), `tvinputdevice`, `application.launch` sont à vérifier.
+
 ### Questions pour Stéphane
 
 - Faire la mise à jour du firmware de TV2 si elle existe ? (Mise à jour officielle Samsung, pas un firmware modifié ; mais irréversible, et TV2 ne servirait alors plus de témoin « Tizen 4 d'origine ».)

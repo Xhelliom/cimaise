@@ -945,3 +945,7 @@ fluidité du fondu et coût du calque image (≈ 3,7 Mo GPU à 1280×720), laten
 
 **Correction au passage.** `ensureSearch` construisait l'index des titres avec `arg.http` (absent dans l'app) au lieu
 de `c.http` : l'index en arrière-plan échouait (« http is not a function » dans la console de l'aperçu). Corrigé.
+
+## 2026-11-08 — TV2 (Tizen 4.0) : signature avec les anciens certificats Tizen du SDK
+
+TV2 refuse les certificats Samsung émis en 2025 (118012, aucune mise à jour du logiciel proposée). Elle accepte un paquet signé avec un auteur **Tizen** (CLI du SDK) et le signataire distributeur **public historique** du SDK (Tizen Test CA 2012) : la page vide s'affiche (vu par Stéphane). Décision : pour TV2 seulement, un second profil de signature ; la Frame garde le profil Samsung. Auteur TV2 conservé dans `.local/certs/` (identité stable). Reste à valider cimaise elle-même (privilèges `webapis`/AVPlay, touches, lancement d'apps) avant d'en faire une cible. Coût : aucun pour l'app.
