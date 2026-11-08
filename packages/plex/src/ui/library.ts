@@ -8,6 +8,7 @@ import { Ctx, el, openable, PlexArg, resolve, tileInfo } from './context';
 import { createDetailPanel } from './detail';
 import { POSTER } from './images';
 import { recordMeasure } from '../../../tv-core/src/diag';
+import { AGE_FILTERS, ageAllowed, ageCodes, ageFilter } from './age';
 
 export var PAGE_SIZE = 36;   // X-Plex-Container-Size : 6 colonnes × 6 lignes
 
@@ -25,20 +26,22 @@ export var SORTS = [
 ];
 var TITLE = 1;
 
-// Choix d'une bibliothèque : prefs.plexLibrary[clé de section] = { sort, unwatched } dans cimaise.v1
-// (champ ajouté sans changer le schéma : absent ou inconnu = tri par titre, tout afficher).
-export interface LibraryChoice { sort: string; unwatched: boolean; }
+// Choix d'une bibliothèque : prefs.plexLibrary[clé de section] = { sort, unwatched, age } dans cimaise.v1
+// (champs ajoutés sans changer le schéma : absent ou inconnu = tri par titre, tout afficher, tous âges).
+export interface LibraryChoice { sort: string; unwatched: boolean; age?: string; }
 export function loadLibraryChoice(sectionKey: string, store?: Storage): LibraryChoice {
   var all = loadStored(store).prefs.plexLibrary, v = all && typeof all === 'object' ? all[sectionKey] : null;
   var sort = v && typeof v.sort === 'string' ? v.sort : SORTS[TITLE].id;
   for (var i = 0; i < SORTS.length && SORTS[i].id !== sort; i++) { /* recherche */ }
-  return { sort: i < SORTS.length ? sort : SORTS[TITLE].id, unwatched: !!(v && v.unwatched === true) };
+  return { sort: i < SORTS.length ? sort : SORTS[TITLE].id, unwatched: !!(v && v.unwatched === true), age: ageFilter(v && v.age).id };
 }
 export function saveLibraryChoice(sectionKey: string, choice: LibraryChoice, store?: Storage): void {
   try {
     var data = loadStored(store);
     var all = data.prefs.plexLibrary && typeof data.prefs.plexLibrary === 'object' ? data.prefs.plexLibrary : {};
-    all[sectionKey] = { sort: choice.sort, unwatched: choice.unwatched };
+    var o: any = { sort: choice.sort, unwatched: choice.unwatched };
+    if (choice.age && choice.age !== AGE_FILTERS[0].id) o.age = choice.age;   // « Tous » : rien d'écrit
+    all[sectionKey] = o;
     data.prefs.plexLibrary = all;
     saveStored(data, store);
   } catch (e) { /* stockage refusé : le choix vaut pour cette ouverture seulement */ }
@@ -56,11 +59,13 @@ export function letterStarts(dirs: Letter[]): Array<{ label: string; start: numb
   return out;
 }
 
-interface Row { title: string; wrap: HTMLElement; box: HTMLElement; list: VirtualList; items: Item[]; }
+// `all` : rangée telle que reçue ; `items` : ce qui passe le filtre par âge (les mêmes sur « Tous »).
+interface Row { title: string; wrap: HTMLElement; box: HTMLElement; list: VirtualList; items: Item[]; all: Item[]; }
 type Zone = 'pills' | 'rows' | 'grid';
 
 // Bibliothèque : rangées « En cours » et « Ajoutés récemment » de la section (masquées si vides), puis la grille :
-// 6 colonnes de 240 px, pages de 36 demandées à mesure du défilement ; tri et filtre (serveur) sur les pilules.
+// 6 colonnes de 240 px, pages de 36 demandées à mesure du défilement ; tri, non vus et âge (serveur) sur les pilules.
+// Âge : la grille est filtrée par le serveur (contentRating=…, pagination et barre alpha justes), les rangées localement.
 // Haut depuis la première ligne de la grille → dernière rangée → … → pilules ; Bas depuis la dernière rangée → grille.
 // `type` : 'show' regroupe les ajouts par série (une tuile par série) ; absent = films.
 export function createLibraryPanel(arg: PlexArg, section: { key: string; title: string; type?: string }): Panel {
@@ -72,9 +77,9 @@ export function createLibraryPanel(arg: PlexArg, section: { key: string; title: 
   root.appendChild(el(doc, 'plex-lib-title', section.title));
   root.appendChild(count);
   var pills = el(doc, 'plex-lib-pills');
-  var sortPill = el(doc, 'plex-pill'), unseenPill = el(doc, 'plex-pill', 'Non vus');
-  pills.appendChild(sortPill);
-  pills.appendChild(unseenPill);
+  var sortPill = el(doc, 'plex-pill'), unseenPill = el(doc, 'plex-pill', 'Non vus'), agePill = el(doc, 'plex-pill');
+  var pillEls = [sortPill, unseenPill, agePill];
+  for (var pe = 0; pe < pillEls.length; pe++) pills.appendChild(pillEls[pe]);
   root.appendChild(pills);
   var body = el(doc, 'plex-lib-body'), layer = el(doc, 'plex-lib-layer');
   body.appendChild(layer);
@@ -112,12 +117,17 @@ export function createLibraryPanel(arg: PlexArg, section: { key: string; title: 
     for (var i = 0; i < SORTS.length; i++) if (SORTS[i].id === choice.sort) return SORTS[i];
     return SORTS[TITLE];
   }
-  function view(): LibraryView { return { sort: sortOf().sort, unwatched: choice.unwatched }; }
+  // `codes` : classifications permises pour l'âge choisi (null sur « Tous ») ; fixées à chaque load().
+  var codes: string[] | null = null;
+  function view(): LibraryView { return { sort: sortOf().sort, unwatched: choice.unwatched, ratings: codes }; }
   function byTitle(): boolean { return choice.sort === SORTS[TITLE].id; }
   function paintPills(): void {
     sortPill.textContent = 'Tri : ' + sortOf().label;
     if (choice.unwatched) unseenPill.classList.add('on'); else unseenPill.classList.remove('on');
-    var p = [sortPill, unseenPill];
+    var a = ageFilter(choice.age);
+    agePill.textContent = 'Âge : ' + a.label;
+    if (a.max !== undefined) agePill.classList.add('on'); else agePill.classList.remove('on');
+    var p = pillEls;
     for (var k = 0; k < p.length; k++) if (inPills && k === pillAt) p[k].classList.add('focus'); else p[k].classList.remove('focus');
   }
 
@@ -151,12 +161,13 @@ export function createLibraryPanel(arg: PlexArg, section: { key: string; title: 
     return true;
   }
   function pillKey(k: Key): boolean {
-    if (k === 'left') pillAt = 0;
-    else if (k === 'right') pillAt = 1;
+    if (k === 'left') pillAt = Math.max(0, pillAt - 1);
+    else if (k === 'right') pillAt = Math.min(pillEls.length - 1, pillAt + 1);
     else if (k === 'down') { inPills = false; go(shown().length ? 'rows' : 'grid', 0); }
     else if (k === 'enter') {
       if (pillAt === 0) { var i = 0; while (SORTS[i].id !== sortOf().id) i++; choice.sort = SORTS[(i + 1) % SORTS.length].id; }
-      else choice.unwatched = !choice.unwatched;
+      else if (pillAt === 1) choice.unwatched = !choice.unwatched;
+      else { var at = 0; while (AGE_FILTERS[at].id !== ageFilter(choice.age).id) at++; choice.age = AGE_FILTERS[(at + 1) % AGE_FILTERS.length].id; filterRows(); }
       saveLibraryChoice(section.key, choice, arg.store);
       load();
     }
@@ -169,7 +180,7 @@ export function createLibraryPanel(arg: PlexArg, section: { key: string; title: 
     cancels.push(c.data.page(section.key, start, size, function (p) {
       loaded[start] = true;
       for (var i = 0; i < p.items.length; i++) items[p.offset + i] = p.items[i];
-      status.textContent = p.total ? '' : choice.unwatched ? 'Tout a été vu.' : 'Bibliothèque vide.';
+      status.textContent = p.total ? '' : codes ? 'Aucun titre de cet âge.' : choice.unwatched ? 'Tout a été vu.' : 'Bibliothèque vide.';
       count.textContent = p.total + (choice.unwatched ? ' non vus' : ' éléments');
       if (p.total !== list.count) list.setCount(p.total); else list.refresh();
       follow();
@@ -192,20 +203,38 @@ export function createLibraryPanel(arg: PlexArg, section: { key: string; title: 
       else for (var j = 0; j < cells.length; j++) { if (starts[j].size) cells[j].classList.remove('empty'); else cells[j].classList.add('empty'); }
       curAt = -1;
       follow();
-    }, undefined, choice.unwatched));
+    }, undefined, view()));
   }
   // (Re)chargement complet : requêtes du choix précédent annulées, grille vidée, première page et index demandés.
-  function load(): void {
-    for (var i = 0; i < cancels.length; i++) cancels[i]();
-    cancels = [];
+  // Âge choisi : d'abord les classifications présentes dans la bibliothèque (une heure en cache), pour en tirer les codes.
+  function clear(keep: number): void {
+    for (var i = keep; i < cancels.length; i++) cancels[i]();
+    cancels = cancels.slice(0, keep);
     items = [];
     loaded = {};
     if (list.count) list.reset();
     count.textContent = '';
     status.textContent = 'Chargement…';
-    fetchLetters();
-    paint();
-    fetchPage(0, PAGE_SIZE);
+  }
+  function load(): void {
+    clear(0);
+    var a = ageFilter(choice.age);
+    if (a.max === undefined) { codes = null; start(); return; }
+    var got: string | null = null;
+    cancels.push(c.data.ratings(section.key, function (present) {
+      var l = ageCodes(present, a) as string[], k = l.join(',');
+      if (k === got) return;   // réponse réseau identique au cache : rien à refaire
+      if (got !== null) clear(1);   // le serveur a changé la liste depuis le cache : grille redemandée
+      got = k;
+      codes = l;
+      if (l.length) start(); else empty();   // aucun titre de cet âge : pas de requête
+    }, function (e) { status.textContent = 'Serveur Plex injoignable : ' + e.message; }));
+  }
+  function start(): void { fetchLetters(); paint(); fetchPage(0, PAGE_SIZE); }
+  function empty(): void {
+    starts = []; curAt = -1; inBar = false; bar.classList.add('off'); paint();
+    count.textContent = '0 éléments';
+    status.textContent = 'Aucun titre de cet âge.';
   }
 
   // ---- rangées en tête ----
@@ -216,7 +245,7 @@ export function createLibraryPanel(arg: PlexArg, section: { key: string; title: 
   function wants(r: Row): boolean { var k = shown().indexOf(r); return !held && current() === 'rows' && k >= active && k <= active + 1; }
   function addRow(title: string, aimed: boolean): Row {
     var wrap = el(doc, 'plex-hub'), rbox = el(doc, 'plex-row'), more = el(doc, 'plex-more');
-    var r: Row = { title: title, wrap: wrap, box: rbox, items: [], list: null as any };
+    var r: Row = { title: title, wrap: wrap, box: rbox, items: [], all: [], list: null as any };
     r.list = createRow({
       container: rbox, doc: doc, count: 0, itemW: POSTER.w, itemH: POSTER.h + 72, gap: 48, viewportW: 1800, viewportH: POSTER.h + 72, edge: more,
       render: function (i) { return r.items[i] ? tileInfo(c.session, r.items[i], wants(r)) : null; },
@@ -263,7 +292,16 @@ export function createLibraryPanel(arg: PlexArg, section: { key: string; title: 
     if (k === 'left' || k === 'right' || k === 'enter') return v[active].list.handleKey(k);
     return false;
   }
-  function setRow(r: Row, l: Item[]): void { r.items = l; r.list.setCount(l.length); relayout(); }
+  function keep(l: Item[]): Item[] {
+    var a = ageFilter(choice.age);
+    return a.max === undefined ? l : l.filter(function (it) { return ageAllowed(it.contentRating, a); });
+  }
+  function setRow(r: Row, l: Item[]): void { r.all = l; r.items = keep(l); r.list.setCount(r.items.length); relayout(); }
+  // Âge changé : rangées refiltrées sur place (rien de redemandé) ; le focus revient à leur début.
+  function filterRows(): void {
+    for (var i = 0; i < rows.length; i++) { rows[i].items = keep(rows[i].all); rows[i].list.reset(); rows[i].list.setCount(rows[i].items.length); }
+    relayout();
+  }
   var deckRow = addRow('En cours', true), recentRow = addRow('Ajoutés récemment', false);
   var rowCancels: Array<() => void> = [], deckCancel: (() => void) | null = null;
   function quiet(): void { /* rangée absente : la grille suffit */ }
