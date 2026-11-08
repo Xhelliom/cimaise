@@ -224,6 +224,14 @@ Piste trouvée en ligne ([Apps2Samsung PR #990](https://github.com/Apps2Samsung/
 - **Conclusion** : le refus 118012 venait bien de la chaîne Samsung 2025 inconnue de TV2 ; une chaîne plus ancienne, fournie par le SDK officiel, passe. Aucun root, aucune modification de la TV.
 - **Non testé** : cimaise elle-même sur TV2. Ce certificat est de niveau public Tizen (pas Samsung) : `webapis` (AVPlay), `tvinputdevice`, `application.launch` sont à vérifier.
 
+### cimaise installée sur TV2 par les scripts (`CIMAISE_TV=tv2`, 2026-11-08)
+
+- **Chaîne** : `CIMAISE_TV=tv2 scripts/tizen/{setup-profile,package,install,launch}.sh` (voir `scripts/tizen/README.md`). Profil `cimaise-tv2` ajouté à `.local/tizen-studio-data/profile/profiles.xml` (profil actif `cimaise` et son bloc inchangés, vérifié par empreinte du bloc). Paquet `dist/tv2/cimaise.wgt` (186 652 o, build `apps/tv/dist`) : auteur `CN=author` (Tizen, SHA-256 `8E:DF:E6:67…57:AA`), distributeur « Tizen Test CA » (`CD:D8:1C:11…90:08`), `required_version="4.0"` dans la copie seulement ; `apps/tv/config.xml` garde 5.0.
+- **Réponse du SDK** : `sdb install` → « install completed » (3,6 s), `cimaise001.Cimaise` dans `applist` ; `was_execute` → « launched ».
+- **Observé physiquement (Stéphane)** : l'accueil cimaise s'affiche sur TV2 et les flèches de la télécommande déplacent le focus.
+- **Frame non touchée** : paquet Frame refait sans installation ; empreintes identiques au paquet Samsung du 30/10 (auteur `52:41:87…77:32`, distributeur `5B:7A:D6…58:F6`), `required_version="5.0"`.
+- **Non testé sur TV2** : lancement des apps natives (`application.launch`), Plex/AVPlay (`webapis`), Home Assistant ; certificat de niveau public Tizen, pas Samsung.
+
 ### Questions pour Stéphane
 
 - Faire la mise à jour du firmware de TV2 si elle existe ? (Mise à jour officielle Samsung, pas un firmware modifié ; mais irréversible, et TV2 ne servirait alors plus de témoin « Tizen 4 d'origine ».)

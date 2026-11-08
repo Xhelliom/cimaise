@@ -7,11 +7,13 @@ REPO="$(cd "$HERE/../.." && pwd)"
 TMP="$(mktemp -d)"
 EXTRA_CLEAN=()
 # Les .wgt déjà produits par l'opérateur dans dist/ sont mis à l'abri, puis restaurés à la sortie.
-mkdir -p "$REPO/dist" "$TMP/dist-keep"
+mkdir -p "$REPO/dist/tv2" "$TMP/dist-keep/tv2"
 for f in "$REPO"/dist/*.wgt; do [ -e "$f" ] && mv "$f" "$TMP/dist-keep/"; done
+for f in "$REPO"/dist/tv2/*.wgt; do [ -e "$f" ] && mv "$f" "$TMP/dist-keep/tv2/"; done
 cleanup() {
-  rm -f "$REPO"/dist/*.wgt; rm -rf "${EXTRA_CLEAN[@]}"
+  rm -f "$REPO"/dist/*.wgt "$REPO"/dist/tv2/*.wgt; rm -rf "${EXTRA_CLEAN[@]}"
   for f in "$TMP"/dist-keep/*.wgt; do [ -e "$f" ] && mv "$f" "$REPO/dist/"; done
+  for f in "$TMP"/dist-keep/tv2/*.wgt; do [ -e "$f" ] && mv "$f" "$REPO/dist/tv2/"; done
   rm -rf "$TMP"
 }
 trap cleanup EXIT
@@ -46,7 +48,9 @@ cat > "$TMP/fake/tizen" <<'FAKE'
 echo "TIZEN $FAKE_N $*" >> "$FAKE_LOG"
 case "$1" in version) echo "Tizen CLI 2.5.25";; esac
 # Comme le vrai packager : la sortie est nommée d'après <name> (ici avec espaces).
-case "$1" in package) [ -n "${FAKE_WGT_DIR:-}" ] && touch "$FAKE_WGT_DIR/CleanFrame (bench).wgt";; esac
+case "$1" in package) [ -n "${FAKE_WGT_DIR:-}" ] && touch "$FAKE_WGT_DIR/CleanFrame (bench).wgt"
+  # Garde le config.xml de la copie empaquetée (chemin /work/… du conteneur → dépôt de l'hôte).
+  src="${@: -1}"; cp "${src/#\/work/$FAKE_REPO}/config.xml" "$FAKE_DIR/staged-config.xml" 2>/dev/null;; esac
 exit 0
 FAKE
 chmod +x "$TMP/fake/sdb" "$TMP/fake/tizen"
@@ -71,7 +75,7 @@ done
 exit 0
 FAKE
 chmod +x "$TMP/bin/docker"
-export FAKE_DIR="$TMP" FAKE_COUNT="$TMP/count"
+export FAKE_DIR="$TMP" FAKE_COUNT="$TMP/count" FAKE_REPO="$REPO"
 export DOCKER="$TMP/bin/docker" FAKE_LOG="$TMP/docker.log"
 export CIMAISE_LOCAL_DIR="$TMP/local"
 SECRET=s3cr3t-pw-1234
@@ -228,6 +232,69 @@ DISPLAY=:0 XAUTHORITY="$TMP/xauth" "$HERE/cert-manager.sh" >/dev/null 2>&1
 else
   skip "cert-manager (affichage X11), cas 8 bis/ter : /tmp/.X11-unix absent"
 fi
+
+# 9 bis. Cible TV2 (CIMAISE_TV=tv2) : env, profil, dist/tv2 et required_version séparés ; défaut inchangé.
+cat > "$TMP/local/tizen.env.tv2" <<ENV
+TV_IP=10.2.2.2
+APP_ID=cimaise001.Cimaise
+APP_DIR=apps/tv
+SIGN_PROFILE=cimaise-tv2
+REQUIRED_VERSION=4.0
+AUTHOR_CERT=/work/.local/certs/tv2-tizen-author.p12
+AUTHOR_PASSWORD=$SECRET
+DISTRIBUTOR_CERT=/home/tizen/tizen-studio/tools/certificate-generator/certificates/distributor/sdk-public/tizen-distributor-signer.p12
+DISTRIBUTOR_PASSWORD=$SECRET
+ENV
+out="$(CIMAISE_TV=frame2 "$HERE/list-apps.sh" 2>&1)"; rc=$?
+[ $rc -ne 0 ] && [[ "$out" == *"inconnue"* ]] && ok "CIMAISE_TV inconnue → refus" || fail "CIMAISE_TV inconnue → refus"
+: > "$TMP/docker.log"; CIMAISE_TV=tv2 "$HERE/list-apps.sh" >/dev/null 2>&1
+grep -q "connect 10.2.2.2:26101" "$TMP/docker.log" && ! grep -q "10.9.8.7" "$TMP/docker.log" && ok "tv2 : IP lue dans tizen.env.tv2" || fail "tv2 : IP lue dans tizen.env.tv2"
+grep -q -- "--env-file $TMP/local/tizen.env.tv2" "$TMP/docker.log" && ok "tv2 : env-file tizen.env.tv2" || fail "tv2 : env-file tizen.env.tv2"
+: > "$TMP/docker.log"; CIMAISE_TV=tv2 "$HERE/launch.sh" >/dev/null 2>&1
+grep -q "^SDB .* shell 0 was_execute cimaise001.Cimaise" "$TMP/docker.log" && grep -q "connect 10.2.2.2" "$TMP/docker.log" && ok "tv2 : launch" || fail "tv2 : launch"
+# profil Samsung dans l'env TV2 : refusé avant tout appel
+sed 's/^SIGN_PROFILE=.*/SIGN_PROFILE=cimaise/' "$TMP/local/tizen.env.tv2" > "$TMP/tv2-bad"; cp "$TMP/local/tizen.env.tv2" "$TMP/tv2-good"; cp "$TMP/tv2-bad" "$TMP/local/tizen.env.tv2"
+: > "$TMP/docker.log"; CIMAISE_TV=tv2 "$HERE/package.sh" apps/_t >/dev/null 2>&1 && fail "tv2 : profil « cimaise » refusé" || { [ -s "$TMP/docker.log" ] && fail "tv2 : profil « cimaise » refusé (docker appelé)" || ok "tv2 : profil « cimaise » refusé"; }
+cp "$TMP/tv2-good" "$TMP/local/tizen.env.tv2"
+# package tv2 : profil cimaise-tv2, sortie dist/tv2, required_version 4.0 dans la copie, source intacte
+printf '<widget>\n  <tizen:application id="cimaise001.Cimaise" package="cimaise001" required_version="5.0"/>\n</widget>\n' > "$REPO/apps/_t/config.xml"
+src_sum="$(sha256sum "$REPO/apps/_t/config.xml")"
+: > "$TMP/docker.log"; rm -f "$TMP/staged-config.xml"; FAKE_WGT_DIR="$REPO/dist/tv2" CIMAISE_TV=tv2 "$HERE/package.sh" apps/_t >/dev/null 2>&1 && ok "tv2 : package" || fail "tv2 : package"
+grep -q "^TIZEN .* package -t wgt -s cimaise-tv2 -o /work/dist/tv2 -- /work/dist/tv2/.stage-app" "$TMP/docker.log" && ok "tv2 : profil cimaise-tv2, sortie dist/tv2" || fail "tv2 : profil cimaise-tv2, sortie dist/tv2"
+grep -q 'required_version="4.0"' "$TMP/staged-config.xml" 2>/dev/null && ok "tv2 : required_version 4.0 dans la copie" || fail "tv2 : required_version 4.0 dans la copie"
+[ "$(sha256sum "$REPO/apps/_t/config.xml")" = "$src_sum" ] && ok "tv2 : config.xml source inchangé" || fail "tv2 : config.xml source inchangé"
+[ -f "$REPO/dist/tv2/CleanFrame-bench.wgt" ] && ! ls "$REPO"/dist/*.wgt >/dev/null 2>&1 && ok "tv2 : .wgt dans dist/tv2 seulement" || fail "tv2 : .wgt dans dist/tv2 seulement"
+# sans REQUIRED_VERSION, le package TV2 est refusé
+grep -v '^REQUIRED_VERSION' "$TMP/tv2-good" > "$TMP/local/tizen.env.tv2"
+CIMAISE_TV=tv2 "$HERE/package.sh" apps/_t >/dev/null 2>&1 && fail "tv2 : REQUIRED_VERSION exigée" || ok "tv2 : REQUIRED_VERSION exigée"
+cp "$TMP/tv2-good" "$TMP/local/tizen.env.tv2"
+# install tv2 : prend dist/tv2 ; refuse un paquet de dist/ (Frame)
+: > "$TMP/docker.log"; CIMAISE_TV=tv2 "$HERE/install.sh" >/dev/null 2>&1 && ok "tv2 : install" || fail "tv2 : install"
+grep -q "^SDB .* install /work/dist/tv2/CleanFrame-bench.wgt" "$TMP/docker.log" && grep -q "connect 10.2.2.2" "$TMP/docker.log" && ok "tv2 : install du paquet dist/tv2 sur TV2" || fail "tv2 : install du paquet dist/tv2 sur TV2"
+: > "$TMP/docker.log"; FAKE_INSTALL_OUT="transfer only" CIMAISE_TV=tv2 "$HERE/install.sh" >/dev/null 2>&1
+grep -q "^SDB .* push /work/dist/tv2/CleanFrame-bench.wgt" "$TMP/docker.log" && ok "tv2 : repli vd_appinstall depuis dist/tv2" || fail "tv2 : repli vd_appinstall depuis dist/tv2"
+: > "$TMP/docker.log"; out="$(CIMAISE_TV=tv2 "$HERE/install.sh" "$REPO/dist/zz-test.wgt" 2>&1)"
+[[ "$out" == *"dist/tv2/"* ]] && ! grep -q "^SDB" "$TMP/docker.log" && ok "tv2 : paquet de la Frame refusé" || fail "tv2 : paquet de la Frame refusé"
+: > "$TMP/docker.log"; "$HERE/install.sh" "$REPO/dist/tv2/CleanFrame-bench.wgt" >/dev/null 2>&1 && fail "Frame : paquet TV2 refusé" || ok "Frame : paquet TV2 refusé"
+rm -f "$REPO/dist/tv2/CleanFrame-bench.wgt"
+# défaut (Frame) inchangé : profil cimaise, sortie dist/, required_version non touché, aucune ligne « cible »
+: > "$TMP/docker.log"; rm -f "$TMP/staged-config.xml"; out="$("$HERE/package.sh" apps/_t 2>&1)"
+grep -q "^TIZEN .* package -t wgt -s cimaise -o /work/dist -- /work/dist/.stage-app" "$TMP/docker.log" && ok "Frame : package inchangé" || fail "Frame : package inchangé"
+grep -q 'required_version="5.0"' "$TMP/staged-config.xml" 2>/dev/null && ok "Frame : required_version d'origine" || fail "Frame : required_version d'origine"
+[[ "$out" != *"cible"* ]] && ok "Frame : sortie sans ligne cible" || fail "Frame : sortie sans ligne cible"
+# setup-profile tv2 : ajoute cimaise-tv2, garde actif et profil « cimaise », sans afficher de secret
+mkdir -p "$TMP/local/tizen-studio-data/profile"; PX="$TMP/local/tizen-studio-data/profile/profiles.xml"
+printf '<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n<profiles active="cimaise" version="3.1">\n<profile name="cimaise">\n<profileitem ca="" distributor="0" key="/work/.local/certs/author.p12" password="frame-pw" rootca=""/>\n</profile>\n</profiles>\n' > "$PX"
+frame_block="$(sed -n '/<profile name="cimaise">/,/<\/profile>/p' "$PX")"
+out="$(CIMAISE_TV=tv2 "$HERE/setup-profile.sh" 2>&1; CIMAISE_TV=tv2 "$HERE/setup-profile.sh" 2>&1)"
+grep -q '<profiles active="cimaise"' "$PX" && ok "setup-profile tv2 : profil actif inchangé" || fail "setup-profile tv2 : profil actif inchangé"
+[ "$(sed -n '/<profile name="cimaise">/,/<\/profile>/p' "$PX")" = "$frame_block" ] && ok "setup-profile tv2 : profil cimaise inchangé" || fail "setup-profile tv2 : profil cimaise inchangé"
+[ "$(grep -c '<profile name="cimaise-tv2">' "$PX")" = 1 ] && grep -q 'key="/work/.local/certs/tv2-tizen-author.p12"' "$PX" && ok "setup-profile tv2 : un seul profil cimaise-tv2 (relançable)" || fail "setup-profile tv2 : un seul profil cimaise-tv2 (relançable)"
+[[ "$out" != *"$SECRET"* ]] && ok "setup-profile tv2 : aucun mot de passe affiché" || fail "setup-profile tv2 : aucun mot de passe affiché"
+grep "^DOCKER" "$TMP/docker.log" | grep -q "$SECRET" && fail "setup-profile tv2 : mot de passe hors arguments docker" || ok "setup-profile tv2 : mot de passe hors arguments docker"
+[ -f "$PX.avant-cimaise-tv2" ] && ok "setup-profile tv2 : sauvegarde de profiles.xml" || fail "setup-profile tv2 : sauvegarde de profiles.xml"
+sed -i 's/active="cimaise"/active="cimaise-tv2"/' "$PX"
+CIMAISE_TV=tv2 "$HERE/setup-profile.sh" >/dev/null 2>&1 && fail "setup-profile tv2 : refuse de réécrire le profil actif" || ok "setup-profile tv2 : refuse de réécrire le profil actif"
 
 # 9. rien de secret versionné
 cd "$REPO" && ! git ls-files | grep -Eq '\.(p12|pfx|key|pem)$|(^|/)\.local/' && ok "aucun secret suivi par git" || fail "aucun secret suivi par git"
