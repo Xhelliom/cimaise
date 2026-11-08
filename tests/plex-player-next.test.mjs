@@ -285,23 +285,69 @@ test('carte : sortir du générique (retour en arrière) la retire', async () =>
   assert.equal(s.pushed.length, 0);
 });
 
-test('sans marqueur de générique : la carte s’affiche 30 s avant la fin et enchaîne après 10 s', async () => {
+test('sans marqueur de générique : la carte s’affiche 10 s avant la fin, mais l’épisode est lu jusqu’à la fin du fichier', async () => {
   const s = await play('501');
-  at(s, DUR - 31000);
-  assert.ok(!on(card(s)));
   at(s, DUR - 30000);
+  assert.ok(!on(card(s)), 'rien 30 s avant la fin');
+  at(s, DUR - 10000);
   assert.ok(on(card(s)));
   assert.ok(has(card(s), /^Suivant : S01E02 — Épisode 502$/));
+  assert.ok(has(card(s), /^Dans 10 s$/));
   assert.ok(!on(skip(s)), 'pas de bouton « Passer le générique » sans marqueur');
-  s.timers.advance(10000);
-  assert.equal(s.pushed.length, 1);
+  // Le temps passe sans fin du flux (pause, lecture lente) : aucun enchaînement avant la fin réelle.
+  s.timers.advance(60000);
+  assert.equal(s.pushed.length, 0, 'aucun enchaînement avant la fin du fichier');
+  at(s, DUR - 3400);
+  assert.ok(has(card(s), /^Dans 4 s$/), 'le décompte suit la position');
+  at(s, DUR - 100);
+  assert.equal(s.pushed.length, 0);
+  s.player.events.onEnd();
+  assert.equal(s.pushed.length, 1, 'enchaîne à la fin du flux');
   await flush();
   assert.ok(s.http.index(/\/:\/scrobble\?.*key=501/) >= 0);
 });
 
+test('sans marqueur : Entrée sur la carte de fin passe tout de suite à l’épisode suivant', async () => {
+  const s = await play('501');
+  at(s, DUR - 8000);
+  assert.ok(on(card(s)));
+  s.panel.onKey('enter');
+  assert.equal(s.pushed.length, 1);
+});
+
+test('sans marqueur, intro au milieu du fichier (fichier à plusieurs segments) : seul « Passer l’intro », sans carte', async () => {
+  const marks = [{ type: 'intro', startTimeOffset: 412000, endTimeOffset: 442000 }];
+  const s = await play('501', { marks });
+  at(s, 420000);
+  assert.ok(on(skip(s)));
+  assert.match(skip(s).textContent, /Passer l’intro/);
+  assert.ok(!on(card(s)));
+  s.timers.advance(30000);
+  assert.equal(s.pushed.length, 0);
+  assert.equal(s.pops(), 0);
+  at(s, 450000);
+  assert.ok(!on(skip(s)));
+  at(s, DUR - 5000);
+  s.timers.advance(30000);
+  assert.equal(s.pushed.length, 0, 'fin sans marqueur de générique : attend la fin du flux');
+  s.player.events.onEnd();
+  assert.equal(s.pushed.length, 1);
+});
+
+test('marqueur de générique finissant à la fin du fichier : compte à rebours de 10 s inchangé', async () => {
+  const s = await play('501', { marks: MARKS });
+  at(s, 905000);
+  assert.ok(on(card(s)));
+  assert.ok(has(card(s), /^Dans 10 s$/));
+  s.timers.advance(9999);
+  assert.equal(s.pushed.length, 0);
+  s.timers.advance(1);
+  assert.equal(s.pushed.length, 1, 'enchaîne au bout du compte à rebours, avant la fin du flux');
+});
+
 test('sans marqueur : Retour annule, l’épisode va jusqu’au bout puis revient à la fiche', async () => {
   const s = await play('501');
-  at(s, DUR - 25000);
+  at(s, DUR - 9000);
   assert.equal(s.panel.onKey('back'), true);
   assert.ok(!on(card(s)));
   assert.equal(s.pops(), 0);
