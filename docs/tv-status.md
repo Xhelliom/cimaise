@@ -204,6 +204,12 @@ cimaiseblk absent de la liste
 - Écarter l'hypothèse 3 : signer une copie en **RSA-SHA256**. Le packager actuel signe en SHA-512 sans option visible ; il faudrait une autre version du SDK ou une resignature, à étudier avant tout essai (une signature XML faite main a déjà été rejetée par la Frame).
 - Sinon, arrêter le banc Tizen 4 (TV2 n'est pas une cible).
 
+### `tizen install` essayé (2026-11-08, à la demande de Stéphane)
+
+**Réponse du SDK (une installation, faite par l'orchestrateur)** : même page vide, copie temporaire du `config.xml` en `required_version="4.0"`, signée par le packager officiel (profil « cimaise », RSA-SHA512 pour l'auteur et le distributeur), IP de TV2 lue dans `.local/tizen.env.tv2`. `tizen install -n cimaise-blank.wgt -s <TV2>` → transfert OK, puis le même journal que `vd_appinstall` : `installing[7]` … `installing[23]`, **`install failed[118012]`**, « Failed to install Tizen application. » (code 1, 2,8 s). Pas de message long `[118, -12], reason: …` : sur ce firmware, la CLI relaie seulement le journal de la TV. `applist` : `cimaiseblk` absent. Copies temporaires supprimées.
+
+**Conclusion** : la piste « message long » est épuisée. Il reste la piste SHA-256, mais elle n'y changerait probablement rien : même en SHA-256, les certificats sont émis par les CA intermédiaires de juin 2025, que Samsung dit inconnues des anciens modèles. **TV2 reste bloquée tant que Samsung ne propose pas de mise à jour du logiciel.**
+
 ### Questions pour Stéphane
 
 - Faire la mise à jour du firmware de TV2 si elle existe ? (Mise à jour officielle Samsung, pas un firmware modifié ; mais irréversible, et TV2 ne servirait alors plus de témoin « Tizen 4 d'origine ».)
