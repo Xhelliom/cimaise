@@ -13,6 +13,10 @@ import { DEFAULT_OVERSEERR_URL, overseerrConfigFrom, saveOverseerrConfig } from 
 import { loadStored } from '../../../../packages/tv-core/src/storage';
 import { createOverseerrProbePanel } from '../../../../packages/widgets/src/overseerr-probe';
 import { xhrHttp } from '../../../../packages/widgets/src/xhr';
+import { saveStored } from '../../../../packages/tv-core/src/storage';
+import { WallpaperSettings } from '../../../../packages/launcher/src/settings/wallpaper';
+import { normalizeWallpaper, packagedKey } from '../../../../packages/launcher/src/wallpaper/model';
+import { loadTopics } from '../../../../packages/launcher/src/wallpaper/daily';
 
 // Les Réglages travaillent sur AppEntry (teinte) ; le catalogue persisté est un CatalogEntry (couleur, type, rappel).
 // Au retour, on retrouve l'entrée d'origine (id + nom) pour ne pas perdre `type` ni `todo` (plusieurs entrées peuvent avoir un id vide).
@@ -78,6 +82,19 @@ function overseerrSettings(): OverseerrSettings {
     }
   };
 }
+// Fond d'écran : section proposée seulement si le paquet fournit une clé Unsplash (window.__cimaiseUnsplash).
+function wallpaperSettings(): WallpaperSettings | undefined {
+  var key = packagedKey();
+  if (!key) return undefined;
+  return {
+    value: normalizeWallpaper(loadStored().prefs.wallpaper),
+    onChange: function (v) {
+      try { var s = loadStored(); s.prefs.wallpaper = v; saveStored(s); } catch (e) { /* stockage refusé : valable pour cette session */ }
+    },
+    topics: function (cb) { loadTopics(xhrHttp, key, cb); }
+  };
+}
+
 function createPanel(arg: SettingsArg): Panel {
   var current = arg.catalog;
   return createSettings({
@@ -93,6 +110,7 @@ function createPanel(arg: SettingsArg): Panel {
     },
     ha: arg.ha,
     ov: overseerrSettings(),
+    wp: wallpaperSettings(),
     moduleEnabled: arg.moduleEnabled,
     modules: arg.modules,
     onModule: arg.onModule && function (id, on) {

@@ -100,6 +100,20 @@ const overseerrProxy = (req, res) => {
     .catch(() => res.writeHead(502).end('Overseerr injoignable depuis l\'aperçu'));
 };
 
+// Unsplash dans l'aperçu : clé lue dans .local/unsplash.env (jamais de git ni du build), posée en mémoire comme dans le paquet.
+// L'API Unsplash envoie les en-têtes CORS : pas de relais. Sans fichier : pas de fond photo, comme un paquet sans clé.
+const US_ENV = '/home/swetterwald/git/cimaise/.local/unsplash.env';
+const unsplashSessionScript = async () => {
+  try {
+    let key = '';
+    for (const l of readFileSync(process.env.UNSPLASH_ENV_FILE || US_ENV, 'utf8').split('\n')) { const i = l.indexOf('='); if (i > 0 && l.slice(0, i).trim() === 'UNSPLASH_ACCESS_KEY') key = l.slice(i + 1).trim(); }
+    if (!key) throw new Error('clé absente');
+    return [`window.__cimaiseUnsplash={key:${JSON.stringify(key)}};`, 'text/javascript'];
+  } catch (e) {
+    return [`console.warn('[aperçu] pas d\\'Unsplash (unsplash.env illisible ou incomplet) : fond teinté');`, 'text/javascript'];
+  }
+};
+
 const SHELL = `<!doctype html>
 <html lang="fr"><head><meta charset="utf-8"><title>cimaise — aperçu</title>
 <style>
@@ -119,9 +133,10 @@ const routes = {
   '/__mocks/plex-session.js': plexSessionScript,
   '/__mocks/ha-session.js': haSessionScript,
   '/__mocks/overseerr-session.js': overseerrSessionScript,
+  '/__mocks/unsplash-session.js': unsplashSessionScript,
   '/__mocks/preview.js': async () => [await bundle('mocks/src/preview.ts'), 'text/javascript'],
   '/app/index.html': async () => [
-    readFileSync(`${root}apps/tv/index.html`, 'utf8').replace('<head>', '<head>\n<script src="/__mocks/mocks.js"></script>\n<script src="/__mocks/plex-session.js"></script>\n<script src="/__mocks/ha-session.js"></script>\n<script src="/__mocks/overseerr-session.js"></script>'),
+    readFileSync(`${root}apps/tv/index.html`, 'utf8').replace('<head>', '<head>\n<script src="/__mocks/mocks.js"></script>\n<script src="/__mocks/plex-session.js"></script>\n<script src="/__mocks/ha-session.js"></script>\n<script src="/__mocks/overseerr-session.js"></script>\n<script src="/__mocks/unsplash-session.js"></script>'),
     'text/html',
   ],
   '/app/app.js': async () => [await bundle('apps/tv/src/index.ts'), 'text/javascript'],

@@ -15,8 +15,9 @@ mkdir -p "$DIST_DIR"
 # Le jeton ne vit que dans cette copie et dans le .wgt (dist/, ignoré par git) ; la copie est supprimée à la sortie.
 STAGE="$DIST_DIR/.stage-app"
 trap 'rm -rf "$STAGE"' EXIT
-# Idem pour .local/overseerr.env (URL + clé de la sonde Overseerr, et <access origin> ajouté au config.xml de la copie).
-node "$REPO_ROOT/scripts/build/local-config.mjs" "$REPO_ROOT/$APP_DIR" "$STAGE" "$LOCAL_DIR/ha.env" "$LOCAL_DIR/overseerr.env"
+# Idem pour .local/overseerr.env (URL + clé de la sonde Overseerr, et <access origin> ajouté au config.xml de la copie)
+# et .local/unsplash.env (clé du fond d'écran de l'accueil ; origines api. et images.unsplash.com déclarées dans la copie).
+node "$REPO_ROOT/scripts/build/local-config.mjs" "$REPO_ROOT/$APP_DIR" "$STAGE" "$LOCAL_DIR/ha.env" "$LOCAL_DIR/overseerr.env" "$LOCAL_DIR/unsplash.env"
 # REQUIRED_VERSION (env de la cible, ex. 4.0 pour TV2) : réécrit dans la COPIE seulement ; le config.xml source ne bouge pas.
 if [ -n "${REQUIRED_VERSION:-}" ]; then
   [[ "$REQUIRED_VERSION" =~ ^[0-9]+\.[0-9]+$ ]] || die "REQUIRED_VERSION « $REQUIRED_VERSION » invalide (ex. 4.0)"

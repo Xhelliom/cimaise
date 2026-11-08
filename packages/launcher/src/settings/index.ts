@@ -3,5 +3,6 @@
 export { createSettings, SettingsOptions, ModuleRow } from './screen';
 export { HaSettings } from './scenes';
 export { OverseerrSettings } from './overseerr';
+export { WallpaperSettings } from './wallpaper';
 export { AppEntry, DiscoveredApp, PALETTE, removeAt, moveItem, setTint, nextTint, notInCatalog, addDiscovered, scrollOffset, ROW_H, VIEW_H } from './model';
 export { fillIds } from '../catalog/model';

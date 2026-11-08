@@ -1,4 +1,4 @@
-import { noteEvent, mark } from '../../../tv-core/src/diag';
+import { noteEvent, mark, diagNote, usedHeap } from '../../../tv-core/src/diag';
 import { applyIcon } from '../../../tv-core/src/icon';
 import { Key } from '../../../tv-core/src/keys';
 import { Focus } from '../../../tv-core/src/focus';
@@ -9,6 +9,9 @@ import { knownApp } from '../catalog/known-apps';
 import { greeting, formatClock, formatDate, tintGradient, tileInk, railOffset, pageShift, rowOffset, tileH, rowTileLeft, rowTileW, BAC_TOP, PAD, GAP, BAC_W, SCREEN_H, HomeMode, DEFAULT_MODE, normalizeTiles } from './model';
 
 export interface SceneItem { id: string; name: string; }
+
+// Fond d'écran photo (Unsplash) : URL déjà à la taille de l'écran, crédit et liens exigés par Unsplash.
+export interface HomePhoto { url: string; author: string; authorUrl: string; portrait: boolean; }
 
 export type PastilleName = 'reglages' | 'smarthub';
 
@@ -42,6 +45,9 @@ export interface HomePanel extends Panel {
   setScenes(list: SceneItem[]): void;   // rangée de pastilles scène (au plus 6) ; liste vide = rangée retirée
   notify(text: string): void;   // petit message à l'écran (disparaît seul)
   enrich(): void;               // après la 1re peinture : teinte, description et logos (chargés hors DOM, posés en fondu une fois prêts)
+  // Photo de fond (null : retirée, la teinte reste). Chargée hors DOM, posée une fois prête puis fondu d'opacity ; onShown
+  // à ce moment-là seulement (jamais si l'image échoue : la teinte reste, aucune erreur).
+  setPhoto(p: HomePhoto | null, onShown?: () => void): void;
 }
 
 var MESSAGE_MS = 4000;
@@ -54,6 +60,7 @@ var TINT_DELAY_MS = 150; // la teinte ne suit qu'après cet arrêt du focus ; le
 // TV2 (Tizen 4, 08/11) : logos posés 1,3 s après enrich ; à 400 ms les 7 noms s’affichaient ~200 ms. Un logo illisible
 // échoue tout de suite (onerror → nom) : ce délai ne couvre qu’un chargement bloqué, il peut donc être long.
 var NAME_DELAY_MS = 3000;
+var PHOTO_FADE_MS = 800;  // fondu de la photo (home.css .photo) ; l'ancienne couche est retirée après
 
 var PASTILLES: Array<{ name: PastilleName; label: string }> = [
   { name: 'reglages', label: 'Réglages' },
@@ -331,6 +338,67 @@ export function createHome(opts: HomeOptions): HomePanel {
     }, function () { speak(t); logoDone(); });
   }
 
+  // --- photo de fond : une couche (img + voile + crédit) insérée sous l'en-tête ; même z-index que le contenu, placée avant
+  // lui dans le DOM, donc dessous. Rien n'existe tant qu'aucune photo n'est demandée. ---
+  var photoEl: HTMLElement | null = null, photoUrl = '', photoReq = 0, photoDrop: any = null;
+  function dropPhoto(old: HTMLElement | null, delay: number): void {
+    if (!old) return;
+    var rm = function () { if (old!.parentNode) old!.parentNode.removeChild(old!); };
+    if (!delay) { rm(); return; }
+    old.className = 'photo' + (has(old, 'portrait') ? ' portrait' : '');
+    if (photoDrop !== null) timer.clear(photoDrop);
+    photoDrop = timer.set(function () { photoDrop = null; rm(); }, delay);
+  }
+  // Diagnostic (touche 0) : taille, poids (Resource Timing : images.unsplash.com envoie Timing-Allow-Origin), durée de
+  // chargement, mémoire décodée estimée (l × h × 4) et mémoire JS avant / après la pose (2 images plus tard).
+  function notePhoto(img: any, url: string, ms: number, h0: number): void {
+    var w = img.naturalWidth || 0, h = img.naturalHeight || 0, kb = -1;
+    try {
+      var perf: any = typeof performance !== 'undefined' ? performance : null;
+      var e = perf && perf.getEntriesByName ? perf.getEntriesByName(url) : [];
+      if (e && e.length) kb = Math.round((e[e.length - 1].encodedBodySize || e[e.length - 1].transferSize || 0) / 1024);
+    } catch (x) { /* Resource Timing absent */ }
+    var mo = function (b: number) { return b < 0 ? '?' : (Math.round(b / 104857.6) / 10) + ' Mo'; };
+    var base = w + '×' + h + ', ' + (kb > 0 ? kb + ' Ko' : 'poids ? (cache)') + ', ' + ms + ' ms, décodée ≈ ' + mo(w * h * 4) + ', JS avant ' + mo(h0);
+    diagNote('fond', base);
+    var raf = typeof requestAnimationFrame !== 'undefined' ? requestAnimationFrame : null;
+    if (raf) raf(function () { raf!(function () { diagNote('fond', base + ' / après ' + mo(usedHeap())); }); });
+  }
+  function setPhoto(p: HomePhoto | null, onShown?: () => void): void {
+    var req = ++photoReq;
+    if (!p) { photoUrl = ''; var o = photoEl; photoEl = null; dropPhoto(o, PHOTO_FADE_MS); return; }
+    if (p.url === photoUrl && photoEl) { if (onShown) onShown(); return; }
+    var img: any = doc.createElement('img'), t0 = Date.now(), h0 = usedHeap();
+    img.onload = function () {
+      if (req !== photoReq) return;  // une autre demande est passée entre-temps
+      notePhoto(img, p.url, Date.now() - t0, h0);
+      var layer = div('photo' + (p.portrait ? ' portrait' : ''));
+      layer.appendChild(img);
+      layer.appendChild(div('voile'));
+      var credit = div('credit');
+      var a1 = doc.createElement('a'), a2 = doc.createElement('a');
+      a1.setAttribute('href', p.authorUrl); a1.textContent = p.author;
+      a2.setAttribute('href', 'https://unsplash.com/?utm_source=cimaise&utm_medium=referral'); a2.textContent = 'Unsplash';
+      credit.appendChild(doc.createTextNode('Photo : '));
+      credit.appendChild(a1);
+      credit.appendChild(doc.createTextNode(' / '));
+      credit.appendChild(a2);
+      layer.appendChild(credit);
+      el.insertBefore(layer, header);
+      var view = doc.defaultView;
+      if (view && view.getComputedStyle) void view.getComputedStyle(layer).opacity;
+      layer.className += ' vu';
+      var old = photoEl;
+      photoEl = layer; photoUrl = p.url;
+      dropPhoto(old, PHOTO_FADE_MS);
+      noteEvent('fond : photo posée');
+      mark('photo');
+      if (onShown) onShown();
+    };
+    img.onerror = function () { if (req === photoReq) noteEvent('fond : image illisible (hors ligne ?)'); };
+    img.setAttribute('src', p.url);
+  }
+
   // Message transitoire : un seul élément, masqué par la classe, retiré par une minuterie ponctuelle.
   var msgTimer: any = null;
   function notify(text: string): void {
@@ -480,6 +548,7 @@ export function createHome(opts: HomeOptions): HomePanel {
       paint();
     },
     setScenes: setScenes,
+    setPhoto: setPhoto,
     setTiles: function (n: number) {
       n = normalizeTiles(n);
       if (n === per) return;
@@ -497,6 +566,8 @@ export function createHome(opts: HomeOptions): HomePanel {
       if (tintTimer !== null) { timer.clear(tintTimer); tintTimer = null; }
       if (nameTimer !== null) { timer.clear(nameTimer); nameTimer = null; }
       if (msgTimer !== null) { timer.clear(msgTimer); msgTimer = null; }
+      if (photoDrop !== null) { timer.clear(photoDrop); photoDrop = null; }
+      photoReq++;
       clearSceneTimers();
     }
   };
