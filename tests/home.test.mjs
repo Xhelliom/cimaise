@@ -354,7 +354,7 @@ test('teinte : après le fondu, l’ancien calque est éteint (minuterie annulé
   press('right');
   assert.equal(tm.pending().filter((t) => t.ms === 150).length, 1, 'une seule teinte en attente');
   tm.pending().filter((t) => t.ms === 150)[0].fn();
-  const pend = tm.pending().filter((t) => t.ms < 1000);
+  const pend = tm.pending().filter((t) => t.ms === 650);
   assert.equal(pend.length, 1, 'une seule extinction en attente');
   pend[0].fn();
   assert.equal(byClass(p.el, 'fond').filter((f) => f.className.split(' ').includes('on')).length, 1);
@@ -363,6 +363,7 @@ test('teinte : après le fondu, l’ancien calque est éteint (minuterie annulé
 test('horloge : seule minuterie au repos, alignée sur la minute ; suspend/resume/destroy', () => {
   let now = D('2026-10-29T20:45:10.500');
   const { p, tm } = mount({ now: () => now });
+  tm.pending().filter((t) => t.ms === 400).forEach((t) => t.fn()); // repli des noms : ponctuelle, éteinte après 400 ms
   let live = tm.pending();
   assert.equal(live.length, 1);
   assert.equal(live[0].ms, 60000 - (10 * 1000 + 500));
@@ -477,12 +478,16 @@ const kcat = [
 ];
 
 test('Dock : logo large de la bibliothèque d’abord, icône TV en dernier recours, le nom si rien', () => {
-  const { p } = mount({ catalog: kcat });
+  const { doc, made } = imgDoc();
+  const { p } = mount({ catalog: kcat, doc });
   const [n, d, c] = byClass(p.el, 'tuile');
-  assert.equal(n.children[0].attrs.src, 'logos/netflix.png');
-  assert.equal(d.children[0].attrs.src, 'logos/disney.png', 'le logo passe avant l’icône de la TV');
-  d.children[0].onerror();
-  assert.equal(d.children[0].attrs.src, 'file:///tv/d.png', 'logo illisible : icône de la TV');
+  assert.equal(made[0].attrs.src, 'logos/netflix.png');
+  assert.equal(made[1].attrs.src, 'logos/disney.png', 'le logo passe avant l’icône de la TV');
+  made[1].onerror();
+  assert.equal(made[1].attrs.src, 'file:///tv/d.png', 'logo illisible : icône de la TV');
+  made[1].onload();
+  assert.equal(d.children[0], made[1], 'l’icône de la TV est posée une fois chargée');
+  assert.equal(n.children.length + n.textContent.length, 0, 'logo pas encore chargé : tuile muette');
   assert.equal(c.children.length, 0);
   assert.equal(c.textContent, 'Ma super app', 'nom en grand, pas une initiale');
 });
@@ -714,21 +719,49 @@ function imgDoc() {
 }
 const NETFLIX = { id: 'n', name: 'Netflix', color: '#e50914', type: 'tv' };
 
-test('rendu minimal : tuiles avec nom seulement, ni logo ni teinte tant qu’enrich() n’a pas tourné', () => {
+test('rendu minimal : tuile à logo muette sur sa couleur, nom pour l’app sans logo, ni logo ni teinte avant enrich()', () => {
   const { doc, made } = imgDoc();
   const { p } = mount({ catalog: [NETFLIX, { id: 'x', name: 'Inconnue', color: '#113ccf', type: 'tv' }], deferRich: true, doc });
   const tuiles = byClass(p.el, 'tuile');
-  assert.deepEqual(tuiles.map((t) => t.textContent), ['Netflix', 'Inconnue']);
+  assert.deepEqual(tuiles.map((t) => t.textContent), ['', 'Inconnue'], 'aucun nom avant le logo');
+  assert.equal(tuiles[0].style.background, '#e50914', 'couleur de marque dès le premier rendu');
   assert.equal(made.length, 0, 'aucune image créée');
   assert.equal(byClass(p.el, 'fond').every((f) => f.style.background === undefined), true, 'aucune teinte');
   p.enrich();
   assert.ok(byClass(p.el, 'fond').some((f) => f.style.background), 'teinte posée par enrich');
   assert.equal(made.length, 1, 'un logo demandé (Netflix), pas pour l’app inconnue');
   assert.equal(tuiles[0].children.length, 0, 'le logo n’est posé qu’une fois chargé');
-  assert.equal(tuiles[0].textContent, 'Netflix');
+  assert.equal(tuiles[0].textContent, '');
   made[0].onload();
   assert.equal(tuiles[0].children.length, 1);
-  assert.equal(tuiles[0].textContent, '', 'le nom cède la place au logo');
+  assert.equal(tuiles[0].children[0].className, 'vu', 'posé puis passé en .vu : fondu d’opacity');
+  assert.equal(tuiles[0].textContent, '');
+});
+
+test('repli du nom : tuile encore muette après 400 ms → son nom ; le logo arrivé ensuite le remplace', () => {
+  const { doc, made } = imgDoc();
+  const { p, tm } = mount({ catalog: [NETFLIX, { id: 'y', name: 'YouTube', color: '#c4302b', type: 'tv' }], deferRich: true, doc });
+  const [n, y] = byClass(p.el, 'tuile');
+  const late = tm.pending().filter((t) => t.ms === 400);
+  assert.equal(late.length, 1, 'une seule minuterie ponctuelle pour toutes les tuiles');
+  p.enrich();
+  made[1].onload(); // YouTube arrive à temps
+  late[0].fn();
+  assert.equal(n.textContent, 'Netflix', 'Netflix encore sans logo : son nom');
+  assert.equal(y.textContent, '', 'YouTube a son logo : pas de nom');
+  assert.equal(y.children.length, 1);
+  made[0].onload();
+  assert.equal(n.textContent, '', 'le logo remplace le nom');
+  assert.equal(n.children.length, 1);
+  assert.equal(tm.pending().filter((t) => t.ms === 400).length, 0);
+});
+
+test('repli du nom : aucune minuterie sans tuile à logo ; destroy l’annule', () => {
+  const a = mount({ catalog: [{ id: 'x', name: 'Inconnue', color: '#113ccf', type: 'tv' }], deferRich: true });
+  assert.equal(a.tm.pending().filter((t) => t.ms === 400).length, 0);
+  const b = mount({ catalog: [NETFLIX], deferRich: true });
+  b.p.destroy();
+  assert.equal(b.tm.pending().filter((t) => t.ms === 400).length, 0);
 });
 
 test('enrich : un logo qui échoue laisse le nom ; deux appels ne doublent rien', () => {
@@ -736,8 +769,9 @@ test('enrich : un logo qui échoue laisse le nom ; deux appels ne doublent rien'
   const { p } = mount({ catalog: [NETFLIX], deferRich: true, doc });
   p.enrich(); p.enrich();
   assert.equal(made.length, 1);
+  assert.equal(byClass(p.el, 'tuile')[0].textContent, '');
   made[0].onerror();
-  assert.equal(byClass(p.el, 'tuile')[0].textContent, 'Netflix');
+  assert.equal(byClass(p.el, 'tuile')[0].textContent, 'Netflix', 'logo en échec : le nom, sans attendre 400 ms');
   assert.equal(byClass(p.el, 'tuile')[0].children.length, 0);
 });
 
@@ -802,11 +836,13 @@ test('logo hors écran sans pré-décodage (pas de rAF) : cause « 1re peinture 
 });
 
 test('Dock : Plex officiel porte la mention « officiel » sous le logo, Plex intégré non', () => {
-  const { p } = mount({ catalog: [
+  const { doc, made } = imgDoc();
+  const { p } = mount({ doc, catalog: [
     { id: 'plex', name: 'Plex intégré', color: '#e5a00d', type: 'interne' },
     { id: 'o', name: 'Plex officiel', color: '#3a3d42', type: 'tv' },
   ] });
   const [i, o] = byClass(p.el, 'tuile');
+  made.forEach((m) => m.onload());
   assert.equal(i.style.background, '#e5a00d');
   assert.equal(o.style.background, '#000000');
   assert.equal(i.children[0].attrs.src, 'logos/plex-integre.png');
@@ -815,7 +851,7 @@ test('Dock : Plex officiel porte la mention « officiel » sous le logo, Plex in
   assert.equal(o.children.length, 2);
   assert.equal(o.children[1].textContent, 'officiel');
   assert.match(o.children[0].className, /avec-mention/, 'le logo remonte pour laisser la place');
-  assert.equal(o.children[1].className, 'mention');
+  assert.equal(o.children[1].className, 'mention vu', 'la mention entre en fondu avec le logo');
   assert.doesNotMatch(i.children[0].className || '', /avec-mention/);
 });
 
@@ -823,12 +859,12 @@ test('rendu différé : la mention « officiel » arrive avec le logo de Plex of
   const { doc, made } = imgDoc();
   const { p } = mount({ catalog: [{ id: 'o', name: 'Plex officiel', color: '#3a3d42', type: 'tv' }], deferRich: true, doc });
   const [o] = byClass(p.el, 'tuile');
-  assert.equal(o.textContent, 'Plex officiel');
+  assert.equal(o.textContent, '');
   p.enrich();
   made[0].onload();
   assert.equal(o.children.length, 2);
   assert.match(o.children[0].className, /avec-mention/);
-  assert.equal(o.children[1].className, 'mention');
+  assert.equal(o.children[1].className, 'mention vu', 'la mention entre en fondu avec le logo');
   assert.equal(o.children[1].textContent, 'officiel');
 });
 

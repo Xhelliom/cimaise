@@ -999,3 +999,37 @@ publics → -10 ans → -12 ans), au bout de la ligne Rechercher · roue dentée
 
 Coût : `plex.js` (chargé à la demande) 110,36 → 112,71 Ko (+2,4 Ko minifié, +0,6 Ko gzip) ; `app.css` +0,2 Ko ;
 `app.js` inchangé. Réseau : rien sur « Tous » ; sinon les deux requêtes des séries permises ci-dessus, mises en cache.
+
+### Accueil : plus de nom d'app avant le logo au démarrage (2026-11-08)
+
+Remarque de Stéphane (08/11) : au lancement, les tuiles montrent leur nom une fraction de seconde avant le logo. Cause : le
+premier rendu minimal (ci-dessus) posait le nom, puis `enrich()` le remplaçait par le logo.
+
+- **Premier rendu : la tuile n'a que sa couleur de marque** (déjà posée dès le premier rendu, coût inchangé) et aucun
+  texte si un logo est attendu. Une app sans logo garde son nom tout de suite.
+- **Logo en fondu** : chargé hors DOM comme avant, posé à opacité 0, puis classe `vu` → `transition: opacity .15s`
+  (la mention « officiel » suit le même fondu). Entre les deux, `getComputedStyle(img).opacity` force le calcul du style
+  (pas de mise en page) ; sans lui, pas de fondu. Le test CSS interdit `@keyframes`/`animation` : transition seulement.
+- **Le nom en repli** : si toutes les variantes échouent (`applyIcon` reçoit `onFailed`), ou si la tuile est encore muette
+  400 ms après le premier rendu (**une** minuterie ponctuelle pour toutes les tuiles, annulée par `destroy`/`setCatalog`) ;
+  un logo arrivé plus tard remplace alors le nom.
+- `setCatalog` (après Découvrir) passe par le même chemin : plus d'`<img>` posée vide dans la tuile.
+- **Teinte du fond (dégradé) laissée dans `enrich()`** : son coût n'est pas nul (dégradé 960×540 à rastériser au premier
+  rendu, suspect relevé sur la Frame) ; la couleur de marque, elle, est sur la tuile dès le premier rendu.
+- Titre et description sous les tuiles : inchangés.
+
+Coût : +0,4 Ko de JS environ, +2 règles CSS, une minuterie ponctuelle de 400 ms au démarrage, aucune ressource.
+
+Avant (HEAD 34d3a2d) / après, aperçu bridé (Chromium 155 sans écran, 1920×1080, 20 appuis gauche/droite espacés de 400 ms,
+diagnostic touche 0) ; ms, passes à froid séparées par « / » :
+
+| | avant | après |
+|---|---|---|
+| firstPaint CPU ×1 (6 passes) | 4 / 6 / 5 / 5 / 6 / 5 | 6 / 4 / 6 / 6 / 10 / 7 |
+| firstPaint CPU ×4 | 33 / 19 / 30 | 21 / 19 / 25 |
+| latence méd. CPU ×1 | 23–26 | 24–26 |
+| latence max CPU ×1 | 30 / 32 / 32 / 33 / 32 / 42 | 39 / 33 / 52 / 35 / 33 / 50 |
+| latence méd. / max CPU ×4 | 24–25 / 33–34 | 23–24 / 33–34 |
+
+Lecture : dans le bruit des deux côtés (max isolés à 42–52 ms, cause « inconnue », avant comme après ; ×4 identique). Comme
+noté plus haut, l'aperçu ne reproduit pas le coût de la TV : **à confirmer sur la Frame** (diagnostic après démarrage à froid).
