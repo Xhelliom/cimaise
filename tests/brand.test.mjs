@@ -24,7 +24,7 @@ test('fond plein, 2 couleurs + fond au plus, pas de texte ni d’effet', () => {
   }
 });
 
-test("l’icône de l’app est le logo verre-2 : PNG 512×423 RVB (format Samsung des apps publiées), optimisé, config.xml inchangé", () => {
+test("l’icône de l’app est la tuile verre-2 avec le mot : PNG 512×423 RVB (format Samsung des apps publiées), optimisé, config.xml inchangé", () => {
   const p = readFileSync("apps/tv/icon.png");
   assert.deepEqual([...p.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
   assert.deepEqual([p.readUInt32BE(16), p.readUInt32BE(20)], [512, 423]);

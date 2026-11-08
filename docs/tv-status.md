@@ -291,9 +291,17 @@ Le lancement des apps et les touches marchaient sur TV2 (certificat public Tizen
      installation propre. SDK : « install completed ». **Vu : tuile toujours verticale.** Stéphane pense voir encore l'icône
      carrée ; non tranché (les deux icônes se ressemblent : comparaison publiée sur la carte, photo demandée).
 - **Non vérifiable par le SDK** : `sdb shell` (lecture de l'icône installée) répond `closed` sur la Frame.
-- **Hypothèse** : le Smart Hub de 2019 donne une tuile de format fixe aux apps hors Store, quelle que soit l'icône de
+- **Hypothèse (confirmée en partie, voir plus bas)** : le Smart Hub de 2019 donne une tuile de format fixe aux apps hors Store, quelle que soit l'icône de
   `config.xml` ; les tuiles paysage viennent des visuels du Seller Office. Non confirmé par une source Samsung.
-- **Non testé** : variante 1:1 transparente ; réinitialisation du Smart Hub (écartée : efface les connexions de toutes les apps).
+- **Suite, même soir (installations par-dessus, pas de nouvelle désinstallation ; SDK « install completed » à chaque fois)** :
+  5. Variante 1:1 transparente : pas de retour net. Stéphane précise alors qu'il attendait la **tuile avec le mot « cimaise »**,
+     et que la tuile était en fait déjà plus large avec la 512×423 (symbole seul).
+  6. Tuile avec le mot, 16:9 (640×360) : **vu : affichée, mais écrasée/déformée**.
+  7. Tuile avec le mot, 512×423 : **vu : « comme les autres »**, puis précisé : le texte rend bien, mais la tuile reste
+     **moins allongée** que celles de Netflix, Plex, etc. Acceptée « pour cette fois » (Stéphane, 08/11). Retenue.
+- **Constat** : le Smart Hub de la Frame étire l'icône d'une app hors Store dans une tuile de format fixe ≈ 512×423, plus
+  étroite que les tuiles des apps du Store (sans doute alimentées par les visuels 1920×1080 du Seller Office) ; une installation par-dessus
+  rafraîchit l'icône depuis la désinstallation (avant : non). Réinitialisation du Smart Hub : jamais faite (écartée).
 
 ### Questions pour Stéphane
 

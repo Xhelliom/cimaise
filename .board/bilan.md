@@ -4,15 +4,17 @@ Issue : partiel
 
 **Fait**
 - Format vérifié dans la doc Samsung : 117×117 = icône « de test » (Design Q&A, Q3) ; icône des apps publiées =
-  512×423, PNG 24 bits RVB (App Icons and Screenshots). Rien sur l'`<icon>` de `config.xml`.
-- `apps/tv/icon.png` refaite en 512×423 RVB (source `packages/launcher/brand/icon.svg`) : 37 092 o (+31 444 o), consigné dans
-  `docs/decisions.md` ; `config.xml` passé en version 0.0.2 ; `npm run check` vert.
-- Frame (TV2 non touchée) : installation par-dessus, redémarrage complet, installation en 0.0.2, puis — avec l'accord explicite
-  de Stéphane — désinstallation depuis la TV et installation propre. Tout est consigné dans `docs/tv-status.md`.
-- Comparaison avant/après et les deux icônes publiées sur la carte.
+  512×423, PNG 24 bits RVB (App Icons and Screenshots).
+- `apps/tv/icon.png` = tuile verre-2 **avec le mot « cimaise »**, recadrée en 512×423 RVB (source
+  `packages/launcher/brand/icon-tuile.svg`, à partir de `tile.svg`) : **29 175 o** (+23 527 o vs 117×117) ; `.wgt` signé
+  215 189 o. Variantes essayées et gardées en source : `icon.svg` (symbole seul, 512×423), `icon-carre.svg` (1:1 transparente).
+- Sur la Frame (TV2 non touchée) : installations par-dessus, redémarrage, version 0.0.2, puis désinstallation **avec l'accord
+  explicite de Stéphane** et installation propre ; puis variantes par-dessus. Tout est consigné dans `docs/tv-status.md` et
+  `docs/decisions.md`.
+- **Vu par Stéphane** : la tuile 512×423 avec le mot s'affiche sans déformation et « le texte rend bien » (la 16:9 était écrasée).
 
 **Pas fait / pourquoi**
-- Critère 2 non rempli : Stéphane voit toujours une tuile verticale (il pense voir l'icône carrée ; photo demandée pour
-  trancher). Hypothèse : tuile de format fixe pour les apps hors Store sur le Smart Hub 2019 ; non confirmée.
-- Variante 1:1 transparente prête (hors dépôt) mais pas encore essayée.
-- Désinstallation : jeton Plex et réglages perdus (accepté par Stéphane) ; reconnexion Plex par PIN à refaire.
+- La tuile cimaise reste **moins allongée** que celles de Netflix, Plex, etc. Le Smart Hub met l'icône d'une app hors Store
+  dans une tuile de format fixe ≈ 512×423 ; les tuiles plus larges des apps du Store viennent sans doute des visuels du Seller
+  Office. Hors d'atteinte avec `config.xml`, à ma connaissance. Stéphane accepte le résultat « pour cette fois ».
+- La désinstallation a effacé le jeton Plex et les réglages : reconnexion Plex par code PIN à refaire.
