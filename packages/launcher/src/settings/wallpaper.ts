@@ -11,10 +11,10 @@ export interface WallpaperSettings {
   value: WallpaperPrefs;
   onChange: (v: WallpaperPrefs) => void;                                // le propriétaire persiste
   topics: (cb: (err: Error | null, list?: Topic[]) => void) => void;    // GET /topics (ou cache)
+  onNext?: () => void;   // « Changer d'image » : l'image du jour est abandonnée, une autre est tirée au retour à l'accueil
 }
 
-type Row = 'source' | 'query' | 'portrait';
-var ROWS: Row[] = ['source', 'query', 'portrait'];
+type Row = 'source' | 'query' | 'portrait' | 'next';
 var CHANGED = 'Nouvelle image au prochain affichage de l’accueil.';
 
 // Choix de la source dans l'ordre parcouru aux flèches : Désactivé, les thèmes, puis la recherche (si un mot est saisi).
@@ -25,6 +25,7 @@ export function createWallpaperView(doc: Document, ws: WallpaperSettings, redraw
   var topics: Topic[] = [{ id: v.topicId, title: v.topicTitle }];
   if (v.topicId !== DEFAULT_TOPIC.id) topics.unshift(DEFAULT_TOPIC);
   var sel = 0, status = '', kb: Keyboard | null = null, kbBox: HTMLElement | null = null;
+  var ROWS: Row[] = ws.onNext ? ['source', 'query', 'portrait', 'next'] : ['source', 'query', 'portrait'];
 
   function div(cls: string, text?: string): HTMLElement {
     var d = doc.createElement('div');
@@ -91,7 +92,7 @@ export function createWallpaperView(doc: Document, ws: WallpaperSettings, redraw
     if (r === 'query') return v.query || 'Aucune';
     return v.portrait ? 'Oui' : 'Non';
   }
-  var NAMES: { [r: string]: string } = { source: 'Source', query: 'Recherche', portrait: 'Photos en portrait' };
+  var NAMES: { [r: string]: string } = { source: 'Source', query: 'Recherche', portrait: 'Photos en portrait', next: 'Changer d’image' };
 
   function render(): HTMLElement {
     if (kbBox) return kbBox;
@@ -99,7 +100,7 @@ export function createWallpaperView(doc: Document, ws: WallpaperSettings, redraw
     for (var i = 0; i < ROWS.length; i++) {
       var on = i === sel, line = div('ligne' + (on ? ' focus' : ''));
       line.appendChild(div('nom', NAMES[ROWS[i]]));
-      line.appendChild(div('puce' + (on ? ' focus' : ''), (on && ROWS[i] === 'source' ? '‹ ' : '') + label(ROWS[i]) + (on && ROWS[i] === 'source' ? ' ›' : '')));
+      if (ROWS[i] !== 'next') line.appendChild(div('puce' + (on ? ' focus' : ''), (on && ROWS[i] === 'source' ? '‹ ' : '') + label(ROWS[i]) + (on && ROWS[i] === 'source' ? ' ›' : '')));
       line.style.top = i * ROW_H + 'px';
       list.appendChild(line);
     }
@@ -118,6 +119,7 @@ export function createWallpaperView(doc: Document, ws: WallpaperSettings, redraw
     } else if (k === 'enter') {
       if (r === 'source') stepSource(1, true);
       else if (r === 'query') { startKeyboard(); return true; }
+      else if (r === 'next') { if (v.source === 'off') status = 'Source désactivée : choisis un thème ou une recherche.'; else { ws.onNext!(); status = CHANGED; } }
       else { v.portrait = !v.portrait; commit(); }
     } else return false;
     redraw();

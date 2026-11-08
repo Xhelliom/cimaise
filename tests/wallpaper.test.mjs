@@ -188,6 +188,31 @@ test('tirage : hors ligne, l’image d’hier ; sans image d’hier, fond teint�
   assert.deepEqual(vide.shown, [null]);
 });
 
+test('« Changer d’image » : nouveau tirage au prochain affichage, l’ancienne image reste en secours', () => {
+  const h = harness();
+  h.run();
+  const avant = h.shown[0].url;
+  W.skipWallpaper(h.store);
+  h.run();
+  assert.equal(randoms(h).length, 2, 'nouveau tirage le même jour');
+  const g = harness({ prefs: h.store.prefs(), reply: () => new Error('réseau') });
+  W.skipWallpaper(g.store);
+  g.run();
+  assert.equal(g.shown[0].url, avant, 'hors ligne : image en cache gardée');
+});
+
+test('Réglages : ligne « Changer d’image » (Entrée), inactive si la source est désactivée', () => {
+  let next = 0;
+  const view = V.createWallpaperView(sfakeDoc(), { value: W.normalizeWallpaper({}), onChange() {}, topics: (cb) => cb(null, TOPICS), onNext: () => next++ }, () => {});
+  assert.ok(texts(view.render()).includes('Changer d’image'));
+  ['down', 'down', 'down', 'enter'].forEach((k) => view.press(k));
+  assert.equal(next, 1);
+  assert.match(view.status(), /prochain affichage/);
+  ['up', 'up', 'up', 'left', 'down', 'down', 'down', 'enter'].forEach((k) => view.press(k));
+  assert.equal(next, 1);
+  assert.match(view.status(), /désactivée/);
+});
+
 test('thèmes : un seul GET /topics, puis le cache (pas d’appel à la seconde ouverture)', () => {
   const store = memStore({}), reqs = [];
   const http = (req, cb) => { reqs.push(req); cb(null, { status: 200, body: JSON.stringify([{ id: 'a', slug: 'wallpapers', title: 'Wallpapers' }, { id: 'b', slug: 'nature', title: 'Nature' }]) }); };

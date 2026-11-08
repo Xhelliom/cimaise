@@ -57,6 +57,18 @@ export function refreshWallpaper(d: WallpaperDeps): void {
   });
 }
 
+// « Changer d'image » : l'image du jour perd sa signature (un nouveau tirage aura lieu au prochain refreshWallpaper) mais
+// reste en cache comme image de secours si le tirage échoue.
+export function skipWallpaper(store?: Storage): void {
+  try {
+    var s = loadStored(store), c = readDaily(s.prefs.wallpaperDay);
+    if (!c) return;
+    c.sig = '';
+    s.prefs.wallpaperDay = c;
+    saveStored(s, store);
+  } catch (e) { /* stockage refusé : rien ne change */ }
+}
+
 // Thèmes officiels pour les Réglages : relus du cache (30 jours), sinon UN GET /topics à l'ouverture de la section.
 export function loadTopics(http: Http, key: string, cb: (err: Error | null, list?: Topic[]) => void, store?: Storage): void {
   var c = readTopics(loadStored(store).prefs.unsplashTopics, Date.now());

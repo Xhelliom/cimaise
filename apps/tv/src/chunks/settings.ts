@@ -16,7 +16,7 @@ import { xhrHttp } from '../../../../packages/widgets/src/xhr';
 import { saveStored } from '../../../../packages/tv-core/src/storage';
 import { WallpaperSettings } from '../../../../packages/launcher/src/settings/wallpaper';
 import { normalizeWallpaper, packagedKey } from '../../../../packages/launcher/src/wallpaper/model';
-import { loadTopics } from '../../../../packages/launcher/src/wallpaper/daily';
+import { loadTopics, skipWallpaper } from '../../../../packages/launcher/src/wallpaper/daily';
 
 // Les Réglages travaillent sur AppEntry (teinte) ; le catalogue persisté est un CatalogEntry (couleur, type, rappel).
 // Au retour, on retrouve l'entrée d'origine (id + nom) pour ne pas perdre `type` ni `todo` (plusieurs entrées peuvent avoir un id vide).
@@ -91,7 +91,8 @@ function wallpaperSettings(): WallpaperSettings | undefined {
     onChange: function (v) {
       try { var s = loadStored(); s.prefs.wallpaper = v; saveStored(s); } catch (e) { /* stockage refusé : valable pour cette session */ }
     },
-    topics: function (cb) { loadTopics(xhrHttp, key, cb); }
+    topics: function (cb) { loadTopics(xhrHttp, key, cb); },
+    onNext: function () { skipWallpaper(); }
   };
 }
 
