@@ -248,10 +248,13 @@ Piste trouvée en ligne ([Apps2Samsung PR #990](https://github.com/Apps2Samsung/
   **`noms en repli ×7 +1884`**, `logos +2083` ms ; mémoire JS 10 Mo. Les 7 noms se sont donc affichés ≈ 200 ms avant les
   logos. Latence non relevée (aucun appui avant la touche 0). Aucun relevé antérieur de `firstPaint` sur TV2 pour comparer.
   → délai porté à 3 s (voir decisions.md), réinstallé sur les deux TV.
-- **Réponse « Aucun nom » de Stéphane** au lancement à froid : à rattacher à la bonne TV (la photo jointe est celle de TV2).
-- **Non observé encore** : au lancement à froid, les tuiles doivent apparaître en aplats de couleur, puis les logos en fondu,
-  sans jamais montrer le nom d’une app à logo. À confirmer par Stéphane, avec le diagnostic (touche 0) : `firstPaint` et
-  latence max à comparer avec les relevés précédents.
+- **Observé physiquement après le correctif (délai 3 s), lancement à froid, Stéphane, 08/11** : **Frame : aucun nom avant les
+  logos. TV2 : aucun nom avant les logos.**
+- **Diagnostic de la Frame après le correctif (photo, user agent Tizen 5.0)** : `storageRead +3`, `catalogLoaded +9`,
+  `homeBuilt/firstPaint/interactive +449`, `painted +638`, `enriched +665`, `logos +1354` ms, **pas de `noms en repli`** ;
+  mémoire JS 10 Mo. Comparaison : dernier relevé de `firstPaint` sur la Frame +583 ms (docs/decisions.md, « Avant ») →
+  pas de recul. Les logos mettent ≈ 690 ms après `enrich()` sur la Frame : un délai de 400 ms aurait montré les noms ici aussi.
+- **Non relevé** : latence touche→focus sur la Frame (aucun appui enregistré avant la touche 0) ; dernier relevé : max 298 ms.
 
 ### Questions pour Stéphane
 
