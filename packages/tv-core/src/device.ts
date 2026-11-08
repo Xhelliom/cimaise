@@ -26,6 +26,19 @@ export function getWebapis(): any {
   return w;
 }
 
+// Une ligne pour le diagnostic : webapis chargé ?, versions d'AVPlay et de webapis, firmware, plateforme. Ne lève jamais.
+export function webapisInfo(): string {
+  var w = typeof window === 'undefined' ? undefined : (window as any).webapis, out: string[] = [];
+  if (typeof w === 'undefined') return 'webapis absent';
+  function get(label: string, fn: () => any): void { try { out.push(label + ' ' + fn()); } catch (e) { out.push(label + ' ✗' + ((e as any) && (e as any).name ? (e as any).name : '')); } }
+  get('avplay', function () { return w.avplay.getVersion(); });
+  get('webapis', function () { return w.productinfo.getVersion(); });
+  get('fw', function () { return w.productinfo.getFirmware(); });
+  get('modèle', function () { return w.productinfo.getRealModel(); });
+  get('tizen', function () { return (window as any).tizen.systeminfo.getCapability('http://tizen.org/feature/platform.version'); });
+  return 'webapis présent : ' + out.join(', ');
+}
+
 export function registerKeys(names: string[]): void {
   var tizen = getTizen();
   for (var i = 0; i < names.length; i++) tizen.tvinputdevice.registerKey(names[i]);

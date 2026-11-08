@@ -93,6 +93,25 @@ export function plexReport(): string {
   return lines.join('\n');
 }
 
+// Journal AVPlay (lecteur) : un appel par ligne, état avant→après, exception. Sur window comme les mesures (plex.js l'écrit,
+// app.js l'affiche). Rien en boucle : seulement les appels ponctuels (open, prepare, play, seek, stop…), jamais oncurrentplaytime.
+export var AV_KEEP = 30;
+var localAv: string[] = [];
+function avStore(): string[] {
+  if (typeof window === 'undefined') return localAv;
+  var w: any = window;
+  return w.__cimaiseAvLog || (w.__cimaiseAvLog = []);
+}
+var avT0 = 0;
+export function avLog(line: string): void {
+  var l = avStore(), t = Date.now();
+  if (!avT0) avT0 = t;
+  l.push('+' + (t - avT0) + ' ' + line);
+  if (l.length > AV_KEEP) l.shift();
+}
+export function resetAvLog(): void { localAv = []; avT0 = 0; if (typeof window !== 'undefined') (window as any).__cimaiseAvLog = []; }
+export function avReport(): string { return avStore().join('\n'); }
+
 export function report(): string {
   var base = marks.scriptLoaded, lines: string[] = [];
   for (var k in marks) if (marks.hasOwnProperty(k)) lines.push(k + ': +' + (marks[k] - base) + ' ms');
@@ -111,7 +130,8 @@ export function toggleDiag(): void {
   el = document.createElement('pre');
   el.style.cssText = 'position:fixed;top:0;left:0;margin:0;padding:16px;background:#000;color:#0f0;font:20px monospace;max-width:1888px;word-break:break-all;z-index:9999';
   var ic = iconReport();
-  el.textContent = report() + (ic ? '\n\nicônes:\n' + ic : '') + '\n\n[1] Sonde formats (lecture directe d’un échantillon par catégorie)\n[2] Sonde Overseerr (HTTPS, lecture seule)';
+  var av = avReport();
+  el.textContent = report() + (av ? '\n\nAVPlay:\n' + av : '') + (ic ?'\n\nicônes:\n' + ic : '') + '\n\n[1] Sonde formats (lecture directe d’un échantillon par catégorie)\n[2] Sonde Overseerr (HTTPS, lecture seule)';
   document.body.appendChild(el);
 }
 

@@ -447,3 +447,98 @@ test('événements d’un flux fermé ignorés (génération), ceux du nouveau f
   api.listener.onerror('PLAYER_ERROR_CONNECTION_FAILED'); api.listener.onstreamcompleted();
   assert.equal(errs.length, 1); assert.equal(ends.length, 1);
 });
+
+// Document minimal avec body, pour le repli <object type="application/avplayer"> (Tizen 4).
+function domDoc(withObject = false) {
+  const kids = [];
+  const doc = fakeDoc();
+  doc.body = { firstChild: null, insertBefore: (el) => { kids.unshift(el); } };
+  doc.createElement = (tag) => { const el = { tag, attrs: {}, style: {}, setAttribute: (k, v) => { el.attrs[k] = v; } }; return el; };
+  doc.querySelector = (sel) => (withObject || kids.some((k) => k.tag === 'object' && k.attrs.type === 'application/avplayer') ? {} : null);
+  doc.kids = kids;
+  return doc;
+}
+// prepareAsync échoue en INVALID_OPERATION tant que l'object n'est pas dans la page (comportement supposé de TV2).
+function tizen4Api(doc) {
+  return fakeApi({
+    prepareAsync(ok, ko) {
+      this.calls.push('prepareAsync');
+      if (doc.querySelector('object')) ok(); else ko({ name: 'PLAYER_ERROR_INVALID_OPERATION', message: 'PLAYER_ERROR_INVALID_OPERATION' });
+    },
+  });
+}
+
+test('journal AVPlay : chaque appel avec état avant→après, URL sans hôte ni token', () => {
+  core.resetAvLog();
+  const api = fakeApi();
+  core.createPlayer({ api, doc: fakeDoc() }).open('http://10.0.0.5:32400/library/parts/1/f.mkv?X-Plex-Token=SECRET', {}, () => {});
+  const log = core.avReport();
+  assert.match(log, /open http:\/\/…\/library\/parts\/1\/f\.mkv PLAYING→PLAYING/);
+  for (const n of ['setListener', 'setDisplayRect 0,0,1920,1080', 'setDisplayMethod', 'prepareAsync ok', 'play']) assert.ok(log.includes(n), n);
+  assert.ok(!log.includes('SECRET') && !log.includes('10.0.0.5'));
+});
+
+test('journal AVPlay : exception synchrone notée avec son nom', () => {
+  core.resetAvLog();
+  const api = fakeApi({ setDisplayRect: () => { const e = new Error('mauvais état'); e.name = 'InvalidStateError'; throw e; } });
+  let res = 'pending';
+  core.createPlayer({ api, doc: fakeDoc() }).open('u', {}, (e) => { res = e; });
+  assert.ok(res instanceof Error);
+  assert.match(core.avReport(), /setDisplayRect 0,0,1920,1080 PLAYING ✗ InvalidStateError: mauvais état/);
+});
+
+test('repli Tizen 4 : INVALID_OPERATION sans <object application/avplayer> → object ajouté, 2e essai lu', () => {
+  core.resetAvLog();
+  const doc = domDoc();
+  const api = tizen4Api(doc);
+  let res = 'pending';
+  core.createPlayer({ api, doc }).open('u', {}, (e) => { res = e; });
+  assert.equal(res, null);
+  assert.equal(doc.kids.length, 1);
+  assert.equal(doc.kids[0].attrs.type, 'application/avplayer');
+  assert.equal(api.calls.filter((c) => c === 'prepareAsync').length, 2);
+  assert.ok(api.calls.includes('play'));
+  assert.match(core.avReport(), /prepareAsync ✗ PLAYER_ERROR_INVALID_OPERATION[\s\S]*repli : <object/);
+});
+
+test('repli : object déjà là, ou autre erreur → pas de 2e essai, erreur remontée', () => {
+  const doc = domDoc(true);
+  const api = tizen4Api(domDoc());
+  let res = 'pending';
+  core.createPlayer({ api, doc }).open('u', {}, (e) => { res = e; });
+  assert.ok(res instanceof Error);
+  assert.equal(api.calls.filter((c) => c === 'prepareAsync').length, 1);
+  const doc2 = domDoc();
+  const api2 = fakeApi({ prepareAsync(ok, ko) { this.calls.push('prepareAsync'); ko({ name: 'PLAYER_ERROR_CONNECTION_FAILED', message: 'PLAYER_ERROR_CONNECTION_FAILED' }); } });
+  core.createPlayer({ api: api2, doc: doc2 }).open('u', {}, (e) => { res = e; });
+  assert.equal(doc2.kids.length, 0);
+  assert.equal(api2.calls.filter((c) => c === 'prepareAsync').length, 1);
+});
+
+test('repli : onerror INVALID_OPERATION après play, avant la 1re image → réouverture, pas d’onError', () => {
+  const doc = domDoc();
+  const api = fakeApi();
+  const timers = { setTimeout: (fn) => { fn(); return 1; }, clearTimeout() {} };
+  const errs = [];
+  const p = core.createPlayer({ api, doc, timers, onError: (e) => errs.push(e) });
+  p.open('u', {}, () => {});
+  api.listener.onerror('PLAYER_ERROR_INVALID_OPERATION');
+  assert.deepEqual(errs, []);
+  assert.equal(doc.kids.length, 1);
+  assert.equal(api.calls.filter((c) => c === 'play').length, 2);
+  // Une seule fois : la même erreur ensuite est fatale.
+  api.listener.onerror('PLAYER_ERROR_INVALID_OPERATION');
+  assert.equal(errs.length, 1);
+});
+
+test('repli : après la 1re image, INVALID_OPERATION reste fatal (pas de réouverture)', () => {
+  const doc = domDoc();
+  const api = fakeApi();
+  const errs = [];
+  const p = core.createPlayer({ api, doc, onError: (e) => errs.push(e) });
+  p.open('u', {}, () => {});
+  api.listener.oncurrentplaytime(1000);
+  api.listener.onerror('PLAYER_ERROR_INVALID_OPERATION');
+  assert.equal(errs.length, 1);
+  assert.equal(doc.kids.length, 0);
+});
