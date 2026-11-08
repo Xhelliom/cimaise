@@ -1,4 +1,4 @@
-import { noteEvent } from '../../../tv-core/src/diag';
+import { noteEvent, mark } from '../../../tv-core/src/diag';
 import { applyIcon } from '../../../tv-core/src/icon';
 import { Key } from '../../../tv-core/src/keys';
 import { Focus } from '../../../tv-core/src/focus';
@@ -48,7 +48,10 @@ var MESSAGE_MS = 4000;
 var SCENES_MAX = 6;
 var SCENE_MARK_MS = 1500; // « ✓ » (et la pastille allumée) restent ce temps après la réponse
 var TINT_DELAY_MS = 150; // la teinte ne suit qu'après cet arrêt du focus ; le focus, lui, bouge tout de suite
-var NAME_DELAY_MS = 400; // tuile à logo encore muette après ce délai : son nom s'affiche (le logo le remplacera s'il arrive)
+// Tuile à logo encore muette ce délai après le DÉBUT du chargement des logos (enrich, après la 1re peinture) : son nom s'affiche
+// (le logo le remplacera s'il arrive). Compté depuis le premier rendu, il échoirait pendant le script de démarrage sur la Frame
+// (+583 ms mesurés avant firstPaint) et les noms s'afficheraient dès la 1re image.
+var NAME_DELAY_MS = 400;
 
 var PASTILLES: Array<{ name: PastilleName; label: string }> = [
   { name: 'reglages', label: 'Réglages' },
@@ -114,6 +117,7 @@ export function createHome(opts: HomeOptions): HomePanel {
   var unpainted: Array<{ tile: HTMLElement; file: string; pre: boolean }> = [];
   // Tuiles à logo qui n'affichent encore rien (ni logo, ni nom) ; une seule minuterie ponctuelle leur rend leur nom.
   var muettes: HTMLElement[] = [], nameTimer: any = null;
+  var logosWanted = 0, logosDone = 0; // diagnostic : marque « logos » quand tous sont posés ou en échec
   var grid = new Focus(0, per);
   var chips = new Focus(PASTILLES.length, PASTILLES.length);
   var zone: 'tiles' | 'scenes' | 'pastilles' = 'tiles';
@@ -238,6 +242,7 @@ export function createHome(opts: HomeOptions): HomePanel {
     tiles = [];
     unpainted = [];
     muettes = [];
+    logosWanted = logosDone = 0;
     for (var i = 0; i < catalog.length; i++) {
       var t = div('tuile');
       var k = knownApp(catalog[i].name), bg = k ? k.bg : catalog[i].color;
@@ -252,8 +257,7 @@ export function createHome(opts: HomeOptions): HomePanel {
       rail.appendChild(t);
     }
     if (nameTimer !== null) { timer.clear(nameTimer); nameTimer = null; }
-    if (muettes.length) nameTimer = timer.set(function () { nameTimer = null; while (muettes.length) speak(muettes[0]); }, NAME_DELAY_MS);
-    if (rich) for (var j = 0; j < tiles.length; j++) addLogo(tiles[j], catalog[j]);
+    if (rich) loadLogos();
     grid.setCount(catalog.length);
     if (!catalog.length) zone = 'pastilles';
     grid.cols = cols();
@@ -278,6 +282,19 @@ export function createHome(opts: HomeOptions): HomePanel {
     });
   }
 
+  // Lance le chargement des logos et, seulement maintenant, la minuterie de repli des noms (une seule pour toutes les tuiles).
+  function loadLogos(): void {
+    logosWanted = muettes.length;
+    logosDone = 0;
+    if (muettes.length) nameTimer = timer.set(function () {
+      nameTimer = null;
+      if (muettes.length) mark('noms en repli ×' + muettes.length);
+      while (muettes.length) speak(muettes[0]);
+    }, NAME_DELAY_MS);
+    for (var j = 0; j < tiles.length; j++) addLogo(tiles[j], catalog[j]);
+  }
+  function logoDone(): void { if (++logosDone === logosWanted) mark('logos'); }
+
   // Tuile muette (logo pas encore là) : elle prend son nom ; sans effet si le logo est déjà posé.
   function speak(t: HTMLElement): void {
     var m = muettes.indexOf(t);
@@ -296,6 +313,7 @@ export function createHome(opts: HomeOptions): HomePanel {
     applyIcon(doc, holder, e.icon || '', e.name, e.name, k.logoUrl, function (img) {
       var m = muettes.indexOf(t);
       if (m >= 0) muettes.splice(m, 1);
+      logoDone();
       if (t.textContent) t.textContent = '';
       t.appendChild(img);
       var mention = k!.tag ? div('mention', k!.tag) : null;
@@ -308,7 +326,7 @@ export function createHome(opts: HomeOptions): HomePanel {
       unpainted.push({ tile: t, file: src.replace(/^.*\//, ''), pre: false });
       notePaintedLogos(); // déjà à l'écran : la 1re peinture est celle de la pose
       predecode(src, t);
-    }, function () { speak(t); });
+    }, function () { speak(t); logoDone(); });
   }
 
   // Message transitoire : un seul élément, masqué par la classe, retiré par une minuterie ponctuelle.
@@ -442,7 +460,7 @@ export function createHome(opts: HomeOptions): HomePanel {
       enriched = true;
       if (rich) return;
       rich = true;
-      for (var i = 0; i < tiles.length; i++) addLogo(tiles[i], catalog[i]);
+      loadLogos();
       shownKey = '';
       paint();
     },

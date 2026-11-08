@@ -1011,8 +1011,12 @@ premier rendu minimal (ci-dessus) posait le nom, puis `enrich()` le remplaçait 
   (la mention « officiel » suit le même fondu). Entre les deux, `getComputedStyle(img).opacity` force le calcul du style
   (pas de mise en page) ; sans lui, pas de fondu. Le test CSS interdit `@keyframes`/`animation` : transition seulement.
 - **Le nom en repli** : si toutes les variantes échouent (`applyIcon` reçoit `onFailed`), ou si la tuile est encore muette
-  400 ms après le premier rendu (**une** minuterie ponctuelle pour toutes les tuiles, annulée par `destroy`/`setCatalog`) ;
-  un logo arrivé plus tard remplace alors le nom.
+  400 ms après le **début du chargement des logos** (`enrich()`, après la 1re peinture ; **une** minuterie ponctuelle pour
+  toutes les tuiles, annulée par `destroy`/`setCatalog`) ; un logo arrivé plus tard remplace alors le nom. Compté depuis le
+  premier rendu (1re version), le délai pouvait échoir pendant le script de démarrage de la Frame (+583 ms relevés avant
+  `firstPaint`) : les noms seraient apparus dès la 1re image, exactement le défaut signalé.
+- **Diagnostic (touche 0)** : marque `logos` quand tous les logos sont posés ou en échec (mesure leur durée sur la TV) ;
+  marque `noms en repli ×N` seulement si le repli a joué (N tuiles ont montré leur nom).
 - `setCatalog` (après Découvrir) passe par le même chemin : plus d'`<img>` posée vide dans la tuile.
 - **Teinte du fond (dégradé) laissée dans `enrich()`** : son coût n'est pas nul (dégradé 960×540 à rastériser au premier
   rendu, suspect relevé sur la Frame) ; la couleur de marque, elle, est sur la tuile dès le premier rendu.
@@ -1030,6 +1034,9 @@ diagnostic touche 0) ; ms, passes à froid séparées par « / » :
 | latence méd. CPU ×1 | 23–26 | 24–26 |
 | latence max CPU ×1 | 30 / 32 / 32 / 33 / 32 / 42 | 39 / 33 / 52 / 35 / 33 / 50 |
 | latence méd. / max CPU ×4 | 24–25 / 33–34 | 23–24 / 33–34 |
+| v2 (minuterie dans enrich) : firstPaint ×1 / ×4 | | 7 / 5 / 5 — 27 / 25 / 28 |
+| v2 : latence méd. / max ×1 ; ×4 | | 23–26 / 32–36 ; 23–25 / 33–35 |
+| v2 : `logos` (aperçu, ×4) | | +123 ms (`enriched` +66) |
 
 Lecture : dans le bruit des deux côtés (max isolés à 42–52 ms, cause « inconnue », avant comme après ; ×4 identique). Comme
 noté plus haut, l'aperçu ne reproduit pas le coût de la TV : **à confirmer sur la Frame** (diagnostic après démarrage à froid).

@@ -20,7 +20,7 @@ before(async () => {
   const t = spawnSync('node_modules/.bin/tsc', ['-p', 'packages/launcher/tsconfig.json', '--outDir', es5Dir], { encoding: 'utf8' });
   assert.equal(t.status, 0, t.stdout + t.stderr);
   // Même bundle que l'accueil pour le diagnostic : les événements (noteEvent) sont lus dans le module qui les écrit.
-  writeFileSync(join(es5Dir, 'home-diag.js'), "export * from './launcher/src/home/index.js';\nexport { keyLatency, resetLatency, resetEvents, latencyStats } from './tv-core/src/diag.js';\n");
+  writeFileSync(join(es5Dir, 'home-diag.js'), "export * from './launcher/src/home/index.js';\nexport { keyLatency, resetLatency, resetEvents, latencyStats, marks } from './tv-core/src/diag.js';\n");
   H = await bundle(es5Dir, 'home-diag.js', 'home');
   TV = await bundle(es5Dir, 'tv-core/src/index.js', 'tv');
 });
@@ -742,9 +742,10 @@ test('repli du nom : tuile encore muette après 400 ms → son nom ; le logo arr
   const { doc, made } = imgDoc();
   const { p, tm } = mount({ catalog: [NETFLIX, { id: 'y', name: 'YouTube', color: '#c4302b', type: 'tv' }], deferRich: true, doc });
   const [n, y] = byClass(p.el, 'tuile');
-  const late = tm.pending().filter((t) => t.ms === 400);
-  assert.equal(late.length, 1, 'une seule minuterie ponctuelle pour toutes les tuiles');
+  assert.equal(tm.pending().filter((t) => t.ms === 400).length, 0, 'rien avant enrich : le script de démarrage ne compte pas');
   p.enrich();
+  const late = tm.pending().filter((t) => t.ms === 400);
+  assert.equal(late.length, 1, 'une seule minuterie ponctuelle pour toutes les tuiles, armée par enrich');
   made[1].onload(); // YouTube arrive à temps
   late[0].fn();
   assert.equal(n.textContent, 'Netflix', 'Netflix encore sans logo : son nom');
@@ -760,6 +761,8 @@ test('repli du nom : aucune minuterie sans tuile à logo ; destroy l’annule', 
   const a = mount({ catalog: [{ id: 'x', name: 'Inconnue', color: '#113ccf', type: 'tv' }], deferRich: true });
   assert.equal(a.tm.pending().filter((t) => t.ms === 400).length, 0);
   const b = mount({ catalog: [NETFLIX], deferRich: true });
+  b.p.enrich();
+  assert.equal(b.tm.pending().filter((t) => t.ms === 400).length, 1);
   b.p.destroy();
   assert.equal(b.tm.pending().filter((t) => t.ms === 400).length, 0);
 });
@@ -891,4 +894,25 @@ test('repli sans Grid : flex dans @supports not (display:grid), Grid de la Frame
     assert.ok(Math.floor(w * 64) / 64 * n + n * H.GAP <= content, n + ' tuiles tiennent sur une rangée (LayoutUnit 1/64 px)');
     assert.ok((w + 1 / 64) * (n + 1) + (n + 1) * H.GAP > content, 'la ' + (n + 1) + 'e tuile passe à la ligne');
   }
+});
+
+test('diagnostic : marque « logos » quand tous sont posés ou en échec, « noms en repli ×N » seulement si le repli joue', () => {
+  const { doc, made } = imgDoc();
+  const clear = () => Object.keys(H.marks).filter((k) => k !== 'scriptLoaded').forEach((k) => delete H.marks[k]);
+  clear();
+  const { p, tm } = mount({ catalog: [NETFLIX, { id: 'y', name: 'YouTube', color: '#c4302b', type: 'tv' }], deferRich: true, doc });
+  p.enrich();
+  made[0].onload();
+  assert.equal('logos' in H.marks, false, 'un logo sur deux');
+  made[1].onerror(); // logo YouTube illisible, pas d'icône TV : le nom, et la tuile compte comme traitée
+  assert.equal(byClass(p.el, 'tuile')[1].textContent, 'YouTube');
+  assert.ok('logos' in H.marks, 'tous traités : marque logos');
+  tm.pending().filter((t) => t.ms === 400).forEach((t) => t.fn());
+  assert.equal(byClass(p.el, 'tuile')[0].textContent, '', 'Netflix a son logo : le repli ne touche rien');
+  assert.equal(Object.keys(H.marks).some((k) => k.startsWith('noms en repli')), false);
+  const late = mount({ catalog: [NETFLIX], deferRich: true, doc: imgDoc().doc });
+  late.p.enrich();
+  late.tm.pending().filter((t) => t.ms === 400).forEach((t) => t.fn());
+  assert.ok('noms en repli ×1' in H.marks, 'repli joué : marque avec le nombre de tuiles');
+  clear();
 });
