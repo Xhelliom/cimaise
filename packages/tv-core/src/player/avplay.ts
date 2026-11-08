@@ -18,6 +18,8 @@ export interface PlayerEvents {
   onSubtitle?: (text: string, durationMs: number) => void;
   // Sous-titre externe refusé par AVPlay : la lecture continue sans (distinct de onError, fatal).
   onSubtitleError?: (err: Error) => void;
+  // Choix de piste (audio ou texte) refusé par AVPlay : la lecture continue sur la piste en cours (distinct de onError, fatal).
+  onTrackError?: (err: Error, kind: TrackKind) => void;
   // Position visée par une rafale d'appuis ±, en attente d'application ; null quand le seek est parti ou abandonné.
   onSeekPending?: (targetMs: number | null, stepMs?: number) => void;
   // Un seek échoué n'arrête pas la lecture : on reste où on est (distinct de onError, fatal).
@@ -131,6 +133,14 @@ export function createPlayer(opts?: PlayerOptions): Player {
   function api(): any { return o.api || getWebapis().avplay; }
   function fail(e: any): void { if (o.onError) o.onError(toError(e)); }
   function guard(fn: () => void): void { try { fn(); } catch (e) { fail(e); } }
+  // Index de la piste active de ce type (getCurrentStreamInfo), -1 si inconnu.
+  function current(a: any, type: string): number {
+    try {
+      var l = a.getCurrentStreamInfo() || [];
+      for (var i = 0; i < l.length; i++) if (l[i].type === type) return l[i].index;
+    } catch (e) { /* méthode absente : on tente la sélection */ }
+    return -1;
+  }
   function st(a: any): string { try { return a.getState(); } catch (e) { return '?'; } }
   // Appel AVPlay journalisé : état avant→après, ou l'exception (relancée telle quelle).
   function call(a: any, name: string, fn: () => any): any {
@@ -400,10 +410,19 @@ export function createPlayer(opts?: PlayerOptions): Player {
       } catch (e) { fail(e); }
       return out;
     },
+    // Tizen 4 (TV2, 2018) : resélectionner la piste déjà active lève PLAYER_ERROR_INVALID_OPERATION (observé : AUDIO1 = piste par défaut) ;
+    // la Frame l'accepte. On saute donc la piste active, et un refus n'arrête jamais la lecture (onTrackError, pas onError).
     selectTrack: function (kind, index) {
-      guard(function () { var a = api(), t = kind === 'audio' ? 'AUDIO' : 'TEXT'; call(a, 'setSelectTrack ' + t + index, function () { a.setSelectTrack(t, index); }); });
+      if (!opened) return;
+      var a = api(), t = kind === 'audio' ? 'AUDIO' : 'TEXT';
+      if (current(a, t) === index) { avLog('setSelectTrack ' + t + index + ' déjà active'); return; }
+      try { call(a, 'setSelectTrack ' + t + index, function () { a.setSelectTrack(t, index); }); }
+      catch (e) { if (o.onTrackError) o.onTrackError(toError(e), kind); }
     },
-    setSubtitlesVisible: function (visible) { guard(function () { var a = api(); call(a, 'setSilentSubtitle ' + !visible, function () { a.setSilentSubtitle(!visible); }); }); },
+    setSubtitlesVisible: function (visible) {
+      if (!opened) return;
+      guard(function () { var a = api(); call(a, 'setSilentSubtitle ' + !visible, function () { a.setSilentSubtitle(!visible); }); });
+    },
     destroy: function () {
       if (doc) doc.removeEventListener('visibilitychange', onVisibility);
       release();

@@ -265,8 +265,10 @@ test('pistes audio/texte listées, sélection et sous-titres', () => {
     { kind: 'audio', index: 1, info: { language: 'fra' } },
     { kind: 'text', index: 2, info: { track_lang: 'eng' } },
   ]);
+  p.open('u', {}, () => {}); // sélection et visibilité n'agissent que sur un lecteur ouvert
+  const n = api.calls.length;
   p.selectTrack('audio', 1); p.selectTrack('text', 2); p.setSubtitlesVisible(false);
-  assert.deepEqual(api.calls, ['select:AUDIO1', 'select:TEXT2', 'silent:true']);
+  assert.deepEqual(api.calls.slice(n), ['select:AUDIO1', 'select:TEXT2', 'silent:true']);
 });
 
 test('événements : buffering, temps, fin, erreur, sous-titre', () => {
@@ -541,4 +543,38 @@ test('repli : après la 1re image, INVALID_OPERATION reste fatal (pas de réouve
   api.listener.onerror('PLAYER_ERROR_INVALID_OPERATION');
   assert.equal(errs.length, 1);
   assert.equal(doc.kids.length, 0);
+});
+
+test('piste : resélectionner la piste active est sauté (Tizen 4 lève INVALID_OPERATION), une autre est sélectionnée', () => {
+  const api = fakeApi({ getCurrentStreamInfo: () => [{ index: 0, type: 'VIDEO' }, { index: 1, type: 'AUDIO' }] });
+  const p = core.createPlayer({ api, doc: fakeDoc() });
+  p.open('u', {}, () => {});
+  p.selectTrack('audio', 1);
+  assert.ok(!api.calls.includes('select:AUDIO1'));
+  p.selectTrack('audio', 2);
+  assert.ok(api.calls.includes('select:AUDIO2'));
+});
+
+test('piste : refus de setSelectTrack non fatal (onTrackError, pas onError, lecteur ouvert)', () => {
+  const api = fakeApi({ setSelectTrack: () => { const e = new Error('PLAYER_ERROR_INVALID_OPERATION'); e.name = 'TypeMismatchError'; throw e; } });
+  const errs = [], tracks = [];
+  const p = core.createPlayer({ api, doc: fakeDoc(), onError: (e) => errs.push(e), onTrackError: (e, k) => tracks.push(k) });
+  p.open('u', {}, () => {});
+  p.selectTrack('audio', 2);
+  assert.deepEqual(errs, []);
+  assert.deepEqual(tracks, ['audio']);
+  assert.ok(!api.calls.includes('stop'));
+});
+
+test('piste et sous-titres : lecteur fermé → aucun appel AVPlay', () => {
+  const api = fakeApi();
+  const errs = [];
+  const p = core.createPlayer({ api, doc: fakeDoc(), onError: (e) => errs.push(e) });
+  p.open('u', {}, () => {});
+  p.close();
+  const n = api.calls.length;
+  p.selectTrack('text', 3);
+  p.setSubtitlesVisible(true);
+  assert.equal(api.calls.length, n);
+  assert.deepEqual(errs, []);
 });
