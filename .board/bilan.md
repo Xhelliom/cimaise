@@ -1,16 +1,11 @@
 Issue : codé
 
-Fait (08/11/2026) :
-- Étape 1 (Stéphane) consignée : TV2 à l'heure (15h33, 8/11/26), aucune mise à jour du logiciel proposée.
-- Étape 2 : une seule installation de la page vide en required_version="4.0" (copie temporaire, apps/blank inchangé),
-  IP via une copie temporaire de .local/tizen.env.tv2 (supprimée ensuite). Sortie complète dans docs/tv-status.md (section TV2,
-  « Résultat du test »), sans IP ni DUID.
-- Erreur de TV2 : `install failed[118012]` seulement ; vd_appinstall sur Tizen 4 ne donne pas le texte long.
-- Hypothèse « horloge » écartée ; « nouvelle CA » retenue (très probable, non prouvée par le texte) ; SHA-512 reste seule alternative.
+Fait :
+- `CIMAISE_TV=tv2` (lu par scripts/tizen/lib.sh) → `.local/tizen.env.tv2`, paquets dans `dist/tv2/`, ligne « cible : TV2 » affichée ; toute autre valeur refusée ; profil `cimaise` refusé pour TV2.
+- package.sh : `REQUIRED_VERSION` (4.0 pour TV2, exigée) écrit dans la copie empaquetée seulement ; apps/tv/config.xml inchangé.
+- install.sh : n'installe que les paquets du dossier de sa cible (pas d'installation croisée Frame/TV2). launch.sh et list-apps.sh suivent la cible.
+- setup-profile.sh + add-profile.mjs : ajoute `cimaise-tv2` à profiles.xml sans toucher au profil actif ni au profil `cimaise` (sauvegarde profiles.xml.avant-cimaise-tv2).
+- .local/tizen.env.tv2 réécrit (ancien gardé en tizen.env.tv2.avant-2026-11-08) ; modèle scripts/tizen/tizen.env.tv2.example ; README des scripts à jour ; 26 tests ajoutés à test.sh (tout vert).
+- Vérifié : package + install + launch sur TV2, Stéphane voit l'accueil cimaise et la télécommande répond. Paquet Frame refait (non installé) : empreintes auteur/distributeur identiques au paquet Samsung du 30/10, required_version 5.0.
 
-Pas fait :
-- Message long (« Invalid certificate chain ») : la TV ne le donne pas ; l'obtenir demanderait une 2e installation via `tizen install`.
-- Essai en signature SHA-256 : proposé, non essayé (accord requis).
-- Ce que TV2 affichait à l'écran pendant l'installation : à confirmer par Stéphane.
-
-Non touchés : .local/tizen.env, firmware de TV2.
+Pas fait : rien de ce qui était demandé. Non testé sur TV2 : lancement d'apps natives, Plex/AVPlay, Home Assistant (certificat public Tizen).
