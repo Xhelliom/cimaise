@@ -303,7 +303,7 @@ test('premier affichage : le stockage n’est lu qu’une fois, aucun logo ni te
   assert.equal(a.reads(), 1, 'une seule lecture de localStorage au démarrage');
   assert.equal(imgs(a.root).length, 0, 'logos différés');
   for (const f of find(a.root, 'fond')) assert.equal(f.style.background, undefined, 'teinte différée');
-  assert.ok(find(a.root, 'tuile').every((t) => t.textContent), 'chaque tuile porte son nom');
+  assert.ok(find(a.root, 'tuile').every((t) => t.style.background), 'chaque tuile porte sa couleur de marque');
 });
 
 test('premier affichage : marques intermédiaires dans le diagnostic, dans l’ordre', () => {

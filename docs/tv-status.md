@@ -262,6 +262,23 @@ Le lancement des apps et les touches marchaient sur TV2 (certificat public Tizen
 - **Observé physiquement (Stéphane)** : l'accueil de TV2 s'affiche en grille de tuiles.
 - **Frame non réinstallée** : son CSS ne gagne qu'un bloc qu'elle ignore ; pas de réinstallation nécessaire.
 
+### Accueil : plus de nom avant le logo au démarrage (2026-11-08)
+
+- **Réponse du SDK** : Frame et TV2, « install completed » + app présente dans la liste (mise à jour sur place, `cimaise001`).
+- **Observé sur TV2 (photo du diagnostic par Stéphane, 08/11, user agent Tizen 4.0)**, version avec repli à 400 ms compté depuis
+  `enrich()` : `storageRead +23`, `catalogLoaded +39`, `homeBuilt/firstPaint/interactive +627`, `painted +770`, `enriched +787`,
+  **`noms en repli ×7 +1884`**, `logos +2083` ms ; mémoire JS 10 Mo. Les 7 noms se sont donc affichés ≈ 200 ms avant les
+  logos. Latence non relevée (aucun appui avant la touche 0). Aucun relevé antérieur de `firstPaint` sur TV2 pour comparer.
+  → délai porté à 3 s (voir decisions.md), réinstallé sur les deux TV.
+- **Observé physiquement après le correctif (délai 3 s), lancement à froid, Stéphane, 08/11** : **Frame : aucun nom avant les
+  logos. TV2 : aucun nom avant les logos.**
+- **Diagnostic de la Frame après le correctif (photo, user agent Tizen 5.0)** : `storageRead +3`, `catalogLoaded +9`,
+  `homeBuilt/firstPaint/interactive +449`, `painted +638`, `enriched +665`, `logos +1354` ms, **pas de `noms en repli`** ;
+  mémoire JS 10 Mo. Comparaison : dernier relevé de `firstPaint` sur la Frame +583 ms (docs/decisions.md, « Avant ») →
+  pas de recul. Les logos mettent ≈ 690 ms après `enrich()` sur la Frame : un délai de 400 ms aurait montré les noms ici aussi.
+- **Latence touche→focus sur la Frame** (même version, ~20 appuis gauche/droite, recopiée par Stéphane) : **min 11 / méd 18 /
+  max 89 ms**. Dernier relevé : méd 18 / max 298 ms → pas de recul, max sous la cible de 100 ms. Cause du max non relevée.
+
 ### Questions pour Stéphane
 
 - Faire la mise à jour du firmware de TV2 si elle existe ? (Mise à jour officielle Samsung, pas un firmware modifié ; mais irréversible, et TV2 ne servirait alors plus de témoin « Tizen 4 d'origine ».)

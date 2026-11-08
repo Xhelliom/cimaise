@@ -1021,3 +1021,52 @@ centré à 92 %. Rendu `resvg -w 512 -h 423`, puis `oxipng -o max --strip all` :
 
 **Coût.** Uniquement le poids du `.wgt` (PNG déjà compressé : quasiment le même écart dans le zip), soit environ 175 Ko au
 total pour un budget de 1,5 Mo. Aucun effet sur le JS ni sur le démarrage (image lue par le Smart Hub, jamais par l'app).
+
+### Accueil : plus de nom d'app avant le logo au démarrage (2026-11-08)
+
+Remarque de Stéphane (08/11) : au lancement, les tuiles montrent leur nom une fraction de seconde avant le logo. Cause : le
+premier rendu minimal (ci-dessus) posait le nom, puis `enrich()` le remplaçait par le logo.
+
+- **Premier rendu : la tuile n'a que sa couleur de marque** (déjà posée dès le premier rendu, coût inchangé) et aucun
+  texte si un logo est attendu. Une app sans logo garde son nom tout de suite.
+- **Logo en fondu** : chargé hors DOM comme avant, posé à opacité 0, puis classe `vu` → `transition: opacity .15s`
+  (la mention « officiel » suit le même fondu). Entre les deux, `getComputedStyle(img).opacity` force le calcul du style
+  (pas de mise en page) ; sans lui, pas de fondu. Le test CSS interdit `@keyframes`/`animation` : transition seulement.
+- **Le nom en repli** : si toutes les variantes échouent (`applyIcon` reçoit `onFailed`), ou si la tuile est encore muette
+  **3 s** après le **début du chargement des logos** (`enrich()`, après la 1re peinture ; **une** minuterie ponctuelle pour
+  toutes les tuiles, annulée par `destroy`/`setCatalog`) ; un logo arrivé plus tard remplace alors le nom. Compté depuis le
+  premier rendu (1re version), le délai pouvait échoir pendant le script de démarrage de la Frame (+583 ms relevés avant
+  `firstPaint`) : les noms seraient apparus dès la 1re image, exactement le défaut signalé.
+- **Délai porté de 400 ms à 3 s (mesure sur TV2, 08/11, photo du diagnostic)** : `enriched +787` → `noms en repli ×7 +1884` →
+  `logos +2083` ms. Les logos mettent ≈ 1,3 s après `enrich()` sur TV2 ; la minuterie (prévue à +1187, servie à +1884, fil
+  principal occupé par le chargement et le décodage) a montré les 7 noms ≈ 200 ms : le défaut signalé. Les logos sont des
+  fichiers locaux du `.wgt` : un logo illisible échoue tout de suite (`onerror` → nom), le délai ne couvre qu'un chargement
+  bloqué ; 3 s = plus de deux fois la durée mesurée sur TV2.
+- **Vérifié sur la Frame après le correctif (08/11)** : aucun nom vu par Stéphane ; `firstPaint +449` (+583 au dernier relevé),
+  `enriched +665`, `logos +1354` ms (≈ 690 ms après enrich), pas de repli ; latence min 11 / méd 18 / max 89 ms
+  (dernier relevé : méd 18 / max 298). TV2 : aucun nom vu non plus.
+- **Diagnostic (touche 0)** : marque `logos` quand tous les logos sont posés ou en échec (mesure leur durée sur la TV) ;
+  marque `noms en repli ×N` seulement si le repli a joué (N tuiles ont montré leur nom).
+- `setCatalog` (après Découvrir) passe par le même chemin : plus d'`<img>` posée vide dans la tuile.
+- **Teinte du fond (dégradé) laissée dans `enrich()`** : son coût n'est pas nul (dégradé 960×540 à rastériser au premier
+  rendu, suspect relevé sur la Frame) ; la couleur de marque, elle, est sur la tuile dès le premier rendu.
+- Titre et description sous les tuiles : inchangés.
+
+Coût : +0,5 Ko de JS environ, +3 règles CSS, une minuterie ponctuelle de 3 s après `enrich()`, aucune ressource.
+
+Avant (HEAD 34d3a2d) / après, aperçu bridé (Chromium 155 sans écran, 1920×1080, 20 appuis gauche/droite espacés de 400 ms,
+diagnostic touche 0) ; ms, passes à froid séparées par « / » :
+
+| | avant | après |
+|---|---|---|
+| firstPaint CPU ×1 (6 passes) | 4 / 6 / 5 / 5 / 6 / 5 | 6 / 4 / 6 / 6 / 10 / 7 |
+| firstPaint CPU ×4 | 33 / 19 / 30 | 21 / 19 / 25 |
+| latence méd. CPU ×1 | 23–26 | 24–26 |
+| latence max CPU ×1 | 30 / 32 / 32 / 33 / 32 / 42 | 39 / 33 / 52 / 35 / 33 / 50 |
+| latence méd. / max CPU ×4 | 24–25 / 33–34 | 23–24 / 33–34 |
+| v2 (minuterie dans enrich) : firstPaint ×1 / ×4 | | 7 / 5 / 5 — 27 / 25 / 28 |
+| v2 : latence méd. / max ×1 ; ×4 | | 23–26 / 32–36 ; 23–25 / 33–35 |
+| v2 : `logos` (aperçu, ×4) | | +123 ms (`enriched` +66) |
+
+Lecture : dans le bruit des deux côtés (max isolés à 42–52 ms, cause « inconnue », avant comme après ; ×4 identique). Comme
+noté plus haut, l'aperçu ne reproduit pas le coût de la TV : **à confirmer sur la Frame** (diagnostic après démarrage à froid).
