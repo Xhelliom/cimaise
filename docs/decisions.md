@@ -999,3 +999,25 @@ publics → -10 ans → -12 ans), au bout de la ligne Rechercher · roue dentée
 
 Coût : `plex.js` (chargé à la demande) 110,36 → 112,71 Ko (+2,4 Ko minifié, +0,6 Ko gzip) ; `app.css` +0,2 Ko ;
 `app.js` inchangé. Réseau : rien sur « Tous » ; sinon les deux requêtes des séries permises ci-dessus, mises en cache.
+
+## Icône de l'app au format paysage 512×423 (2026-11-08)
+
+**Constat (Stéphane, photo du 08/11).** Dans la barre du Smart Hub de la Frame, la tuile de cimaise (icône carrée 117×117)
+est plus haute que large, alors que les autres apps ont une tuile paysage remplie par leur visuel.
+
+**Format vérifié dans la doc Samsung (lue directement le 2026-11-08).**
+- *Smart TV Application Design Q&A* (developer.samsung.com/smarttv/design/smart-tv-application-design-qa.html), Q3 :
+  « The 117x117 px icon is an application icon used when you test your TV application. It is not shown on published
+  applications. » L'icône des apps publiées est celle déposée au Seller Office, affichée « when the published application
+  is installed on a TV ».
+- *App Icons and Screenshots* (developer.samsung.com/smarttv/design/app-icons-and-screenshots.html) : « 512x423 Application
+  Icon », **PNG 24 bits RVB (sans transparence)**, < 300 Ko, image simple avec de l'espace autour ; et, pour les TV récentes,
+  un couple logo + fond 1920×1080. Aucune des deux pages ne parle de l'`<icon>` de `config.xml` : appliquer 512×423 à notre
+  icône est une **extrapolation**, à valider à l'œil sur la Frame.
+
+**Icône.** `packages/launcher/brand/icon.svg` : fond de la tuile verre-2 plein cadre (512×423) et symbole de `logo.svg`
+centré à 92 %. Rendu `resvg -w 512 -h 423`, puis `oxipng -o max --strip all` : PNG RVB 8 bits sans alpha, **37 092 octets**
+(117×117 : 5 648 octets ; **+31 444 octets**, +30,7 Ko). `config.xml` inchangé (`<icon src="icon.png"/>`).
+
+**Coût.** Uniquement le poids du `.wgt` (PNG déjà compressé : quasiment le même écart dans le zip), soit environ 175 Ko au
+total pour un budget de 1,5 Mo. Aucun effet sur le JS ni sur le démarrage (image lue par le Smart Hub, jamais par l'app).
