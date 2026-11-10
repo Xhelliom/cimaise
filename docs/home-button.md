@@ -551,7 +551,48 @@ config, il n'envoie rien et ne lance aucune minuterie.
 - Coût : +1 320 o sur `app.js` minifié (47 365 → 48 685 o). Une minuterie ponctuelle de 3 s,
   injectée par l'app (le package `widgets` reste sans minuterie), aucune minuterie permanente.
 
-**Mesure sur la Frame : en cours.** Protocole : écoute de `cimaise_hidden` et `cimaise_visible` dans
-HA (Outils de développement → Événements, et un abonnement WebSocket en lecture seule côté PC), puis
-(1) Home → Smart Hub sans rien lancer, (2) Home → TV Plus lancé à la main, (3) retour à cimaise.
-Pour chaque cas : seq 0 et seq 1 reçus ou non, et valeurs de `tvplus`, `netflix`, `youtube`, `plex`.
+**Mesure sur la Frame (2026-11-10, version 8d04430) : la page est gelée dès qu'elle est masquée.**
+Protocole : abonnement WebSocket en lecture seule à `cimaise_hidden` et `cimaise_visible` dans HA
+(côté PC), puis Stéphane fait (1) Home → Smart Hub sans rien lancer, environ 10 s ; (2) Home → TV Plus
+lancé à la main, environ 10 s ; (3) retour à cimaise. Il confirme : « fait, tout normal ».
+
+Reçu dans HA (`time_fired` en UTC ; `at` = horloge de la TV, environ 7 s de retard sur HA) :
+
+| Reçu par HA | Événement | `at` (TV) | `data` |
+|---|---|---|---|
+| 16:27:53.904 | `cimaise_visible` | 16:27:46 | — |
+| 16:27:53.926 | `cimaise_hidden` seq 0 | **15:47:20** | `tvplus:false, netflix:true, youtube:true, plex:false` |
+| 16:31:18.245 | `cimaise_visible` | 16:31:10 | — |
+| 16:31:18.264 | `cimaise_hidden` seq 0 | **16:30:37** | `tvplus:false, netflix:true, youtube:true, plex:false` |
+
+La 1re paire couvre un masquage antérieur au protocole (15:47 → 16:27, non commenté). La 2e paire
+est le protocole : masquée à 16:30:37, de retour à 16:31:10 (33 s, soit les étapes 1 à 3).
+
+| Cas | seq 0 | seq 1 | tvplus / netflix / youtube / plex |
+|---|---|---|---|
+| (1) Smart Hub sans rien lancer | **pas reçu pendant le masquage** ; arrive au retour, 41 s plus tard | **jamais reçu** | false / true / true / false |
+| (2) TV Plus lancé à la main | aucun nouvel événement : cimaise était déjà masquée, et seul seq 1 aurait pu voir TV Plus | **jamais reçu** | — |
+| (3) Retour à cimaise | `cimaise_visible` reçu tout de suite, puis le seq 0 en retard, 19 ms après | — (annulé au retour) | — |
+
+**Ce que ça prouve :**
+- **Le gestionnaire `visibilitychange` s'exécute bien au masquage** : `at` vaut 16:30:37, l'heure du
+  masquage, et non celle du retour. En revanche, **tout ce qui est asynchrone est gelé jusqu'au retour** :
+  le rappel de `getAppsContext`, le XHR asynchrone et la minuterie de 3 s. seq 0 part au retour, après
+  `cimaise_visible` (le visible poste directement, le hidden attendait le rappel de `getAppsContext`) ;
+  seq 1 n'existe jamais, car sa minuterie est annulée au retour.
+- **Critère 1 non tenu en l'état** : les deux événements arrivent dans HA, mais `cimaise_hidden` arrive
+  trop tard pour servir (en même temps que `cimaise_visible`).
+- **Critère 2 non tenu** : `tvplus` n'a jamais valu true. On ne peut pas trancher si
+  `getAppsContext` voit TV Plus : son rappel a tourné au retour, alors que TV Plus était peut-être
+  déjà fermé. `netflix` et `youtube` à true sans avoir été lancés confirment que `getAppsContext`
+  liste les apps **en mémoire**, comme `running` de Smart View, et non l'app à l'écran.
+
+**Suite proposée (non codée ; demande l'accord de Stéphane) :**
+1. Envoyer seq 0 par **XHR synchrone** dans le gestionnaire lui-même, seul code qui tourne au masquage,
+   sans attendre `getAppsContext` : `{ at, seq: 0 }` seulement. Risque : avec HA éteint, la page est
+   bloquée pendant le délai de connexion, mais elle est masquée. Repli `sendBeacon` toujours
+   impossible (en-tête `Authorization`).
+2. Abandonner `seq 1` et `tvplus` côté cimaise : gelée, l'app ne peut pas voir ce qui démarre après
+   elle. Le « TV Plus a pris la main » doit être déduit par HA : `cimaise_hidden` sans
+   `cimaise_visible` dans les N s qui suivent → relancer cimaise (piste 5).
+3. Remesurer le cas (1) : le seq 0 synchrone doit arriver dans HA à l'heure du masquage.
