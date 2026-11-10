@@ -68,6 +68,8 @@ Ce qui a été vu à l'écran ou constaté sur la TV.
 
 ## Réponse du SDK
 
+- **2026-11-10, reprise des commits Unsplash du 08/11 (Frame, build c11095b : photo demandée après `load`, garde-fou `package.sh`)** : `package.sh apps/tv` (sources) → refusé, « apps/tv/app.js introuvable (index.html le charge) », aucun appel au packager. `package.sh apps/tv/dist` → `dist/cimaise.wgt` signé (220 Ko), `cimaise001.Cimaise`, empreintes des certificats identiques au paquet du 30/10. `install.sh` par-dessus → « install completed » (vd_appinstall, 3,1 s), `cmd_ret:0`, app présente. App non lancée par script.
+  - *Observé par Stéphane (10/11, réponses à choix)* : au lancement, « Accueil normal » (pas de chargement infini) ; « Photo et crédit » affichés ; Plex « Toujours relié » (pas de code PIN) ; ligne `fond:` du diagnostic : « par http (https illisible…) », chiffres non recopiés. Un seul lancement constaté ; firstPaint et latence non relevés avec ce build.
 - **2026-11-10, fond d'écran : diagnostic puis repli http (Frame, builds 46e4b4d, fca9b35, 763ef5c)** : `package.sh apps/tv/dist` avec `CIMAISE_LOCAL_DIR` (dépôt principal) et `CIMAISE_TIZEN_IMAGE=cimaise-tizen:5.6-web` → `dist/cimaise.wgt` signé (220 Ko). Avant la 1re installation : empreintes SHA-256 des certificats de `author-signature.xml` et `signature1.xml` **identiques** à celles d'un paquet du 30/10 (même profil « cimaise »), même `cimaise001.Cimaise`. `install.sh`, trois fois : `sdb install` → « closed » (transfert seul), repli `vd_appinstall` → `was_install_app return WAS_TRUE`, « install completed » (2,9 s, 2,2 s, 3,7 s), `cmd_ret:0`, app présente. App jamais lancée par script.
 
 Ce que `sdb`, le packager ou le SDK ont répondu. Ne prouve pas un succès visible.
