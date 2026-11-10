@@ -7,7 +7,7 @@ import { Http, HaConfig } from './ha';
 export interface PresenceDeps {
   http: Http;
   config: () => HaConfig | null;          // relu à chaque événement (Réglages modifiés en cours de route)
-  apps?: (cb: (ids: string[]) => void) => void; // apps lancées ; absent ou levant : champs nuls
+  apps?: (cb: (ids: string[] | null) => void) => void; // apps lancées ; absent, levant ou cb(null) : champs nuls
   doc?: { hidden: boolean; addEventListener(t: string, f: () => void): void };
   now?: () => number;
   later?: (f: () => void, ms: number) => any; // minuterie ponctuelle injectée par l'app ; absente : pas de 2e salve

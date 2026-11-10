@@ -541,7 +541,7 @@ config, il n'envoie rien et ne lance aucune minuterie.
 - `tvplus` / `netflix` / `youtube` / `plex` : booléens tirés de `tizen.application.getAppsContext()`
   (apps **en cours**, pas « au premier plan »), par motif d'ID relevé dans l'applist de la Frame :
   `^com.samsung.tv.tvplus` (couvre `tvPlusDeeplinker` et `tvplus`), `netflix`, `youtube$|.cobalt-yt$`,
-  `.plex$`. `null` si `getAppsContext` est absent ou lève (aperçu navigateur).
+  `.plex$`. `null` si `getAppsContext` est absent, lève (aperçu navigateur) ou appelle son rappel d'erreur : « inconnu », jamais `false`.
 - **Transport : XHR asynchrone (`POST /api/events/<type>`, en-tête `Authorization: Bearer`, délai 2 s),
   pas `sendBeacon`.** `sendBeacon` ne peut pas poser d'en-tête `Authorization`, et HA n'accepte pas le
   jeton en paramètre d'URL pour `/api/events` : il est inutilisable ici. Le XHR synchrone est écarté

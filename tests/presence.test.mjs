@@ -87,6 +87,13 @@ test('getAppsContext absent ou qui lève : événement envoyé quand même, cham
   b.set(true);
   assert.equal(b.sent.length, 1);
   assert.equal(body(b.sent[0]).tvplus, null);
+  const c = harness({ apps: (cb) => cb(null) });
+  c.set(true);
+  assert.deepEqual(body(c.sent[0]), { at: 1000, seq: 0, tvplus: null, netflix: null, youtube: null, plex: null });
+});
+
+test("adaptateur : échec de getAppsContext → cb(null), pas une liste vide", () => {
+  assert.match(readFileSync('packages/tv-core/src/device.ts', 'utf8'), /getAppsContext\([\s\S]*?\}, function \(\) \{ cb\(null\); \}\);/);
 });
 
 test("l'app branche watchPresence sur la config HA et getAppsContext passe par l'adaptateur", () => {
