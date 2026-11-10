@@ -2,7 +2,7 @@
 // (plex.js, overseerr.js, settings.js) injectés à la première ouverture. Démarrage en deux temps : horloge + tuiles d'abord,
 // puis, après la 1re peinture, police décorative, teinte, logos et touches média. Marques de diagnostic : storageRead, catalogLoaded,
 // homeBuilt, firstPaint (fin du script), interactive, painted (2 requestAnimationFrame plus tard), enriched.
-import { loadStored, mark, toggleDiag, keyLatency, normalizeKey, isDiagOpen, hasTizen, registerKeys, REGISTER_KEYS, listInstalledApps, launchApp, hideApp } from '../../../packages/tv-core/src/index';
+import { loadStored, mark, toggleDiag, scrollDiag, diagNote, keyLatency, normalizeKey, isDiagOpen, hasTizen, registerKeys, REGISTER_KEYS, listInstalledApps, launchApp, hideApp } from '../../../packages/tv-core/src/index';
 import { Router, lazy, chunkLoader, Panel } from '../../../packages/tv-core/src/index';
 import { createHome, loadHomeMode, saveHomeMode, loadHomeTiles, saveHomeTiles, loadSmartHubTarget } from '../../../packages/launcher/src/home';
 import { loadCatalog, saveCatalog, launchEntry } from '../../../packages/launcher/src/catalog';
@@ -57,7 +57,9 @@ function refreshScenes(): void {
 // Fond d'écran Unsplash du jour : jamais avant l'accueil interactif (après enrich), puis au retour des Réglages et au retour
 // au premier plan (le jour a pu changer). Sans clé dans le paquet : aucun appel, fond teinté.
 function refreshPhoto(): void {
-  refreshWallpaper({ http: xhrHttp, key: packagedKey(), show: function (p, onShown) { home.setPhoto(p, onShown); } });
+  try {
+    refreshWallpaper({ http: xhrHttp, key: packagedKey(), show: function (p, onShown) { home.setPhoto(p, onShown); } });
+  } catch (e) { diagNote('fond', 'exception : ' + (e && (e as Error).message)); }
 }
 
 var home = createHome({
@@ -171,6 +173,7 @@ mark('homeBuilt');
 document.addEventListener('keydown', function (e) {
   var k = normalizeKey(e);
   if (k === null) return;
+  if (isDiagOpen() && (k === 'up' || k === 'down')) { scrollDiag(k === 'down' ? 1 : -1); return; } // diagnostic ouvert : Haut/Bas le font défiler
   keyLatency();
   router.handleKey(k);
 });

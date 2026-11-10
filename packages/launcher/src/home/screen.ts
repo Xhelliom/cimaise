@@ -11,7 +11,8 @@ import { greeting, formatClock, formatDate, tintGradient, tileInk, railOffset, p
 export interface SceneItem { id: string; name: string; }
 
 // Fond d'écran photo (Unsplash) : URL déjà à la taille de l'écran, crédit et liens exigés par Unsplash.
-export interface HomePhoto { url: string; author: string; authorUrl: string; portrait: boolean; }
+// alt : autre adresse de la même image (http), essayée une fois si url est illisible sur la TV.
+export interface HomePhoto { url: string; author: string; authorUrl: string; portrait: boolean; alt?: string; }
 
 export type PastilleName = 'reglages' | 'smarthub';
 
@@ -351,7 +352,7 @@ export function createHome(opts: HomeOptions): HomePanel {
   }
   // Diagnostic (touche 0) : taille, poids (Resource Timing : images.unsplash.com envoie Timing-Allow-Origin), durée de
   // chargement, mémoire décodée estimée (l × h × 4) et mémoire JS avant / après la pose (2 images plus tard).
-  function notePhoto(img: any, url: string, ms: number, h0: number): void {
+  function notePhoto(img: any, url: string, ms: number, h0: number, pre: string): void {
     var w = img.naturalWidth || 0, h = img.naturalHeight || 0, kb = -1;
     try {
       var perf: any = typeof performance !== 'undefined' ? performance : null;
@@ -359,7 +360,7 @@ export function createHome(opts: HomeOptions): HomePanel {
       if (e && e.length) kb = Math.round((e[e.length - 1].encodedBodySize || e[e.length - 1].transferSize || 0) / 1024);
     } catch (x) { /* Resource Timing absent */ }
     var mo = function (b: number) { return b < 0 ? '?' : (Math.round(b / 104857.6) / 10) + ' Mo'; };
-    var base = w + '×' + h + ', ' + (kb > 0 ? kb + ' Ko' : 'poids ? (cache)') + ', ' + ms + ' ms, décodée ≈ ' + mo(w * h * 4) + ', JS avant ' + mo(h0);
+    var base = pre + w + '×' + h + ', ' + (kb > 0 ? kb + ' Ko' : 'poids ? (cache)') + ', ' + ms + ' ms, décodée ≈ ' + mo(w * h * 4) + ', JS avant ' + mo(h0);
     diagNote('fond', base);
     var raf = typeof requestAnimationFrame !== 'undefined' ? requestAnimationFrame : null;
     if (raf) raf(function () { raf!(function () { diagNote('fond', base + ' / après ' + mo(usedHeap())); }); });
@@ -368,10 +369,16 @@ export function createHome(opts: HomeOptions): HomePanel {
     var req = ++photoReq;
     if (!p) { photoUrl = ''; var o = photoEl; photoEl = null; dropPhoto(o, PHOTO_FADE_MS); return; }
     if (p.url === photoUrl && photoEl) { if (onShown) onShown(); return; }
-    var img: any = doc.createElement('img'), t0 = Date.now(), h0 = usedHeap();
-    img.onload = function () {
+    var img: any, t0 = 0, h0 = usedHeap(), why = '', src = p.url;
+    var load = function (): void {
+      img = doc.createElement('img'); t0 = Date.now();
+      img.onload = shown; img.onerror = failed;
+      img.setAttribute('src', src);
+    };
+    diagNote('fond', 'image en chargement…');
+    var shown = function (): void {
       if (req !== photoReq) return;  // une autre demande est passée entre-temps
-      notePhoto(img, p.url, Date.now() - t0, h0);
+      notePhoto(img, src, Date.now() - t0, h0, why ? 'par http (' + why + ') : ' : '');
       var layer = div('photo' + (p.portrait ? ' portrait' : ''));
       layer.appendChild(img);
       layer.appendChild(div('voile'));
@@ -395,8 +402,16 @@ export function createHome(opts: HomeOptions): HomePanel {
       mark('photo');
       if (onShown) onShown();
     };
-    img.onerror = function () { if (req === photoReq) noteEvent('fond : image illisible (hors ligne ?)'); };
-    img.setAttribute('src', p.url);
+    // Échec : la ligne « fond » dit après combien de temps, puis un seul essai sur l'autre adresse (alt).
+    var failed = function (): void {
+      if (req !== photoReq) return;
+      noteEvent('fond : image illisible (hors ligne ?)');
+      var first = src === p.url;
+      why += (first ? 'https' : ', http aussi') + ' illisible après ' + (Date.now() - t0) + ' ms';
+      diagNote('fond', why);
+      if (first && p.alt && p.alt !== p.url) { src = p.alt; load(); }
+    };
+    load();
   }
 
   // Message transitoire : un seul élément, masqué par la classe, retiré par une minuterie ponctuelle.

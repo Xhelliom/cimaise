@@ -45,7 +45,8 @@ const origins = [];
 if (ov) {
   try { origins.push(new URL(ov.OVERSEERR_URL).origin); } catch { console.error('local-config : OVERSEERR_URL illisible'); process.exit(1); }
 }
-if (us) origins.push('https://api.unsplash.com', 'https://images.unsplash.com');
+// http://images… : repli quand la TV refuse le certificat de https://images.unsplash.com (Frame 2019, relevé le 10/11/2026).
+if (us) origins.push('https://api.unsplash.com', 'https://images.unsplash.com', 'http://images.unsplash.com');
 const cfg = join(dst, 'config.xml');
 if (origins.length && existsSync(cfg)) {
   const xml = readFileSync(cfg, 'utf8');

@@ -1137,3 +1137,13 @@ Taille retenue : **1920×1080** (taille réelle d'affichage). Bascule prévue en
 `packages/launcher/src/wallpaper/model.ts`, l'`<img>` reste étirée à 1920×1080) si la Frame montre un coût : latence
 de focus dégradée par la couche photo, ou rechargement de l'app à cause de la mémoire. La ligne `fond:` du diagnostic
 (touche 0) donne taille, poids, durée, mémoire décodée estimée et tas JS avant / après.
+
+## 2026-11-10 — Fond d'écran : repli http pour les images, diagnostic « fond » et défilement
+
+- **Constat (Frame, `docs/tv-status.md`)** : `api.unsplash.com` répond 200 en https ; `https://images.unsplash.com` échoue en ~30 ms (`<img>` et XHR). Cause probable, non prouvée : chaîne de certificats GlobalSign R46 (2026) non reconnue par le moteur de 2019 ; l'API utilise la chaîne R3.
+- **Décision** : l'image est d'abord demandée en https ; si elle échoue, **un seul** nouvel essai sur la même adresse en `http://` (`httpUrl`, `alt` de `setPhoto`). Origine `http://images.unsplash.com` déclarée dans la copie empaquetée seulement (`local-config.mjs`). L'adresse mémorisée reste en https : une TV qui valide la chaîne ne passe jamais par http.
+- **Ce que ça coûte** : la photo (publique) et son adresse (`ixid`, pas la clé) passent en clair sur ce repli ; la clé Unsplash reste en https (API et `download_location`). Sur la Frame, chaque image coûte une tentative https perdue (~30 ms). **À confirmer par Stéphane** ; alternative si refusé : relais d'images sur le homelab (phase 2).
+- **JPEG de base** (`&jpeg-progressive=false`) : imgix sert du progressif par défaut ; coupé par précaution (+6 % de poids), non prouvé nécessaire. Une image mémorisée en progressif est rejouée en JPEG de base sans nouveau tirage.
+- **Écarté après mesure** : repli 1280×720 et sonde HEAD (essayés dans fca9b35, retirés : la taille n'était pas en cause).
+- **Diagnostic** : lignes `fond tirage:` (API : en cours, HTTP 200, échec HTTP n / réseau / délai / réponse illisible, ou image du jour en cache) et `fond:` (pas de clé, désactivé, en chargement, illisible, ou mesures), **en tête** du diagnostic. Haut/Bas font défiler le bloc d'un quart d'écran (`top`, borné), sans minuterie ; rien au démarrage.
+- **Coût** : `app.js` 47,9 Ko minifié (budget 100) ; `.wgt` signé 220 Ko. Aucune minuterie, aucune requête de plus quand le https passe.
