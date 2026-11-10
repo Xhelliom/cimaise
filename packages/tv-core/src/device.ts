@@ -105,12 +105,3 @@ export function listInstalledApps(onOk: (apps: InstalledApp[]) => void, onErr?: 
   });
 }
 
-// IDs des apps lancées (tizen.application.getAppsContext, privilège application.info). Asynchrone ; cb(null) si l'appel échoue (inconnu, pas « aucune app »).
-// Hors TV : DeviceError NO_TIZEN.
-export function runningAppIds(cb: (ids: string[] | null) => void): void {
-  getTizen().application.getAppsContext(function (list: any[]) {
-    var out: string[] = [];
-    for (var i = 0; i < list.length; i++) if (list[i] && typeof list[i].appId === 'string') out.push(list[i].appId);
-    cb(out);
-  }, function () { cb(null); });
-}

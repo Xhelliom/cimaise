@@ -4,7 +4,8 @@
 export interface HaConfig { url: string; token: string; }
 export interface Scene { id: string; name: string; area: string | null; state?: string; }
 export interface HaError extends Error { code: 'config' | 'invalid' | 'unreachable' | 'unauthorized' | 'http' | 'format'; status?: number; }
-export interface HttpRequest { method: string; url: string; headers: { [k: string]: string }; body?: string; timeoutMs?: number; }
+// sync : XHR synchrone (page sur le point d'être gelée) ; pas de timeoutMs possible dans ce mode (interdit en page).
+export interface HttpRequest { method: string; url: string; headers: { [k: string]: string }; body?: string; timeoutMs?: number; sync?: boolean; }
 export interface HttpResponse { status: number; body: string; }
 export type Http = (req: HttpRequest, cb: (err: Error | null, res?: HttpResponse) => void) => { abort(): void } | void;
 export type Callback<T> = (err: HaError | null, value?: T) => void;

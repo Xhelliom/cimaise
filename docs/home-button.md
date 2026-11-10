@@ -596,3 +596,29 @@ est le protocole : masquée à 16:30:37, de retour à 16:31:10 (33 s, soit les �
    elle. Le « TV Plus a pris la main » doit être déduit par HA : `cimaise_hidden` sans
    `cimaise_visible` dans les N s qui suivent → relancer cimaise (piste 5).
 3. Remesurer le cas (1) : le seq 0 synchrone doit arriver dans HA à l'heure du masquage.
+
+### Piste 6, version 2 : seq 0 synchrone, seq 1 et `tvplus` retirés (2026-11-10)
+
+Suite directe de la mesure ci-dessus. La spec de la carte prévoyait le repli « XHR synchrone courte » ;
+pour seq 1, elle disait « sinon le documenter ».
+
+- **`cimaise_hidden` part en XHR synchrone** dans le gestionnaire `visibilitychange`, le seul code qui
+  tourne au masquage, sans attendre `getAppsContext`. Format : `{ at, seq: 0, tvplus: null }`.
+  `seq` est gardé à 0 pour que les automatisations HA déjà écrites ne cassent pas.
+- **Pas de délai possible en synchrone** : poser `timeout` sur un XHR synchrone est interdit dans une
+  page, la norme lève `InvalidAccessError`. Si HA ne répond pas, la page masquée reste bloquée le
+  temps que la connexion échoue : quasi immédiat si le port est fermé (refus TCP), plusieurs
+  secondes si la machine est éteinte (ARP/SYN sans réponse). La page étant cachée, l'utilisateur ne
+  le voit que s'il revient à cimaise pendant ce blocage. Non mesuré sur la Frame.
+- **`cimaise_visible` reste asynchrone** (délai 2 s) : la page tourne au retour, inutile de la bloquer.
+- **Retirés : seq 1, la minuterie de 3 s et `getAppsContext`.** Mesuré : ils ne s'exécutent jamais
+  pendant le masquage (minuterie gelée, puis annulée au retour). Les champs `netflix`, `youtube` et
+  `plex` sont retirés aussi : relevés avant le masquage, ils ne disent que « en mémoire ».
+- **`tvplus` vaut toujours `null`. Constat : la page gelée ne peut pas voir TV Plus démarrer.**
+  cimaise ne peut savoir que ceci : « je viens d'être masquée ». Détecter « TV Plus a pris la main »
+  revient à HA : un `cimaise_hidden` **sans `cimaise_visible` dans les N s** qui suivent → relancer
+  cimaise (piste 5). Déplacer ce critère vers HA demande l'**accord de Stéphane** (question posée,
+  réponse ci-dessous).
+- Coût : +608 o sur `app.js` minifié (47 365 → 47 973 o), aucune minuterie, rien sans config HA.
+
+**Remesure sur la Frame : en cours.**

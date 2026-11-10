@@ -2,7 +2,7 @@
 // (plex.js, overseerr.js, settings.js) injectés à la première ouverture. Démarrage en deux temps : horloge + tuiles d'abord,
 // puis, après la 1re peinture, police décorative, teinte, logos et touches média. Marques de diagnostic : storageRead, catalogLoaded,
 // homeBuilt, firstPaint (fin du script), interactive, painted (2 requestAnimationFrame plus tard), enriched.
-import { loadStored, mark, toggleDiag, keyLatency, normalizeKey, isDiagOpen, hasTizen, registerKeys, REGISTER_KEYS, listInstalledApps, launchApp, hideApp, runningAppIds } from '../../../packages/tv-core/src/index';
+import { loadStored, mark, toggleDiag, keyLatency, normalizeKey, isDiagOpen, hasTizen, registerKeys, REGISTER_KEYS, listInstalledApps, launchApp, hideApp } from '../../../packages/tv-core/src/index';
 import { Router, lazy, chunkLoader, Panel } from '../../../packages/tv-core/src/index';
 import { createHome, loadHomeMode, saveHomeMode, loadHomeTiles, saveHomeTiles, loadSmartHubTarget } from '../../../packages/launcher/src/home';
 import { loadCatalog, saveCatalog, launchEntry } from '../../../packages/launcher/src/catalog';
@@ -200,9 +200,8 @@ document.addEventListener('keydown', function (e) {
   }
 });
 
-// Présence pour Home Assistant (cimaise_hidden / cimaise_visible) : un écouteur, rien envoyé sans URL + jeton HA.
-watchPresence({ http: xhrHttp, config: function () { return haConfigFromPrefs(loadStored().prefs); }, apps: hasTizen() ? runningAppIds : undefined,
-  later: function (f, ms) { return setTimeout(f, ms); }, cancel: function (h) { clearTimeout(h); } });
+// Présence pour Home Assistant (cimaise_hidden synchrone / cimaise_visible) : un écouteur, rien envoyé sans URL + jeton HA.
+watchPresence({ http: xhrHttp, config: function () { return haConfigFromPrefs(loadStored().prefs); } });
 
 mark('firstPaint');
 mark('interactive');

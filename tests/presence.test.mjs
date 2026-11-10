@@ -21,84 +21,71 @@ before(async () => {
 });
 
 function harness(opts = {}) {
-  const sent = [], timers = [];
+  const sent = [];
   let fire;
   const doc = { hidden: false, addEventListener(t, f) { assert.equal(t, 'visibilitychange'); fire = f; } };
-  const cfg = { v: 'cfg' in opts ? opts.cfg : CFG };
   w.watchPresence({
     http: (req, cb) => { sent.push(req); cb(null, { status: 200, body: '' }); },
-    config: () => cfg.v,
-    apps: 'apps' in opts ? opts.apps : (cb) => cb(opts.ids || []),
+    config: () => ('cfg' in opts ? opts.cfg : CFG),
     doc, now: () => 1000,
-    later: (f, ms) => { const h = { f, ms, on: true }; timers.push(h); return h; },
-    cancel: (h) => { h.on = false; },
   });
-  return { sent, timers, cfg, set(hidden) { doc.hidden = hidden; fire(); } };
+  return { sent, set(hidden) { doc.hidden = hidden; fire(); } };
 }
 const body = (r) => JSON.parse(r.body);
 
-test('summarizeApps : TV Plus (2 IDs relevés), Netflix, YouTube (2 IDs), Plex ; null sans liste', () => {
-  assert.deepEqual(w.summarizeApps(['com.samsung.tv.tvPlusDeeplinker']), { tvplus: true, netflix: false, youtube: false, plex: false });
-  assert.equal(w.summarizeApps(['com.samsung.tv.tvplus']).tvplus, true);
-  assert.deepEqual(w.summarizeApps(['org.tizen.netflix-app', '9Ur5IzDKqV.TizenYouTube', 'kIciSQlYEM.plex']), { tvplus: false, netflix: true, youtube: true, plex: true });
-  assert.equal(w.summarizeApps(['com.samsung.tv.cobalt-yt']).youtube, true);
-  assert.equal(w.summarizeApps(['com.samsung.tv.cobalt-ytkids', 'kIciSQlYEM.service']).youtube, false);
-  assert.equal(w.summarizeApps(['kIciSQlYEM.service']).plex, false);
-  assert.deepEqual(w.summarizeApps(null), { tvplus: null, netflix: null, youtube: null, plex: null });
-});
-
-test('masquée : cimaise_hidden seq 0 avec jeton, puis seq 1 après 3 s si toujours masquée', () => {
-  const h = harness({ ids: ['com.samsung.tv.tvplus'] });
+test('masquée : un seul cimaise_hidden seq 0, SYNCHRONE, sans délai, tvplus null, avec jeton', () => {
+  const h = harness();
   h.set(true);
   assert.equal(h.sent.length, 1);
   assert.equal(h.sent[0].method, 'POST');
   assert.equal(h.sent[0].url, 'http://ha.lan:8123/api/events/cimaise_hidden');
   assert.equal(h.sent[0].headers.Authorization, 'Bearer FAKE-TOKEN');
-  assert.deepEqual(body(h.sent[0]), { at: 1000, seq: 0, tvplus: true, netflix: false, youtube: false, plex: false });
-  assert.equal(h.timers.length, 1);
-  assert.equal(h.timers[0].ms, 3000);
-  h.timers[0].f();
-  assert.equal(h.sent.length, 2);
-  assert.equal(body(h.sent[1]).seq, 1);
+  assert.equal(h.sent[0].sync, true);
+  assert.equal(h.sent[0].timeoutMs, undefined);
+  assert.deepEqual(body(h.sent[0]), { at: 1000, seq: 0, tvplus: null });
 });
 
-test('retour au premier plan : cimaise_visible et la 2e salve est annulée', () => {
+test('retour au premier plan : cimaise_visible asynchrone (délai 2 s)', () => {
   const h = harness();
-  h.set(true);
-  h.set(false);
-  assert.equal(h.sent[1].url, 'http://ha.lan:8123/api/events/cimaise_visible');
-  assert.deepEqual(body(h.sent[1]), { at: 1000 });
-  assert.equal(h.timers[0].on, false);
+  h.set(true); h.set(false);
   assert.equal(h.sent.length, 2);
+  assert.equal(h.sent[1].url, 'http://ha.lan:8123/api/events/cimaise_visible');
+  assert.equal(h.sent[1].sync, false);
+  assert.equal(h.sent[1].timeoutMs, 2000);
+  assert.deepEqual(body(h.sent[1]), { at: 1000 });
 });
 
-test('sans config HA : aucune requête, aucune minuterie', () => {
+test('sans config HA : aucune requête', () => {
   const h = harness({ cfg: null });
   h.set(true); h.set(false);
   assert.equal(h.sent.length, 0);
-  assert.equal(h.timers.length, 0);
 });
 
-test('getAppsContext absent ou qui lève : événement envoyé quand même, champs nuls', () => {
-  const a = harness({ apps: undefined });
-  a.set(true);
-  assert.equal(body(a.sent[0]).tvplus, null);
-  const b = harness({ apps: () => { throw new Error('NO_TIZEN'); } });
-  b.set(true);
-  assert.equal(b.sent.length, 1);
-  assert.equal(body(b.sent[0]).tvplus, null);
-  const c = harness({ apps: (cb) => cb(null) });
-  c.set(true);
-  assert.deepEqual(body(c.sent[0]), { at: 1000, seq: 0, tvplus: null, netflix: null, youtube: null, plex: null });
+test('xhrHttp sync : open(async=false), pas de timeout posé, échec réseau → erreur sans lever', () => {
+  const calls = [];
+  class FakeXHR {
+    open(m, u, a) { calls.push(['open', a]); }
+    setRequestHeader() {}
+    set timeout(v) { calls.push(['timeout', v]); }
+    send() { if (FakeXHR.fail) throw new Error('NetworkError'); this.status = 201; this.responseText = '{}'; }
+  }
+  globalThis.XMLHttpRequest = FakeXHR;
+  try {
+    let res;
+    w.xhrHttp({ method: 'POST', url: 'http://x/', headers: {}, body: '{}', sync: true, timeoutMs: 500 }, (e, r) => { res = [e, r]; });
+    assert.deepEqual(calls, [['open', false]]);
+    assert.equal(res[0], null);
+    assert.equal(res[1].status, 201);
+    FakeXHR.fail = true;
+    w.xhrHttp({ method: 'POST', url: 'http://x/', headers: {}, sync: true }, (e) => { res = [e]; });
+    assert.ok(res[0] instanceof Error);
+  } finally { delete globalThis.XMLHttpRequest; }
 });
 
-test("adaptateur : échec de getAppsContext → cb(null), pas une liste vide", () => {
-  assert.match(readFileSync('packages/tv-core/src/device.ts', 'utf8'), /getAppsContext\([\s\S]*?\}, function \(\) \{ cb\(null\); \}\);/);
-});
-
-test("l'app branche watchPresence sur la config HA et getAppsContext passe par l'adaptateur", () => {
+test("l'app branche watchPresence sans minuterie ni getAppsContext", () => {
   const app = readFileSync('apps/tv/src/index.ts', 'utf8');
-  assert.match(app, /watchPresence\(\{ http: xhrHttp, config: function \(\) \{ return haConfigFromPrefs/);
-  assert.match(readFileSync('packages/tv-core/src/device.ts', 'utf8'), /getAppsContext/);
-  assert.doesNotMatch(readFileSync('packages/widgets/src/presence.ts', 'utf8'), /tizen\./);
+  assert.match(app, /watchPresence\(\{ http: xhrHttp, config: function \(\) \{ return haConfigFromPrefs\(loadStored\(\)\.prefs\); \} \}\);/);
+  const src = readFileSync('packages/widgets/src/presence.ts', 'utf8').replace(/\/\/.*$/gm, '');
+  assert.doesNotMatch(src, /setTimeout|getAppsContext|seq: 1|tizen\./);
+  assert.doesNotMatch(readFileSync('packages/tv-core/src/device.ts', 'utf8'), /getAppsContext/);
 });
