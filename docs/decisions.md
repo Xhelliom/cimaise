@@ -1170,3 +1170,7 @@ La carte du fond Unsplash a été mergée (25f2022) avant que sa branche reçoiv
   http déclarée dans la copie empaquetée. Elle est préférable : une TV qui valide le certificat ne passe jamais en clair, et
   l'échec https ne coûte que ~30 ms sur la Frame. Les lignes de diagnostic `fond état:` du 08/11 sont remplacées par
   `fond tirage:` / `fond:` du 10/11 (mêmes informations, plus les durées).
+- **Relevé sur la Frame avec ce build (c11095b, photo du diagnostic)** : firstPaint +340 ms, latence 8 / 20 / 84 ms, tas JS
+  9,5 Mo avant et après, image 177 Ko. **L'échec https a pris 1568 ms** (et non ~30 ms) : la photo n'arrive qu'à +2145 ms.
+  Le coût « ~30 ms » ci-dessus n'est donc pas garanti. Rien de bloquant (l'accueil est interactif à +340 ms), mais si ce
+  délai se répète, piste à trancher par Stéphane : mémoriser que cette TV refuse le https et demander le http d'abord.

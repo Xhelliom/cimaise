@@ -11,7 +11,10 @@ Fait (commit c11095b, puis docs) : les dix commits de board/launcher-fond-d-ecra
 - npm run check : 808/808. scripts/tizen/test.sh : tout vert.
 
 Sur la Frame (build c11095b, installé par-dessus, mêmes certificats) — réponses de Stéphane : accueil normal sans chargement infini, photo et crédit affichés, Plex toujours relié, ligne « fond » : « par http (https illisible…) ».
+Mesures (photo du diagnostic) : firstPaint +340 ms, latence 8/20/84 ms, tas JS 9,5/9,5 Mo, image 177 Ko. L'échec https a pris 1568 ms cette fois (≈30 ms relevés plus tôt) : la photo arrive à +2145 ms, sans effet sur l'accueil.
+
+À trancher par Stéphane : si ce délai se répète, mémoriser le refus du https sur cette TV et demander le http d'abord.
 
 Pas fait :
-- Un seul lancement constaté ; firstPaint, latence et chiffres de la ligne « fond » non relevés avec ce build.
+- Un seul lancement constaté.
 - La branche board/launcher-fond-d-ecran-unsplash-du-jour-sur-l-acc n'est pas supprimée (à faire par Stéphane s'il le souhaite : plus rien d'utile dedans).
