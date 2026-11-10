@@ -10,6 +10,14 @@ if [ "${CIMAISE_TV:-}" = tv2 ]; then require_vars REQUIRED_VERSION; fi
 APP_DIR="${1:-${APP_DIR:-}}"
 [ -n "$APP_DIR" ] || die "APP_DIR absent (argument ou $ENV_FILE)"
 [ -f "$REPO_ROOT/$APP_DIR/config.xml" ] || die "$APP_DIR/config.xml introuvable"
+# Garde-fou (08/11) : apps/tv (sources) a un config.xml mais pas le app.js que charge son index.html ; empaqueté tel quel,
+# la TV reste sur l'écran de chargement alors que le SDK répond « install completed ». Chaque script local de l'index
+# (pas $WEBAPIS/…, pas une URL) doit exister dans le dossier empaqueté.
+if [ -f "$REPO_ROOT/$APP_DIR/index.html" ]; then
+  for f in $(grep -o 'src="[^"$:]*"' "$REPO_ROOT/$APP_DIR/index.html" | sed 's/^src="//;s/"$//'); do
+    [ -f "$REPO_ROOT/$APP_DIR/$f" ] || die "$APP_DIR/$f introuvable (index.html le charge) : construire puis empaqueter apps/tv/dist"
+  done
+fi
 mkdir -p "$DIST_DIR"
 # Copie à empaqueter : si .local/ha.env existe, elle reçoit local-config.js (URL + jeton Home Assistant pré-remplis).
 # Le jeton ne vit que dans cette copie et dans le .wgt (dist/, ignoré par git) ; la copie est supprimée à la sortie.

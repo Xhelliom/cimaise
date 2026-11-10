@@ -147,6 +147,10 @@ check "install (repli) : vd_appinstall dans le même conteneur" same_container "
 mkdir -p "$REPO/apps/_t"; EXTRA_CLEAN+=("$REPO/apps/_t")
 "$HERE/package.sh" apps/_t >/dev/null 2>&1 && fail "package sans config.xml" || ok "package sans config.xml échoue"
 touch "$REPO/apps/_t/config.xml"
+# Paquet des sources (08/11) : index.html charge un app.js absent du dossier → refus avant tout appel à docker.
+printf '<script src="$WEBAPIS/webapis/webapis.js"></script>\n<script src="app.js"></script>\n' > "$REPO/apps/_t/index.html"
+: > "$TMP/docker.log"; out="$("$HERE/package.sh" apps/_t 2>&1)" && fail "package sans app.js refusé" || { echo "$out" | grep -q "app.js introuvable" && [ ! -s "$TMP/docker.log" ] && ok "package sans app.js refusé" || fail "package sans app.js refusé"; }
+touch "$REPO/apps/_t/app.js"
 "$HERE/package.sh" apps/_t >/dev/null 2>&1   # échoue faute de .wgt produit par le faux docker : normal
 grep -q "^TIZEN .* package -t wgt -s cimaise" "$TMP/docker.log" && ok "package appelle tizen package -s profil" || fail "package appelle tizen package -s profil"
 
