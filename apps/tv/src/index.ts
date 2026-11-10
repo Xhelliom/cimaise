@@ -8,7 +8,7 @@ import { createHome, loadHomeMode, saveHomeMode, loadHomeTiles, saveHomeTiles, l
 import { loadCatalog, saveCatalog, launchEntry } from '../../../packages/launcher/src/catalog';
 import { MODULES, moduleEnabled, setModuleEnabled, visibleCatalog, mergeHidden, removedModules, ensureTile, addNewTiles } from '../../../packages/launcher/src/modules';
 import { refreshWallpaper, packagedKey } from '../../../packages/launcher/src/wallpaper';
-import { xhrHttp, haConfigFromPrefs, listScenes, activateScene, quickScenes, normalizeChosen, saveHaConfig, saveHaScenes } from '../../../packages/widgets/src/index';
+import { xhrHttp, haConfigFromPrefs, listScenes, activateScene, quickScenes, normalizeChosen, saveHaConfig, saveHaScenes, watchPresence } from '../../../packages/widgets/src/index';
 
 interface Chunk { createPanel(arg?: any): Panel; createProbePanel?(arg?: any): Panel; createSettingsPanel?(arg?: any): Panel; createOverseerrProbe?(): Panel; }
 
@@ -199,6 +199,9 @@ document.addEventListener('keydown', function (e) {
     router.pushLazy(settings, function (m) { return m.createOverseerrProbe!(); });
   }
 });
+
+// Présence pour Home Assistant (cimaise_hidden synchrone / cimaise_visible) : un écouteur, rien envoyé sans URL + jeton HA.
+watchPresence({ http: xhrHttp, config: function () { return haConfigFromPrefs(loadStored().prefs); } });
 
 mark('firstPaint');
 mark('interactive');

@@ -104,3 +104,4 @@ export function listInstalledApps(onOk: (apps: InstalledApp[]) => void, onErr?: 
     if (onErr) onErr(new DeviceError('LIST_FAILED', 'Inventaire des apps impossible : ' + (err && err.message ? err.message : 'erreur inconnue')));
   });
 }
+
