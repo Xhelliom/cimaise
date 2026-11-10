@@ -11,7 +11,8 @@ import { greeting, formatClock, formatDate, tintGradient, tileInk, railOffset, p
 export interface SceneItem { id: string; name: string; }
 
 // Fond d'écran photo (Unsplash) : URL déjà à la taille de l'écran, crédit et liens exigés par Unsplash.
-export interface HomePhoto { url: string; author: string; authorUrl: string; portrait: boolean; }
+// small : même image en plus petit (1280×720), essayée une fois si url est illisible sur la TV.
+export interface HomePhoto { url: string; author: string; authorUrl: string; portrait: boolean; small?: string; }
 
 export type PastilleName = 'reglages' | 'smarthub';
 
@@ -351,7 +352,7 @@ export function createHome(opts: HomeOptions): HomePanel {
   }
   // Diagnostic (touche 0) : taille, poids (Resource Timing : images.unsplash.com envoie Timing-Allow-Origin), durée de
   // chargement, mémoire décodée estimée (l × h × 4) et mémoire JS avant / après la pose (2 images plus tard).
-  function notePhoto(img: any, url: string, ms: number, h0: number): void {
+  function notePhoto(img: any, url: string, ms: number, h0: number, pre: string): void {
     var w = img.naturalWidth || 0, h = img.naturalHeight || 0, kb = -1;
     try {
       var perf: any = typeof performance !== 'undefined' ? performance : null;
@@ -359,7 +360,7 @@ export function createHome(opts: HomeOptions): HomePanel {
       if (e && e.length) kb = Math.round((e[e.length - 1].encodedBodySize || e[e.length - 1].transferSize || 0) / 1024);
     } catch (x) { /* Resource Timing absent */ }
     var mo = function (b: number) { return b < 0 ? '?' : (Math.round(b / 104857.6) / 10) + ' Mo'; };
-    var base = w + '×' + h + ', ' + (kb > 0 ? kb + ' Ko' : 'poids ? (cache)') + ', ' + ms + ' ms, décodée ≈ ' + mo(w * h * 4) + ', JS avant ' + mo(h0);
+    var base = pre + w + '×' + h + ', ' + (kb > 0 ? kb + ' Ko' : 'poids ? (cache)') + ', ' + ms + ' ms, décodée ≈ ' + mo(w * h * 4) + ', JS avant ' + mo(h0);
     diagNote('fond', base);
     var raf = typeof requestAnimationFrame !== 'undefined' ? requestAnimationFrame : null;
     if (raf) raf(function () { raf!(function () { diagNote('fond', base + ' / après ' + mo(usedHeap())); }); });
@@ -368,11 +369,16 @@ export function createHome(opts: HomeOptions): HomePanel {
     var req = ++photoReq;
     if (!p) { photoUrl = ''; var o = photoEl; photoEl = null; dropPhoto(o, PHOTO_FADE_MS); return; }
     if (p.url === photoUrl && photoEl) { if (onShown) onShown(); return; }
-    var img: any = doc.createElement('img'), t0 = Date.now(), h0 = usedHeap();
+    var img: any, t0 = 0, h0 = usedHeap(), why = '', src = p.url;
+    var load = function (): void {
+      img = doc.createElement('img'); t0 = Date.now();
+      img.onload = shown; img.onerror = failed;
+      img.setAttribute('src', src);
+    };
     diagNote('fond', 'image en chargement…');
-    img.onload = function () {
+    var shown = function (): void {
       if (req !== photoReq) return;  // une autre demande est passée entre-temps
-      notePhoto(img, p.url, Date.now() - t0, h0);
+      notePhoto(img, src, Date.now() - t0, h0, why ? 'repli (' + why + ') : ' : '');
       var layer = div('photo' + (p.portrait ? ' portrait' : ''));
       layer.appendChild(img);
       layer.appendChild(div('voile'));
@@ -396,12 +402,33 @@ export function createHome(opts: HomeOptions): HomePanel {
       mark('photo');
       if (onShown) onShown();
     };
-    img.onerror = function () {
+    // Échec : la ligne « fond » dit après combien de temps, et une sonde XHR (HEAD, en échec seulement) dit si l'URL répond
+    // (réponse 200 = image reçue mais non décodée ; « réseau » = TLS, DNS ou origine refusée). Puis un seul essai en 1280×720.
+    var failed = function (): void {
       if (req !== photoReq) return;
       noteEvent('fond : image illisible (hors ligne ?)');
-      diagNote('fond', 'image illisible après ' + (Date.now() - t0) + ' ms (réseau, TLS ou format)');
+      why += (why ? ' ; repli ' : '') + 'image illisible après ' + (Date.now() - t0) + ' ms';
+      diagNote('fond', why);
+      if (src !== p.url) return;
+      probe(src, function (r) {
+        if (req !== photoReq) return;
+        if (r) { why += ', sonde ' + r; diagNote('fond', why); }
+        if (p.small && p.small !== p.url) { src = p.small; load(); }
+      });
     };
-    img.setAttribute('src', p.url);
+    load();
+  }
+  function probe(url: string, cb: (r: string) => void): void {
+    if (typeof XMLHttpRequest === 'undefined') { cb(''); return; }
+    try {
+      var x = new XMLHttpRequest();
+      x.open('HEAD', url, true);
+      x.timeout = 8000;
+      x.onload = function () { cb('HTTP ' + x.status + ' ' + x.getResponseHeader('Content-Type')); };
+      x.onerror = function () { cb('réseau'); };
+      x.ontimeout = function () { cb('délai dépassé'); };
+      x.send();
+    } catch (e) { cb('refusée'); }
   }
 
   // Message transitoire : un seul élément, masqué par la classe, retiré par une minuterie ponctuelle.

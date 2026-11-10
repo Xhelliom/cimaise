@@ -56,8 +56,11 @@ test('modèle : tirage paysage par défaut, orientation libre si portrait ; filt
 });
 
 test('modèle : image demandée à la taille de l’écran via imgix (recadrée), portrait entier à la hauteur de l’écran', () => {
-  assert.equal(W.imageUrl(RAW, false), RAW + '&w=1920&h=1080&fit=crop&q=70&fm=jpg');
-  assert.equal(W.imageUrl(RAW, true), RAW + '&h=1080&fit=max&q=70&fm=jpg');
+  assert.equal(W.imageUrl(RAW, false), RAW + '&w=1920&h=1080&fit=crop&q=70&fm=jpg&jpeg-progressive=false');
+  assert.equal(W.imageUrl(RAW, true), RAW + '&h=1080&fit=max&q=70&fm=jpg&jpeg-progressive=false');
+  assert.equal(W.smallUrl(W.imageUrl(RAW, false)), RAW + '&w=1280&h=720&fit=crop&q=70&fm=jpg&jpeg-progressive=false');
+  assert.equal(W.smallUrl(W.imageUrl(RAW, true)), RAW + '&h=720&fit=max&q=70&fm=jpg&jpeg-progressive=false');
+  assert.equal(W.readDaily({ url: RAW + '&w=1920&h=1080&fit=crop&q=70&fm=jpg' }).url, W.imageUrl(RAW, false), 'image mémorisée en progressif : rejouée en JPEG de base');
 });
 
 test('modèle : réponse Unsplash -> image du jour (auteur, liens utm, download_location) ; réponse étrangère refusée', () => {
@@ -324,6 +327,25 @@ test('accueil : image illisible (hors ligne, pas en cache) : aucune couche, aucu
   assert.match(H.report(), /^fond: image illisible après \d+ ms/m);
   assert.equal(photos().length, 0);
   assert.equal(shown, 0);
+});
+
+test('accueil : image pleine illisible → un seul essai en 1280×720, posé avec le crédit ; le diagnostic dit le repli', () => {
+  const { p, doc, photos } = mountHome();
+  let shown = 0;
+  p.setPhoto({ ...PH, small: RAW + '&w=1280' }, () => shown++);
+  doc.imgs[0].onerror();
+  assert.equal(doc.imgs.length, 2);
+  assert.equal(doc.imgs[1].attrs.src, RAW + '&w=1280');
+  doc.imgs[1].onload();
+  assert.equal(photos().length, 1);
+  assert.equal(shown, 1);
+  assert.match(H.report(), /^fond: repli \(image illisible après \d+ ms\) : /m);
+  const b = mountHome();
+  b.p.setPhoto({ ...PH, small: RAW + '&w=1280' });
+  b.doc.imgs[0].onerror(); b.doc.imgs[1].onerror();
+  assert.equal(b.doc.imgs.length, 2, 'pas de boucle');
+  assert.equal(b.photos().length, 0);
+  assert.match(H.report(), /^fond: image illisible après \d+ ms ; repli image illisible après \d+ ms$/m);
 });
 
 test('accueil : une demande dépassée (réglage changé pendant le chargement) n’est jamais posée', () => {

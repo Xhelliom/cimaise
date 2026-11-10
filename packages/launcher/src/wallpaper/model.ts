@@ -56,10 +56,17 @@ export function randomPath(p: WallpaperPrefs): string {
 function withParams(raw: string, params: string): string { return raw + (raw.indexOf('?') >= 0 ? '&' : '?') + params; }
 
 // Paysage : recadrée à la taille exacte de l'écran. Portrait (h > l) : entière, à la hauteur de l'écran, centrée par le CSS.
+// JPEG de base, jamais progressif : imgix sert du progressif par défaut (fm=jpg comme fm=pjpg, relevé le 10/11/2026) et la
+// Frame 2019 ne l'affiche pas (<img> en erreur alors que l'API répond 200). BASELINE le coupe (+6 % de poids).
+export var BASELINE = '&jpeg-progressive=false';
 export function imageUrl(raw: string, portrait: boolean): string {
-  return withParams(raw, portrait
+  return withParams(raw, (portrait
     ? 'h=' + PHOTO_H + '&fit=max&q=' + PHOTO_Q + '&fm=jpg'
-    : 'w=' + PHOTO_W + '&h=' + PHOTO_H + '&fit=crop&q=' + PHOTO_Q + '&fm=jpg');
+    : 'w=' + PHOTO_W + '&h=' + PHOTO_H + '&fit=crop&q=' + PHOTO_Q + '&fm=jpg') + BASELINE);
+}
+// Même image en 1280×720 (2,2 fois moins de mémoire décodée) : repli si la TV n'affiche pas la taille pleine.
+export function smallUrl(url: string): string {
+  return url.replace('w=' + PHOTO_W + '&h=' + PHOTO_H, 'w=1280&h=720').replace('h=' + PHOTO_H + '&fit=max', 'h=720&fit=max');
 }
 
 // Réponse de /photos/random -> image du jour ; null si la réponse est inutilisable.
@@ -80,8 +87,10 @@ export function parsePhoto(json: any, p: WallpaperPrefs, day: string): DailyPhot
 
 export function readDaily(v: any): DailyPhoto | null {
   if (!v || typeof v !== 'object' || typeof v.url !== 'string' || !v.url) return null;
+  // Image mémorisée avant le 10/11 (progressive) : la même, en JPEG de base, sans nouveau tirage.
+  var url: string = /&fm=jpg$/.test(v.url) ? v.url + BASELINE : v.url;
   return {
-    day: String(v.day || ''), sig: String(v.sig || ''), url: v.url, author: String(v.author || 'Unsplash'),
+    day: String(v.day || ''), sig: String(v.sig || ''), url: url, author: String(v.author || 'Unsplash'),
     authorUrl: String(v.authorUrl || 'https://unsplash.com?' + UTM), portrait: v.portrait === true, dl: String(v.dl || ''), tracked: v.tracked === true
   };
 }
