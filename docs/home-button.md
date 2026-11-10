@@ -621,4 +621,38 @@ pour seq 1, elle disait « sinon le documenter ».
   réponse ci-dessous).
 - Coût : +608 o sur `app.js` minifié (47 365 → 47 973 o), aucune minuterie, rien sans config HA.
 
-**Remesure sur la Frame : en cours.**
+**Remesure sur la Frame (2026-11-10, 46e33cc) : `cimaise_hidden` arrive au masquage.** Même protocole :
+Stéphane fait (1) Home → Smart Hub sans rien lancer, (2) Home → TV Plus à la main, puis revient à
+cimaise ; il confirme « fait, tout normal » (pas de lenteur au retour). Relevé côté HA (UTC) :
+
+| Reçu par HA | Événement | `at` (TV) | Écart reçu − `at` |
+|---|---|---|---|
+| 16:39:27.541 | `cimaise_hidden` `{seq:0, tvplus:null}` | 16:39:19 | 7,7 s |
+| 16:39:40.730 | `cimaise_visible` | 16:39:32 | 7,7 s |
+| 16:41:43.966 | `cimaise_hidden` | 16:41:36 | 7,7 s |
+| 16:43:23.363 | `cimaise_visible` | 16:41:53 | **89,9 s** |
+| 16:47:25.605 | `cimaise_hidden` | 16:47:25 | 0,05 s |
+| 16:57:31.320 | `cimaise_hidden` | 16:57:30 | 0,6 s |
+| 16:57:48.912 | `cimaise_visible` | 16:57:48 | 0,6 s |
+
+- **Critère 1 tenu** : chaque `cimaise_hidden` est reçu à l'heure du masquage, **avant** le
+  `cimaise_visible` qui suit (16:39:27 contre 16:39:40), alors qu'en v1 il n'arrivait qu'au retour.
+  L'écart constant de 7,7 s est le retard de l'horloge de la TV : on le retrouve à l'identique sur les
+  `cimaise_visible`, envoyés page visible. Il tombe ensuite sous 1 s, sans doute une
+  resynchronisation de l'horloge de la TV (non vérifié).
+- Les relevés ne disent pas quelle paire correspond à quelle étape du protocole : Stéphane n'a pas
+  noté les heures. Toutes les paires montrent le même comportement.
+- **Deux anomalies, non expliquées :**
+  - un `cimaise_visible` reçu 90 s après son `at` (16:41:53 → 16:43:23). Le XHR asynchrone du retour
+    est peut-être parti alors que la page était de nouveau gelée ;
+  - deux `cimaise_hidden` sans `cimaise_visible` entre eux (16:47 et 16:57), alors que l'app
+    était forcément revenue entre les deux : relance à froid de l'app, qui n'émet pas
+    `visibilitychange` ? À recouper avant de bâtir une automatisation HA dessus.
+- Blocage du XHR synchrone avec HA coupé : non mesuré.
+
+**Critère 2 (`tvplus` juste quand TV Plus a été lancé à la main) : non tenu, et non tenable côté cimaise.**
+La page est gelée pendant que TV Plus démarre. Question posée à Stéphane le 2026-11-10 : « déplacer
+cette détection vers HA (hidden sans visible dans les N s) ? » Réponse : **Non**. Le critère reste donc
+ouvert. Aucune voie connue ne le tient : ni HA, ni Smart View, ni cimaise gelée ne voient l'app au
+premier plan (voir « Détecter l'app au premier plan »). Il reste à trouver un autre capteur, ou à
+revoir le critère.
