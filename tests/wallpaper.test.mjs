@@ -58,8 +58,7 @@ test('modèle : tirage paysage par défaut, orientation libre si portrait ; filt
 test('modèle : image demandée à la taille de l’écran via imgix (recadrée), portrait entier à la hauteur de l’écran', () => {
   assert.equal(W.imageUrl(RAW, false), RAW + '&w=1920&h=1080&fit=crop&q=70&fm=jpg&jpeg-progressive=false');
   assert.equal(W.imageUrl(RAW, true), RAW + '&h=1080&fit=max&q=70&fm=jpg&jpeg-progressive=false');
-  assert.equal(W.smallUrl(W.imageUrl(RAW, false)), RAW + '&w=1280&h=720&fit=crop&q=70&fm=jpg&jpeg-progressive=false');
-  assert.equal(W.smallUrl(W.imageUrl(RAW, true)), RAW + '&h=720&fit=max&q=70&fm=jpg&jpeg-progressive=false');
+  assert.equal(W.httpUrl(W.imageUrl(RAW, false)), W.imageUrl(RAW, false).replace('https://', 'http://'));
   assert.equal(W.readDaily({ url: RAW + '&w=1920&h=1080&fit=crop&q=70&fm=jpg' }).url, W.imageUrl(RAW, false), 'image mémorisée en progressif : rejouée en JPEG de base');
 });
 
@@ -324,28 +323,29 @@ test('accueil : image illisible (hors ligne, pas en cache) : aucune couche, aucu
   p.setPhoto(PH, () => shown++);
   assert.match(H.report(), /^fond: image en chargement…$/m);
   assert.doesNotThrow(() => doc.imgs[0].onerror());
-  assert.match(H.report(), /^fond: image illisible après \d+ ms/m);
+  assert.match(H.report(), /^fond: https illisible après \d+ ms$/m);
   assert.equal(photos().length, 0);
   assert.equal(shown, 0);
 });
 
-test('accueil : image pleine illisible → un seul essai en 1280×720, posé avec le crédit ; le diagnostic dit le repli', () => {
+test('accueil : image https illisible → un seul essai sur l’adresse http, posée avec le crédit ; le diagnostic le dit', () => {
   const { p, doc, photos } = mountHome();
   let shown = 0;
-  p.setPhoto({ ...PH, small: RAW + '&w=1280' }, () => shown++);
+  const alt = PH.url.replace('https:', 'http:');
+  p.setPhoto({ ...PH, alt }, () => shown++);
   doc.imgs[0].onerror();
   assert.equal(doc.imgs.length, 2);
-  assert.equal(doc.imgs[1].attrs.src, RAW + '&w=1280');
+  assert.equal(doc.imgs[1].attrs.src, alt);
   doc.imgs[1].onload();
   assert.equal(photos().length, 1);
   assert.equal(shown, 1);
-  assert.match(H.report(), /^fond: repli \(image illisible après \d+ ms\) : /m);
+  assert.match(H.report(), /^fond: par http \(https illisible après \d+ ms\) : /m);
   const b = mountHome();
-  b.p.setPhoto({ ...PH, small: RAW + '&w=1280' });
+  b.p.setPhoto({ ...PH, alt });
   b.doc.imgs[0].onerror(); b.doc.imgs[1].onerror();
   assert.equal(b.doc.imgs.length, 2, 'pas de boucle');
   assert.equal(b.photos().length, 0);
-  assert.match(H.report(), /^fond: image illisible après \d+ ms ; repli image illisible après \d+ ms$/m);
+  assert.match(H.report(), /^fond: https illisible après \d+ ms, http aussi illisible après \d+ ms$/m);
 });
 
 test('accueil : une demande dépassée (réglage changé pendant le chargement) n’est jamais posée', () => {
@@ -454,7 +454,8 @@ test('unsplash.env : clé en mémoire (window), origines api. et images.unsplash
   assert.equal(m.size, 0, 'jamais dans localStorage');
   const xml = readFileSync(join(stage, 'config.xml'), 'utf8');
   assert.match(xml, /<access origin="https:\/\/api\.unsplash\.com" subdomains="false"\/>/);
-  assert.match(xml, /<access origin="https:\/\/images\.unsplash\.com" subdomains="false"\/>\n<\/widget>/);
+  assert.match(xml, /<access origin="https:\/\/images\.unsplash\.com" subdomains="false"\/>/);
+  assert.match(xml, /<access origin="http:\/\/images\.unsplash\.com" subdomains="false"\/>\n<\/widget>/, 'repli http de la Frame');
   assert.ok(!readFileSync('apps/tv/config.xml', 'utf8').includes('unsplash'), 'origine Unsplash commitée');
   assert.ok(!existsSync(join(app, 'local-config.js')), 'source modifiée');
 });

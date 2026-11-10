@@ -4,9 +4,9 @@
 import { Http } from '../../../widgets/src/ha';
 import { loadStored, saveStored } from '../../../tv-core/src/storage';
 import { noteEvent, diagNote } from '../../../tv-core/src/diag';
-import { API, DailyPhoto, smallUrl, authHeaders, dayKey, isCurrent, normalizeWallpaper, parsePhoto, readDaily, randomPath, readTopics, parseTopics, Topic } from './model';
+import { API, DailyPhoto, httpUrl, authHeaders, dayKey, isCurrent, normalizeWallpaper, parsePhoto, readDaily, randomPath, readTopics, parseTopics, Topic } from './model';
 
-export interface ShownPhoto { url: string; author: string; authorUrl: string; portrait: boolean; small?: string; }
+export interface ShownPhoto { url: string; author: string; authorUrl: string; portrait: boolean; alt?: string; }
 
 export interface WallpaperDeps {
   http: Http;
@@ -28,7 +28,7 @@ function save(c: DailyPhoto, store?: Storage): void {
 }
 
 function display(d: WallpaperDeps, c: DailyPhoto): void {
-  d.show({ url: c.url, author: c.author, authorUrl: c.authorUrl, portrait: c.portrait, small: smallUrl(c.url) }, function () {
+  d.show({ url: c.url, author: c.author, authorUrl: c.authorUrl, portrait: c.portrait, alt: httpUrl(c.url) }, function () {
     if (c.tracked || !c.dl) return;
     // Règle de l'API Unsplash : signaler l'utilisation (download_location) quand la photo est affichée, une fois par photo.
     c.tracked = true;

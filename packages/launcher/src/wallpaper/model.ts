@@ -56,18 +56,17 @@ export function randomPath(p: WallpaperPrefs): string {
 function withParams(raw: string, params: string): string { return raw + (raw.indexOf('?') >= 0 ? '&' : '?') + params; }
 
 // Paysage : recadrée à la taille exacte de l'écran. Portrait (h > l) : entière, à la hauteur de l'écran, centrée par le CSS.
-// JPEG de base, jamais progressif : imgix sert du progressif par défaut (fm=jpg comme fm=pjpg, relevé le 10/11/2026) et la
-// Frame 2019 ne l'affiche pas (<img> en erreur alors que l'API répond 200). BASELINE le coupe (+6 % de poids).
+// JPEG de base : imgix sert du progressif par défaut (fm=jpg comme fm=pjpg, relevé le 10/11/2026) ; BASELINE le coupe (+6 % de
+// poids). Précaution pour le décodeur de la Frame 2019, non prouvée nécessaire (l'échec du 10/11 venait de TLS, voir httpUrl).
 export var BASELINE = '&jpeg-progressive=false';
 export function imageUrl(raw: string, portrait: boolean): string {
   return withParams(raw, (portrait
     ? 'h=' + PHOTO_H + '&fit=max&q=' + PHOTO_Q + '&fm=jpg'
     : 'w=' + PHOTO_W + '&h=' + PHOTO_H + '&fit=crop&q=' + PHOTO_Q + '&fm=jpg') + BASELINE);
 }
-// Même image en 1280×720 (2,2 fois moins de mémoire décodée) : repli si la TV n'affiche pas la taille pleine.
-export function smallUrl(url: string): string {
-  return url.replace('w=' + PHOTO_W + '&h=' + PHOTO_H, 'w=1280&h=720').replace('h=' + PHOTO_H + '&fit=max', 'h=720&fit=max');
-}
+// Même image en http : la Frame 2019 échoue en ~30 ms sur https://images.unsplash.com (chaîne GlobalSign R46 de 2026, alors
+// que api.unsplash.com, chaîne R3, répond 200) ; http://images.unsplash.com sert la même image. Repli seulement, jamais d'abord.
+export function httpUrl(url: string): string { return url.replace(/^https:/, 'http:'); }
 
 // Réponse de /photos/random -> image du jour ; null si la réponse est inutilisable.
 export function parsePhoto(json: any, p: WallpaperPrefs, day: string): DailyPhoto | null {

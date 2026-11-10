@@ -11,8 +11,8 @@ import { greeting, formatClock, formatDate, tintGradient, tileInk, railOffset, p
 export interface SceneItem { id: string; name: string; }
 
 // Fond d'écran photo (Unsplash) : URL déjà à la taille de l'écran, crédit et liens exigés par Unsplash.
-// small : même image en plus petit (1280×720), essayée une fois si url est illisible sur la TV.
-export interface HomePhoto { url: string; author: string; authorUrl: string; portrait: boolean; small?: string; }
+// alt : autre adresse de la même image (http), essayée une fois si url est illisible sur la TV.
+export interface HomePhoto { url: string; author: string; authorUrl: string; portrait: boolean; alt?: string; }
 
 export type PastilleName = 'reglages' | 'smarthub';
 
@@ -378,7 +378,7 @@ export function createHome(opts: HomeOptions): HomePanel {
     diagNote('fond', 'image en chargement…');
     var shown = function (): void {
       if (req !== photoReq) return;  // une autre demande est passée entre-temps
-      notePhoto(img, src, Date.now() - t0, h0, why ? 'repli (' + why + ') : ' : '');
+      notePhoto(img, src, Date.now() - t0, h0, why ? 'par http (' + why + ') : ' : '');
       var layer = div('photo' + (p.portrait ? ' portrait' : ''));
       layer.appendChild(img);
       layer.appendChild(div('voile'));
@@ -402,33 +402,16 @@ export function createHome(opts: HomeOptions): HomePanel {
       mark('photo');
       if (onShown) onShown();
     };
-    // Échec : la ligne « fond » dit après combien de temps, et une sonde XHR (HEAD, en échec seulement) dit si l'URL répond
-    // (réponse 200 = image reçue mais non décodée ; « réseau » = TLS, DNS ou origine refusée). Puis un seul essai en 1280×720.
+    // Échec : la ligne « fond » dit après combien de temps, puis un seul essai sur l'autre adresse (alt).
     var failed = function (): void {
       if (req !== photoReq) return;
       noteEvent('fond : image illisible (hors ligne ?)');
-      why += (why ? ' ; repli ' : '') + 'image illisible après ' + (Date.now() - t0) + ' ms';
+      var first = src === p.url;
+      why += (first ? 'https' : ', http aussi') + ' illisible après ' + (Date.now() - t0) + ' ms';
       diagNote('fond', why);
-      if (src !== p.url) return;
-      probe(src, function (r) {
-        if (req !== photoReq) return;
-        if (r) { why += ', sonde ' + r; diagNote('fond', why); }
-        if (p.small && p.small !== p.url) { src = p.small; load(); }
-      });
+      if (first && p.alt && p.alt !== p.url) { src = p.alt; load(); }
     };
     load();
-  }
-  function probe(url: string, cb: (r: string) => void): void {
-    if (typeof XMLHttpRequest === 'undefined') { cb(''); return; }
-    try {
-      var x = new XMLHttpRequest();
-      x.open('HEAD', url, true);
-      x.timeout = 8000;
-      x.onload = function () { cb('HTTP ' + x.status + ' ' + x.getResponseHeader('Content-Type')); };
-      x.onerror = function () { cb('réseau'); };
-      x.ontimeout = function () { cb('délai dépassé'); };
-      x.send();
-    } catch (e) { cb('refusée'); }
   }
 
   // Message transitoire : un seul élément, masqué par la classe, retiré par une minuterie ponctuelle.
