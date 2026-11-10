@@ -1,11 +1,16 @@
-Issue : partiel
+Issue : codé
 
-Fait (commit d943598) :
-- cimaise envoie à Home Assistant `cimaise_hidden` (seq 0 au masquage, seq 1 ~3 s plus tard si toujours masquée) et `cimaise_visible` au retour, avec tvplus/netflix/youtube/plex tirés de getAppsContext (motifs d'ID relevés sur la Frame).
-- XHR asynchrone avec en-tête Authorization, pas sendBeacon (il ne peut pas porter ce jeton). Sans config HA : rien, aucune minuterie.
-- Coût : +1 320 o sur app.js minifié ; une minuterie ponctuelle de 3 s, injectée par l'app ; aucune minuterie permanente.
-- 6 tests unitaires (tests/presence.test.mjs) ; npm run check : 804/804.
-- Format, choix du transport et protocole consignés dans docs/home-button.md (« Piste 6 codée »).
+Fait (commits 46e4b4d, fca9b35, 763ef5c, puis docs) :
+- Diagnostic (touche 0) : lignes « fond tirage » et « fond » en tête, écrites même en échec (pas de clé, désactivé, HTTP n, réseau, délai, image illisible, mesures). Constaté sur la Frame (photo de Stéphane).
+- Cause trouvée par cette ligne : l'API Unsplash répond 200, mais la TV refuse https://images.unsplash.com en ~30 ms (probablement la chaîne de certificats GlobalSign R46 ; non prouvé, la TV ne donne pas le code TLS).
+- Correctif : si l'image https échoue, un seul essai en http sur la même adresse. Stéphane voit la photo et le crédit sur la Frame ; la ligne « fond » dit « par http (https illisible…) : 1920×1080… ».
+- Diagnostic défilable par Haut/Bas, sans minuterie : constaté sur la Frame, dernière ligne atteinte.
+- Trois installations par-dessus (mêmes certificats, vérifiés par empreinte) : lien Plex et réglages conservés à chaque fois. L'effacement de la carte précédente ne s'est pas reproduit ; sa cause reste inconnue.
+- npm run check : 806/806. app.js 47,9 Ko, .wgt signé 220 Ko.
+
+À trancher par Stéphane :
+- Le repli http fait passer la photo (publique) en clair ; la clé reste en https. Alternative si refusé : relais d'images sur le homelab.
 
 Pas fait :
-- Vérification sur la Frame (critères 1 et 2) : l'image Docker du SDK Tizen avait disparu de la machine, sa reconstruction (téléchargement des paquets Samsung) bloque l'empaquetage et l'installation. Rien n'est encore installé : on ne sait donc pas si seq 0 et seq 1 partent une fois la page masquée, ni si tvplus est juste.
+- JPEG progressif non testé séparément par http (le JPEG de base est gardé par précaution, +6 % de poids).
+- Poids, durée et mémoire de la photo non recopiés de la ligne « fond ».

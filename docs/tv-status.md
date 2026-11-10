@@ -4,6 +4,13 @@ Modèle exact et firmware : à relever en M0.
 
 ## Observé physiquement
 
+- **Fond d'écran Unsplash sur la Frame : https refusé pour les images, affiché par http (2026-11-10).** Trois installations par-dessus (builds 46e4b4d, fca9b35, 763ef5c), réponses de Stéphane après chacune :
+  1. Build 46e4b4d (lignes « fond » du diagnostic) : « tirage 200, image illisible », pas de photo ; diagnostic défilable par Haut/Bas jusqu'à la dernière ligne (« Oui, tout est atteignable »).
+  2. Build fca9b35 (JPEG de base + repli 1280×720 + sonde HEAD) : pas de photo. **Photo du diagnostic** : `fond tirage: HTTP 200 (262 ms)` ; `fond: image illisible après 31 ms, sonde réseau ; repli image illisible après 32 ms`. Autres lignes lues sur la photo : firstPaint +366 ms, painted +504 ms, enriched +515 ms, logos +739 ms, latence min 13 / méd 18 / max 103 ms (20), mémoire JS 10 Mo.
+  3. Build 763ef5c (repli `http://images.unsplash.com`) : « **Oui, photo et crédit** » ; la ligne « fond » commence par « par http (https illisible…) : 1920×1080… » (poids, durée et mémoire non recopiés).
+  - Après chacune des trois installations : « **Oui, tout est conservé** » (lien Plex et réglages). L'effacement constaté à l'installation précédente (carte présence) ne s'est pas reproduit.
+  - *Ce que j'en déduis* (non dit par lui) : la TV joint `api.unsplash.com` en https mais échoue en ~30 ms sur `https://images.unsplash.com`, en `<img>` comme en XHR, quelle que soit la taille ou le type de JPEG. Différence relevée depuis le PC : le certificat des images dépend de la chaîne GlobalSign **R46** (intermédiaire « Atlas R46 DV TLS CA 2026 Q3 », racine R46 contre-signée par R3), celui de l'API de la chaîne **R3** directe. Cause probable : chaîne R46 non validée par le moteur de 2019. **Non prouvé** : la TV ne donne pas le code d'erreur TLS ; `images.unsplash.com` a aussi une adresse IPv6, pas l'API (peu probable, le http passe sur le même hôte). Le JPEG progressif n'était pas la cause (non testé séparément depuis).
+
 Ce qui a été vu à l'écran ou constaté sur la TV.
 
 - **Pilule « Âge » sur l'accueil Plex, reprise par les bibliothèques (2026-11-08, build f1c334b).** App installée puis lancée (voir « Réponse du SDK »), puis deux questions posées à Stéphane, chacune avec des réponses proposées. **Accueil** — question : pilule « Âge : Tous » au bout de la ligne Accueil · Films · Séries ? en « -10 ans », les rangées En cours, Ajoutés récemment et Pas encore vus ne montrent-elles plus que du contenu enfant (saisons de séries enfants comprises, par ex. Grizzy) ? le bandeau suit-il ? Réponse de Stéphane, mot pour mot : « Tout est conforme » (réponse proposée, décrite ainsi : « Pilule au bout des onglets ; en -10 ans, les 3 rangées ne montrent que du contenu enfant, saisons comprises ; bandeau cohérent »). **Reprise** — question : en ouvrant Séries (ou Films) avec « -10 ans » à l'accueil, la pilule de la bibliothèque affiche-t-elle « Âge : -10 ans » d'office, grille réduite ? puis « Tous » à l'accueil rend-il les rangées complètes ? Réponse de Stéphane, mot pour mot : « Tout est conforme » (réponse proposée, décrite ainsi : « La bibliothèque reprend -10 ans d'office ; « Tous » à l'accueil rend les rangées complètes »). Pas de texte libre ni de photo.
@@ -60,6 +67,8 @@ Ce qui a été vu à l'écran ou constaté sur la TV.
   - *Ce que j'en déduis* : **ni HA ni l'API Smart View ne voient que TV Plus est au premier plan** ; HA ne distingue même pas Netflix, Smart Hub, cimaise et TV Plus.
 
 ## Réponse du SDK
+
+- **2026-11-10, fond d'écran : diagnostic puis repli http (Frame, builds 46e4b4d, fca9b35, 763ef5c)** : `package.sh apps/tv/dist` avec `CIMAISE_LOCAL_DIR` (dépôt principal) et `CIMAISE_TIZEN_IMAGE=cimaise-tizen:5.6-web` → `dist/cimaise.wgt` signé (220 Ko). Avant la 1re installation : empreintes SHA-256 des certificats de `author-signature.xml` et `signature1.xml` **identiques** à celles d'un paquet du 30/10 (même profil « cimaise »), même `cimaise001.Cimaise`. `install.sh`, trois fois : `sdb install` → « closed » (transfert seul), repli `vd_appinstall` → `was_install_app return WAS_TRUE`, « install completed » (2,9 s, 2,2 s, 3,7 s), `cmd_ret:0`, app présente. App jamais lancée par script.
 
 Ce que `sdb`, le packager ou le SDK ont répondu. Ne prouve pas un succès visible.
 
