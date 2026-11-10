@@ -523,3 +523,35 @@ Tests annoncés un par un, résultat dit par Stéphane (détails et réponses HT
   que HA fasse le `rest_command` ci-dessus. Le fait que l'appel ne fasse rien quand cimaise est déjà
   affichée rend une relance « en trop » sans danger. Non testé : SmartThings, qui exposerait
   peut-être l'app au premier plan.
+
+### Piste 6 codée : cimaise prévient HA quand elle est masquée (2026-11-08, commit d943598)
+
+**Ce que fait l'app** (`packages/widgets/src/presence.ts`, branché dans `apps/tv/src/index.ts`) :
+un seul écouteur `visibilitychange`, posé au démarrage, qui ne lit la config HA (`haUrl`, `haToken`
+de `cimaise.v1`, pré-remplis par `.local/ha.env` au packaging) qu'au moment de l'événement. Sans
+config, il n'envoie rien et ne lance aucune minuterie.
+
+| Moment | Événement HA | `data` |
+|---|---|---|
+| page masquée (`document.hidden` → true) | `cimaise_hidden` | `{ at, seq: 0, tvplus, netflix, youtube, plex }` |
+| ~3 s plus tard, si toujours masquée | `cimaise_hidden` | idem, `seq: 1` (TV Plus peut démarrer après le masquage) |
+| page de nouveau visible | `cimaise_visible` | `{ at }` ; annule la salve `seq: 1` en attente |
+
+- `at` : `Date.now()` de la TV (ms) ; HA ajoute son propre `time_fired`.
+- `tvplus` / `netflix` / `youtube` / `plex` : booléens tirés de `tizen.application.getAppsContext()`
+  (apps **en cours**, pas « au premier plan »), par motif d'ID relevé dans l'applist de la Frame :
+  `^com.samsung.tv.tvplus` (couvre `tvPlusDeeplinker` et `tvplus`), `netflix`, `youtube$|.cobalt-yt$`,
+  `.plex$`. `null` si `getAppsContext` est absent ou lève (aperçu navigateur).
+- **Transport : XHR asynchrone (`POST /api/events/<type>`, en-tête `Authorization: Bearer`, délai 2 s),
+  pas `sendBeacon`.** `sendBeacon` ne peut pas poser d'en-tête `Authorization`, et HA n'accepte pas le
+  jeton en paramètre d'URL pour `/api/events` : il est inutilisable ici. Le XHR synchrone est écarté
+  aussi : HA éteint ou injoignable bloquerait la page pendant tout le délai de connexion.
+  Contrepartie : si Tizen gèle la page dès qu'elle est masquée, le XHR asynchrone (et le rappel de
+  `getAppsContext`) ne partent pas. C'est ce que la mesure ci-dessous doit trancher.
+- Coût : +1 320 o sur `app.js` minifié (47 365 → 48 685 o). Une minuterie ponctuelle de 3 s,
+  injectée par l'app (le package `widgets` reste sans minuterie), aucune minuterie permanente.
+
+**Mesure sur la Frame : en cours.** Protocole : écoute de `cimaise_hidden` et `cimaise_visible` dans
+HA (Outils de développement → Événements, et un abonnement WebSocket en lecture seule côté PC), puis
+(1) Home → Smart Hub sans rien lancer, (2) Home → TV Plus lancé à la main, (3) retour à cimaise.
+Pour chaque cas : seq 0 et seq 1 reçus ou non, et valeurs de `tvplus`, `netflix`, `youtube`, `plex`.
