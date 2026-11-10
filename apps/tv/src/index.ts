@@ -220,7 +220,10 @@ afterPaint(function () {
   home.enrich();
   mark('enriched');
   refreshScenes();
-  refreshPhoto();
+  // Jamais avant l'événement load : une image en cours de chargement retarde load (Chromium). Précaution reprise du 08/11 :
+  // le chargement infini d'alors venait d'un paquet des sources, mais une image http qui traîne ne doit pas retenir load.
+  if (document.readyState === 'complete') refreshPhoto();
+  else window.addEventListener('load', function () { setTimeout(refreshPhoto, 0); });
   document.addEventListener('visibilitychange', function () { if (!document.hidden) refreshPhoto(); });
   // Sans TV (aperçu), l'appel lève en signalant l'absence de TV ; l'accueil reste fonctionnel.
   if (hasTizen()) {

@@ -74,6 +74,7 @@ function boot({ failChunk, stored, launched, haReply } = {}) {
     tizen: { tvinputdevice: { registerKey() {} }, application: { launch: (id) => launched && launched.push(id), getCurrentApplication: () => ({ exit: () => exits.push(1) }) } },
   });
   ctx.window = ctx;
+  ctx.addEventListener = () => {};   // window.load (fond d'écran) : jamais émis ici, sans clé Unsplash rien n'en dépend
   vm.runInContext(code.app, ctx);
   const key = (keyCode) => listeners.forEach((f) => f({ keyCode }));
   const keyOn = (keyCode, target) => listeners.forEach((f) => f({ keyCode, target }));

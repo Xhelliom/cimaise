@@ -1147,3 +1147,26 @@ de focus dégradée par la couche photo, ou rechargement de l'app à cause de la
 - **Écarté après mesure** : repli 1280×720 et sonde HEAD (essayés dans fca9b35, retirés : la taille n'était pas en cause).
 - **Diagnostic** : lignes `fond tirage:` (API : en cours, HTTP 200, échec HTTP n / réseau / délai / réponse illisible, ou image du jour en cache) et `fond:` (pas de clé, désactivé, en chargement, illisible, ou mesures), **en tête** du diagnostic. Haut/Bas font défiler le bloc d'un quart d'écran (`top`, borné), sans minuterie ; rien au démarrage.
 - **Coût** : `app.js` 47,9 Ko minifié (budget 100) ; `.wgt` signé 220 Ko. Aucune minuterie, aucune requête de plus quand le https passe.
+
+## 2026-11-10 — Fond Unsplash : reprise des commits du 08/11 restés hors de main
+
+La carte du fond Unsplash a été mergée (25f2022) avant que sa branche reçoive dix commits (5d65d92 → 678707a). Repris ici :
+
+- **Mesure sur la Frame (08/11, build 73ddfa5, image alors chargée en http d'abord).** `fond: http 1920x1080, 195 Ko, 763 ms`,
+  mémoire décodée estimée 7,9 Mo, tas JS 9,5 Mo avant comme après la pose. Avec la photo : firstPaint +299 ms, latence
+  touche→frame 17 / 30 / 85 ms (sans photo, cea2c64 : 11 / 18 / 89) : sous le budget de 100 ms. **1920×1080 reste retenu** ;
+  la bascule en 1280×720 reste prévue si la latence de focus se dégrade avec la photo.
+- **Chargement infini du 08/11** : attribué d'abord au fond (image retardant `load`), il venait d'un paquet des **sources**
+  (`package.sh` sans argument, `APP_DIR=apps/tv` : `index.html` charge un `app.js` absent) installé par un autre agent ;
+  le SDK avait répondu « install completed ». **Garde-fou** : `package.sh` refuse un dossier dont l'`index.html` charge un
+  script local absent, avant toute copie et tout appel au packager. `APP_DIR` de `.local/tizen.env` vaut `apps/tv/dist`
+  depuis le 08/11 (accord de Stéphane).
+- **Photo demandée après `load`** (repris de 73ddfa5) : `refreshPhoto()` attend `document.readyState === 'complete'`, sinon
+  l'événement `load`. Précaution et non correctif : il n'est **pas prouvé** que Tizen garde son écran de chargement jusqu'à
+  `load`, mais une image en cours le retarde (Chromium) et le repli http n'échoue pas forcément vite. Coût : +0,1 Ko dans
+  `app.js` (48,0 Ko), aucune minuterie ; au démarrage normal `load` a déjà eu lieu quand la 1re peinture est passée.
+- **Non repris : « http d'abord, https en repli »** (5d65d92 posait le repli, 73ddfa5 inversait l'ordre). La version du 10/11
+  couvre le cas dans l'autre sens : https d'abord, un seul essai en http si l'image échoue (`alt` de `setPhoto`), origine
+  http déclarée dans la copie empaquetée. Elle est préférable : une TV qui valide le certificat ne passe jamais en clair, et
+  l'échec https ne coûte que ~30 ms sur la Frame. Les lignes de diagnostic `fond état:` du 08/11 sont remplacées par
+  `fond tirage:` / `fond:` du 10/11 (mêmes informations, plus les durées).

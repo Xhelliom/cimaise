@@ -348,6 +348,19 @@ test('accueil : image https illisible → un seul essai sur l’adresse http, po
   assert.match(H.report(), /^fond: https illisible après \d+ ms, http aussi illisible après \d+ ms$/m);
 });
 
+test('démarrage : la photo n’est demandée qu’après l’événement load (une image en cours retarde load)', () => {
+  const src = readFileSync('apps/tv/src/index.ts', 'utf8');
+  assert.match(src, /readyState === 'complete'\) refreshPhoto\(\);\s*else window\.addEventListener\('load'/);
+  assert.equal((src.match(/^\s*refreshPhoto\(\);\s*$/gm) || []).length, 0, 'aucun appel nu au démarrage');
+});
+
+test('package.sh : refuse un dossier dont l’index.html charge un script absent (paquet des sources, 08/11)', () => {
+  const sh = readFileSync('scripts/tizen/package.sh', 'utf8');
+  assert.match(sh, /index\.html le charge/);
+  assert.ok(sh.indexOf('index.html le charge') < sh.indexOf('local-config.mjs'), 'refus avant toute copie');
+  assert.ok(!existsSync('apps/tv/app.js'), 'apps/tv (sources) ne doit pas contenir app.js');
+});
+
 test('accueil : une demande dépassée (réglage changé pendant le chargement) n’est jamais posée', () => {
   const { p, doc, photos } = mountHome();
   p.setPhoto(PH);
