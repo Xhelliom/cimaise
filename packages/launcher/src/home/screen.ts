@@ -369,6 +369,7 @@ export function createHome(opts: HomeOptions): HomePanel {
     if (!p) { photoUrl = ''; var o = photoEl; photoEl = null; dropPhoto(o, PHOTO_FADE_MS); return; }
     if (p.url === photoUrl && photoEl) { if (onShown) onShown(); return; }
     var img: any = doc.createElement('img'), t0 = Date.now(), h0 = usedHeap();
+    diagNote('fond', 'image en chargement…');
     img.onload = function () {
       if (req !== photoReq) return;  // une autre demande est passée entre-temps
       notePhoto(img, p.url, Date.now() - t0, h0);
@@ -395,7 +396,11 @@ export function createHome(opts: HomeOptions): HomePanel {
       mark('photo');
       if (onShown) onShown();
     };
-    img.onerror = function () { if (req === photoReq) noteEvent('fond : image illisible (hors ligne ?)'); };
+    img.onerror = function () {
+      if (req !== photoReq) return;
+      noteEvent('fond : image illisible (hors ligne ?)');
+      diagNote('fond', 'image illisible après ' + (Date.now() - t0) + ' ms (réseau, TLS ou format)');
+    };
     img.setAttribute('src', p.url);
   }
 

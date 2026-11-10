@@ -3,7 +3,7 @@
 // HTTP l'a encore) sinon le fond teinté. Sans clé ou source « Désactivé » : aucun appel, fond teinté.
 import { Http } from '../../../widgets/src/ha';
 import { loadStored, saveStored } from '../../../tv-core/src/storage';
-import { noteEvent } from '../../../tv-core/src/diag';
+import { noteEvent, diagNote } from '../../../tv-core/src/diag';
 import { API, DailyPhoto, authHeaders, dayKey, isCurrent, normalizeWallpaper, parsePhoto, readDaily, randomPath, readTopics, parseTopics, Topic } from './model';
 
 export interface ShownPhoto { url: string; author: string; authorUrl: string; portrait: boolean; }
@@ -19,6 +19,9 @@ export interface WallpaperDeps {
 
 var TIMEOUT_MS = 8000;
 var busy = false;
+// Diagnostic (touche 0) : ligne « fond tirage » = dernier appel à l'API (ou la raison de son absence) ; la ligne « fond »
+// (image : chargement, échec ou mesures) est tenue par l'accueil (setPhoto).
+function note(text: string): void { noteEvent('fond : ' + text); diagNote('fond tirage', text); }
 
 function save(c: DailyPhoto, store?: Storage): void {
   try { var s = loadStored(store); s.prefs.wallpaperDay = c; saveStored(s, store); } catch (e) { /* stockage refusé : refait demain */ }
@@ -36,22 +39,24 @@ function display(d: WallpaperDeps, c: DailyPhoto): void {
 }
 
 export function refreshWallpaper(d: WallpaperDeps): void {
-  if (!d.key) { d.show(null); return; }
+  if (!d.key) { diagNote('fond', 'pas de clé Unsplash dans le paquet'); d.show(null); return; }
   var prefs = loadStored(d.store).prefs;
   var p = normalizeWallpaper(prefs.wallpaper);
-  if (p.source === 'off') { d.show(null); return; }
+  if (p.source === 'off') { diagNote('fond', 'désactivé dans les Réglages'); d.show(null); return; }
   var day = dayKey((d.now || function () { return new Date(); })());
   var cached = readDaily(prefs.wallpaperDay);
-  if (isCurrent(cached, p, day)) { display(d, cached!); return; }
+  if (isCurrent(cached, p, day)) { diagNote('fond tirage', 'aucun, image du ' + day + ' en cache'); display(d, cached!); return; }
   if (busy) return;
   busy = true;
-  noteEvent('fond : tirage Unsplash');
+  var t0 = Date.now();
+  note('en cours…');
   d.http({ method: 'GET', url: API + randomPath(p), headers: authHeaders(d.key), timeoutMs: TIMEOUT_MS }, function (err, res) {
     busy = false;
     var next: DailyPhoto | null = null;
     if (!err && res && res.status === 200) { try { next = parsePhoto(JSON.parse(res.body), p, day); } catch (e) { next = null; } }
-    if (next) { save(next, d.store); display(d, next); return; }
-    noteEvent('fond : échec ' + (err ? err.message : res ? 'HTTP ' + res.status : '?'));
+    var ms = ' (' + (Date.now() - t0) + ' ms)';
+    if (next) { note('HTTP 200' + ms); save(next, d.store); display(d, next); return; }
+    note('échec : ' + (err ? err.message : res ? (res.status === 200 ? 'réponse illisible' : 'HTTP ' + res.status) : '?') + ms + (cached ? ', image précédente reprise' : ''));
     // Image d'hier (ou d'autres réglages) : affichée si le cache HTTP l'a, sinon l'<img> échoue et la teinte reste.
     if (cached) display(d, cached); else d.show(null);
   });

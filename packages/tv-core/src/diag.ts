@@ -114,31 +114,43 @@ export function avLog(line: string): void {
   if (l.length > AV_KEEP) l.shift();
 }
 export function resetAvLog(): void { localAv = []; avT0 = 0; if (typeof window !== 'undefined') (window as any).__cimaiseAvLog = []; }
-// last : n'afficher que les dernières lignes (l'écran de diagnostic ne défile pas ; la ligne fautive est toujours la plus récente).
+// last : n'afficher que les dernières lignes (la ligne fautive est toujours la plus récente).
 export function avReport(last?: number): string { var l = avStore(); return (last && l.length > last ? l.slice(l.length - last) : l).join('\n'); }
 
 export function report(): string {
   var base = marks.scriptLoaded, lines: string[] = [];
+  // Lignes libres en tête (« fond ») : visibles sans défiler.
+  for (var n in notes) if (notes.hasOwnProperty(n)) lines.push(n + ': ' + notes[n]);
   for (var k in marks) if (marks.hasOwnProperty(k)) lines.push(k + ': +' + (marks[k] - base) + ' ms');
   var st = latencyStats();
   if (st) lines.push('latence touche→frame: min ' + st.min + ' / méd ' + st.median + ' / max ' + st.max + ' ms (' + st.n + ')');
   if (st) lines.push('cause du max: max ' + st.max + ' ms (' + st.maxCause + ')');
-  for (var n in notes) if (notes.hasOwnProperty(n)) lines.push(n + ': ' + notes[n]);
   lines.push('Plex', plexReport());
   lines.push('userAgent: ' + (typeof navigator !== 'undefined' ? navigator.userAgent : '(absent)'));
   return lines.join('\n');
 }
 
-var el: HTMLElement | null = null;
+var el: HTMLElement | null = null, scrollY = 0;
+var SCROLL_STEP = 270; // un quart d'écran par appui
 export function isDiagOpen(): boolean { return el !== null; }
+// Haut/Bas pendant que le diagnostic est ouvert : décale le bloc (top), borné à sa hauteur. Aucune minuterie ; rien au démarrage.
+export function scrollDiag(dir: number): void {
+  if (!el) return;
+  var max = el.offsetHeight - ((typeof window !== 'undefined' && window.innerHeight) || 1080);
+  scrollY += dir * SCROLL_STEP;
+  if (scrollY > max) scrollY = max;
+  if (scrollY < 0) scrollY = 0;
+  el.style.top = -scrollY + 'px';
+}
 export function toggleDiag(): void {
   if (el) { el.parentNode!.removeChild(el); el = null; return; }
+  scrollY = 0;
   el = document.createElement('pre');
   el.style.cssText = 'position:fixed;top:0;left:0;margin:0;padding:16px;background:#000;color:#0f0;font:20px monospace;max-width:1888px;word-break:break-all;z-index:9999';
   var ic = iconReport();
   // AVPlay en tête : le bloc pousserait sinon ses dernières lignes (l'erreur) sous le bas de l'écran (vu sur TV2).
   var av = avReport(AV_SHOWN);
-  el.textContent = (av ? 'AVPlay (dernières lignes):\n' + av + '\n\n' : '') + report() + (ic ?'\n\nicônes:\n' + ic : '') + '\n\n[1] Sonde formats (lecture directe d’un échantillon par catégorie)\n[2] Sonde Overseerr (HTTPS, lecture seule)';
+  el.textContent = '[Haut/Bas] défiler   [0] fermer\n\n' + (av ? 'AVPlay (dernières lignes):\n' + av + '\n\n' : '') + report() + (ic ?'\n\nicônes:\n' + ic : '') + '\n\n[1] Sonde formats (lecture directe d’un échantillon par catégorie)\n[2] Sonde Overseerr (HTTPS, lecture seule)';
   document.body.appendChild(el);
 }
 

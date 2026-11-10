@@ -21,7 +21,9 @@ before(async () => {
   es5Dir = join(dir, 'es5');
   const t = spawnSync('node_modules/.bin/tsc', ['-p', 'packages/launcher/tsconfig.json', '--outDir', es5Dir], { encoding: 'utf8' });
   assert.equal(t.status, 0, t.stdout + t.stderr);
-  W = await bundle(es5Dir, 'launcher/src/wallpaper/index.js', 'wp');
+  // Avec report() du même paquet : la ligne « fond » du diagnostic se lit dans les tests du tirage.
+  writeFileSync(join(es5Dir, 'wp-diag.js'), "export * from './launcher/src/wallpaper/index.js';\nexport { report } from './tv-core/src/diag.js';\n");
+  W = await bundle(es5Dir, 'wp-diag.js', 'wp');
   writeFileSync(join(es5Dir, 'home-diag.js'), "export * from './launcher/src/home/index.js';\nexport { report } from './tv-core/src/diag.js';\n");
   H = await bundle(es5Dir, 'home-diag.js', 'home');
   S = await bundle(es5Dir, 'launcher/src/settings/index.js', 'settings');
@@ -117,6 +119,7 @@ test('tirage : sans clé, aucun appel et fond teinté', () => {
   h.run();
   assert.equal(h.reqs.length, 0);
   assert.deepEqual(h.shown, [null]);
+  assert.match(W.report(), /^fond: pas de clé Unsplash dans le paquet$/m);
 });
 
 test('tirage : source Désactivé, aucun appel et fond teinté', () => {
@@ -124,6 +127,19 @@ test('tirage : source Désactivé, aucun appel et fond teinté', () => {
   h.run();
   assert.equal(h.reqs.length, 0);
   assert.deepEqual(h.shown, [null]);
+});
+
+test('diagnostic : la ligne « fond tirage » dit le résultat de l’appel, même en échec (HTTP n, réseau, délai, réponse illisible)', () => {
+  const cas = [
+    [() => ({ status: 401, body: '{}' }), /^fond tirage: échec : HTTP 401 \(\d+ ms\)$/m],
+    [() => new Error('réseau'), /^fond tirage: échec : réseau \(\d+ ms\)$/m],
+    [() => new Error('délai dépassé'), /^fond tirage: échec : délai dépassé \(\d+ ms\)$/m],
+    [() => ({ status: 200, body: '<html>' }), /^fond tirage: échec : réponse illisible \(\d+ ms\)$/m],
+    [undefined, /^fond tirage: HTTP 200 \(\d+ ms\)$/m],
+  ];
+  for (const [reply, re] of cas) { const h = harness(reply ? { reply } : {}); h.run(); assert.match(W.report(), re); }
+  const h = harness(); h.run(); h.run();
+  assert.match(W.report(), /^fond tirage: aucun, image du 2026-11-08 en cache$/m);
 });
 
 test('tirage : UNE requête par jour, avec la clé en Client-ID ; résultat mémorisé dans cimaise.v1 avec sa date', () => {
@@ -303,7 +319,9 @@ test('accueil : image illisible (hors ligne, pas en cache) : aucune couche, aucu
   const { p, doc, photos } = mountHome();
   let shown = 0;
   p.setPhoto(PH, () => shown++);
+  assert.match(H.report(), /^fond: image en chargement…$/m);
   assert.doesNotThrow(() => doc.imgs[0].onerror());
+  assert.match(H.report(), /^fond: image illisible après \d+ ms/m);
   assert.equal(photos().length, 0);
   assert.equal(shown, 0);
 });

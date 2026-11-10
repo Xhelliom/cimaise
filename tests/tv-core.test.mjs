@@ -413,6 +413,25 @@ test('diagnostic : le user agent du moteur web figure dans le rapport', () => {
   finally { delete globalThis.navigator; }
 });
 
+test('diagnostic : Haut/Bas le font défiler par quart d’écran, borné à sa hauteur ; rouvert, il repart du haut', () => {
+  const pre = { style: {}, offsetHeight: 1700, parentNode: { removeChild() {} } };
+  globalThis.document = { createElement: () => pre, body: { appendChild() {} } };
+  globalThis.window = { innerHeight: 1080 };
+  try {
+    core.scrollDiag(1); // fermé : sans effet, sans erreur
+    core.toggleDiag();
+    assert.match(pre.textContent, /^\[Haut\/Bas\] défiler/);
+    core.scrollDiag(-1); assert.equal(pre.style.top, '0px');
+    core.scrollDiag(1); assert.equal(pre.style.top, '-270px');
+    core.scrollDiag(1); core.scrollDiag(1); core.scrollDiag(1);
+    assert.equal(pre.style.top, '-620px', 'bas du bloc au bas de l’écran, pas plus loin');
+    core.toggleDiag(); core.toggleDiag();
+    core.scrollDiag(1); assert.equal(pre.style.top, '-270px');
+    core.toggleDiag();
+    assert.equal(core.isDiagOpen(), false);
+  } finally { delete globalThis.document; delete globalThis.window; }
+});
+
 test('diagnostic : latence touche → frame, min/médiane/max des 20 derniers', () => {
   core.resetLatency();
   for (let i = 1; i <= 25; i++) core.recordLatency(i * 10); // les 20 derniers : 60..250
