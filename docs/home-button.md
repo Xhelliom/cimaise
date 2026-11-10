@@ -656,3 +656,21 @@ cette détection vers HA (hidden sans visible dans les N s) ? » Réponse : **No
 ouvert. Aucune voie connue ne le tient : ni HA, ni Smart View, ni cimaise gelée ne voient l'app au
 premier plan (voir « Détecter l'app au premier plan »). Il reste à trouver un autre capteur, ou à
 revoir le critère.
+
+**`getAppsContext` voit-il TV Plus quand il tourne ? Non vérifiable avec les apps installées (2026-11-10).**
+- Le lanceur sonde `cmzlanceur.Lanceur` (31/10) **n'est plus sur la Frame** : `list-apps.sh`, en lecture
+  seule, renvoie 301 lignes, sans `cmzlanceur`. Les seuls IDs liés présents sont `cimaise001.Cimaise`,
+  `com.samsung.tv.tvPlusDeeplinker` (« Samsung TV Plus ») et `com.samsung.tv.tvplus` (« tvplus »).
+- Même réinstallé, il ne trancherait pas : il n'affiche que le **nombre** d'apps en cours et la
+  présence de **sa** sonde (`apps/native-launcher/index.html`), jamais la liste des IDs.
+- cimaise ne lit plus `getAppsContext` depuis la v2 (46e33cc). En v1, le seul relevé était fait au
+  **retour** à cimaise (rappel gelé jusque-là) : `tvplus:false`, alors que TV Plus avait été lancé à la
+  main dans les 33 s précédentes. Ce relevé ne distingue pas « TV Plus déjà fermé par le retour » de
+  « `getAppsContext` ne liste pas TV Plus ».
+- Pour trancher, il faudrait une app web jetable qui affiche les `appId` de `getAppsContext`, ouverte
+  juste après TV Plus. C'est du nouveau code, non fait faute d'accord. Quel que soit le résultat, le
+  critère 2 n'en dépend plus : cimaise est gelée pendant que TV Plus démarre, elle ne peut pas le voir.
+
+**Conclusion pour la carte : le critère 2 (« `tvplus` juste quand TV Plus a été lancé à la main ») ne
+peut pas être tenu par cimaise.** Stéphane a refusé le report vers HA : il doit amender ou retirer ce
+critère.
