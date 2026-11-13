@@ -4,6 +4,9 @@ Modèle exact et firmware : à relever en M0.
 
 ## Observé physiquement
 
+- **Fiche série Plex : « Reprendre » suit l'épisode réellement atteint après un enchaînement (2026-11-13, build 8cd4e79).** Installation faite par l'orchestrateur (voir « Réponse du SDK »). Vérifié par Stéphane sur la Frame : après un enchaînement d'épisodes puis la sortie du lecteur, le bouton de la fiche affiche l'épisode atteint. Sa réponse : « **test OK, le bouton suit l'épisode** ».
+  - *Non vérifié séparément sur la TV* (rien dans sa réponse ne le précise) : le cas « épisode fini → Lire l'épisode suivant » et le passage d'une saison à l'autre (saison affichée qui suit). Ces deux cas sont couverts par les tests sur DOM factice (`tests/plex-ui.test.mjs`).
+
 - **Fond d'écran Unsplash sur la Frame : https refusé pour les images, affiché par http (2026-11-10).** Trois installations par-dessus (builds 46e4b4d, fca9b35, 763ef5c), réponses de Stéphane après chacune :
   1. Build 46e4b4d (lignes « fond » du diagnostic) : « tirage 200, image illisible », pas de photo ; diagnostic défilable par Haut/Bas jusqu'à la dernière ligne (« Oui, tout est atteignable »).
   2. Build fca9b35 (JPEG de base + repli 1280×720 + sonde HEAD) : pas de photo. **Photo du diagnostic** : `fond tirage: HTTP 200 (262 ms)` ; `fond: image illisible après 31 ms, sonde réseau ; repli image illisible après 32 ms`. Autres lignes lues sur la photo : firstPaint +366 ms, painted +504 ms, enriched +515 ms, logos +739 ms, latence min 13 / méd 18 / max 103 ms (20), mémoire JS 10 Mo.
@@ -68,6 +71,7 @@ Ce qui a été vu à l'écran ou constaté sur la TV.
 
 ## Réponse du SDK
 
+- **2026-11-13, fiche série « Reprendre » (Frame, build 8cd4e79)** : `package.sh apps/tv/dist` → `dist/cimaise.wgt` signé (220 677 o, profil `cimaise`). Deux essais d'installation de ma part à 192.168.1.70 : TV injoignable (ping 100 % de pertes, port 26101 fermé, « failed to connect to remote target »). Installation ensuite par l'orchestrateur : `install.sh` → « install completed », app présente dans la liste.
 - **2026-11-10, reprise des commits Unsplash du 08/11 (Frame, build c11095b : photo demandée après `load`, garde-fou `package.sh`)** : `package.sh apps/tv` (sources) → refusé, « apps/tv/app.js introuvable (index.html le charge) », aucun appel au packager. `package.sh apps/tv/dist` → `dist/cimaise.wgt` signé (220 Ko), `cimaise001.Cimaise`, empreintes des certificats identiques au paquet du 30/10. `install.sh` par-dessus → « install completed » (vd_appinstall, 3,1 s), `cmd_ret:0`, app présente. App non lancée par script.
   - *Observé par Stéphane (10/11, réponses à choix)* : au lancement, « Accueil normal » (pas de chargement infini) ; « Photo et crédit » affichés ; Plex « Toujours relié » (pas de code PIN) ; ligne `fond:` du diagnostic : « par http (https illisible…) », chiffres non recopiés. Un seul lancement constaté ; firstPaint et latence non relevés avec ce build.
   - *Observé (photo du diagnostic par Stéphane, 10/11, build c11095b)* : `fond tirage: aucun, image du 2026-11-10 en cache` ; `fond: par http (https illisible après 1568 ms) : 1920×1080, 177 Ko, 27 ms, décodée ≈ 7.9 Mo, JS avant 9.5 Mo / après 9.5 Mo` ; `homeBuilt / firstPaint / interactive +340 ms`, `painted +491`, `enriched +502`, `logos +1575`, `photo +2145 ms` ; `latence touche→frame min 8 / méd 20 / max 84 ms (12)` ; `mémoire JS 10 Mo`. Photo et tuiles visibles derrière le diagnostic.

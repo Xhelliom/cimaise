@@ -15,6 +15,11 @@ var TTL_HOME = 5 * 60000, TTL_SECTIONS = 3600000, TTL_PAGE = 10 * 60000, TTL_MET
 var LOCAL_MS = 60000;   // gardée dans le cache (clé 'o:'), donc partagée entre les écrans, qui ont chacun leur Data
 // `unseen` : marqué non vu, le compteur de vues du serveur (encore ancien) est retiré.
 interface Local { offset: number; watched: boolean; unseen?: boolean; }
+// Dernier épisode d'une série quitté au lecteur (clé 'lp:' + série) : la fiche de la série s'y recale au retour de lecture,
+// même si l'enchaînement est allé plus loin que l'épisode lancé, et avant que le serveur ait reçu la position.
+// `next` : épisode suivant connu du lecteur (null : dernier de la série ; absent : pas encore connu).
+export interface LastPlayed { item: Item; offset: number; watched: boolean; next?: Item | null; }
+var LAST_MS = 6 * 3600000;
 
 function noop(): void { /* rien à annuler */ }
 
@@ -66,7 +71,11 @@ export interface Data {
   metadata(ratingKey: string, on: On<Item>, err?: Err, withOnDeck?: boolean): Cancel;
   children(ratingKey: string, on: On<Item[]>, err?: Err): Cancel;
   // Retour de lecture : la fiche est corrigée sur place, « En cours » et les parents (saison, série) sont rechargés.
-  progressed(it: Item, offsetMs: number, watched: boolean): void;
+  // `next` : épisode suivant connu du lecteur, retenu avec le dernier épisode lu de la série (voir `lastPlayed`).
+  progressed(it: Item, offsetMs: number, watched: boolean, next?: Item | null): void;
+  // Dernier épisode de la série quitté au lecteur ; oublié (`forgetPlayed`) quand la fiche lance une lecture.
+  lastPlayed(showKey: string): LastPlayed | null;
+  forgetPlayed(showKey: string): void;
   // Marqué vu ou non vu (scrobble réussi) : même correction sur place ; l'élément quitte « En cours » dans les deux cas.
   marked(it: Item, watched: boolean): void;
 }
@@ -194,8 +203,13 @@ export function createData(http: Http, id: Identity, s: ServerRef, cache: Cache)
     children: function (rk, on, err) {
       return load<Item[]>('c:' + rk, TTL_META, function (cb) { return getChildren(http, id, s, rk, cb); }, function (l) { return applyAll(slimAll(l)); }, on, err);
     },
-    progressed: function (it, offsetMs, watched) {
+    progressed: function (it, offsetMs, watched, next) {
       touch(it, { offset: Math.round(offsetMs), watched: watched });
+      if (it.type === 'episode' && it.grandparentRatingKey) {
+        var lp: LastPlayed = { item: slim(it), offset: Math.round(offsetMs), watched: watched };
+        if (next !== undefined) lp.next = next ? slim(next) : null;
+        cache.set('lp:' + it.grandparentRatingKey, lp);
+      }
       patch<Item[]>('ondeck', function (l) {
         var out = applyAll(l), seen = false;
         if (watched) return out.filter(function (x) { return x.ratingKey !== it.ratingKey; });
@@ -205,6 +219,11 @@ export function createData(http: Http, id: Identity, s: ServerRef, cache: Cache)
       });
       sectionDecks(it, watched);
     },
+    lastPlayed: function (showKey) {
+      var h = cache.get<LastPlayed>('lp:' + showKey, LAST_MS);
+      return h && h.fresh ? h.value : null;
+    },
+    forgetPlayed: function (showKey) { cache.remove('lp:' + showKey); },
     marked: function (it, watched) {
       touch(it, { offset: 0, watched: watched, unseen: !watched });
       patch<Item[]>('ondeck', function (l) { return l.filter(function (x) { return x.ratingKey !== it.ratingKey; }); });
