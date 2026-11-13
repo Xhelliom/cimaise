@@ -2083,3 +2083,90 @@ test('accueil : le résumé est gardé dans le cache des rangées, coupé au mot
   assert.ok(sum.length <= 201 && /mot…$/.test(sum), sum.length + ' ' + sum.slice(-8));
   p.destroy();
 });
+
+// ---- retour de lecture après enchaînement : la fiche suit l’épisode réellement lu ------------------------------------
+test('targetAfterPlay : entamé → cet épisode à sa position ; fini → le suivant ; suivant inconnu ou fin → rien', () => {
+  const e6 = { ratingKey: '6', type: 'episode', index: 6, parentIndex: 1, parentRatingKey: '750', viewOffset: 1 };
+  const e7 = { ratingKey: '7', type: 'episode', index: 7, parentIndex: 1, parentRatingKey: '750' };
+  assert.equal(ui.targetAfterPlay(null), null);
+  const r = ui.targetAfterPlay({ item: e6, offset: 300000, watched: false, next: e7 });
+  assert.equal(r.ratingKey, '6');
+  assert.equal(r.viewOffset, 300000, 'position quittée au lecteur, pas l’ancienne');
+  assert.equal(e6.viewOffset, 1, 'l’élément noté n’est pas modifié');
+  assert.equal(ui.targetAfterPlay({ item: e6, offset: 0, watched: false }).viewOffset, undefined, 'à peine lancé : Lire, sans reprise');
+  assert.equal(ui.targetAfterPlay({ item: e6, offset: 1200000, watched: true, next: e7 }), e7);
+  assert.equal(ui.targetAfterPlay({ item: e6, offset: 1200000, watched: true, next: null }), null, 'dernier épisode de la série');
+  assert.equal(ui.targetAfterPlay({ item: e6, offset: 1200000, watched: true }), null, 'suivant inconnu');
+});
+
+const chainShow = () => viewDeps({
+  ondeck: { ratingKey: '3', type: 'episode', index: 3, parentIndex: 1, parentRatingKey: '750', title: 'Ép 3', duration: 1200000, viewOffset: 60000 },
+  seasonsOf: [season('750', 1, 7, 2), season('751', 2, 3, 0)],
+  eps: {
+    750: [1, 2, 3, 4, 5, 6, 7].map((n) => episode(String(n), n, '750', n < 3 ? { viewCount: 1 } : n === 3 ? { viewOffset: 60000 } : {})),
+    751: [1, 2, 3].map((n) => episode('2' + n, n, '751')),
+  },
+});
+const ep = (rk, index, parent) => ({ ratingKey: rk, type: 'episode', index, parentIndex: parent === '751' ? 2 : 1, parentRatingKey: parent, grandparentRatingKey: '700', duration: 1200000 });
+const selSeason = (p) => byClass(byClass(p.el, 'plex-seasons')[0], 'sel')[0].children[1].textContent;
+
+test('retour de lecture après E3→E6 : Reprendre S1 E6 (entamé), puis Lire S1 E7 (E6 fini)', async () => {
+  const { d, played } = chainShow();
+  const p = ui.createDetailPanel(d.arg, SHOW_DECK);
+  await flush();
+  assert.equal(playBtn(p), 'Reprendre S1 E3 · 1:00');
+  p.onKey('enter');
+  assert.deepEqual(played.map((i) => i.ratingKey), ['3']);
+  p.suspend();
+  // le lecteur enchaîne E3, E4, E5 (finis) puis l’utilisateur quitte E6 à 5:00
+  const data = sharedData(d);
+  data.progressed(ep('3', 3, '750'), 1200000, true, ep('4', 4, '750'));
+  data.progressed(ep('4', 4, '750'), 1200000, true, ep('5', 5, '750'));
+  data.progressed(ep('5', 5, '750'), 1200000, true, ep('6', 6, '750'));
+  data.progressed(ep('6', 6, '750'), 300000, false, ep('7', 7, '750'));
+  p.resume();
+  await flush();
+  assert.equal(playBtn(p), 'Reprendre S1 E6 · 5:00', 'le serveur (encore sur E3) ne l’emporte pas');
+  p.onKey('down'); p.onKey('down');
+  const focused = byClass(byClass(p.el, 'plex-episodes')[0], 'focus');
+  assert.ok(/^6\. /.test(byClass(focused[0], 'vlabel')[0].textContent), 'épisode 6 présélectionné');
+  p.onKey('up'); p.onKey('up');
+  p.onKey('enter');
+  assert.equal(played[1].ratingKey, '6');
+  p.suspend();
+  data.progressed(ep('6', 6, '750'), 1200000, true, ep('7', 7, '750'));
+  p.resume();
+  await flush();
+  assert.equal(playBtn(p), 'Lire S1 E7');
+});
+
+test('retour de lecture : l’enchaînement est passé en saison 2 → la saison affichée et l’épisode suivent', async () => {
+  const { d, played } = chainShow();
+  const p = ui.createDetailPanel(d.arg, SHOW_DECK);
+  await flush();
+  assert.equal(selSeason(p), 'Saison 1');
+  p.onKey('enter');
+  p.suspend();
+  const data = sharedData(d);
+  data.progressed(ep('7', 7, '750'), 1200000, true, ep('21', 1, '751'));
+  data.progressed(ep('21', 1, '751'), 1200000, true, ep('22', 2, '751'));
+  p.resume();
+  await flush();
+  assert.equal(playBtn(p), 'Lire S2 E2');
+  assert.equal(selSeason(p), 'Saison 2', 'saison affichée : celle de l’épisode à suivre');
+  p.onKey('down'); p.onKey('down');
+  const focused = byClass(byClass(p.el, 'plex-episodes')[0], 'focus');
+  assert.ok(/^2\. /.test(byClass(focused[0], 'vlabel')[0].textContent), 'épisode 2 de la saison 2 présélectionné');
+  assert.equal(played.length, 1);
+});
+
+test('retour de lecture sans lecture notée (échec au lancement) : la fiche garde l’« à suivre » du serveur', async () => {
+  const { d } = chainShow();
+  const p = ui.createDetailPanel(d.arg, SHOW_DECK);
+  await flush();
+  p.onKey('enter');
+  p.suspend();
+  p.resume();
+  await flush();
+  assert.equal(playBtn(p), 'Reprendre S1 E3 · 1:00');
+});

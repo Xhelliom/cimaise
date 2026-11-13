@@ -124,7 +124,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number, ch
   // Épisode suivant (null : film, dernier épisode ou pas encore trouvé) ; marqueurs Plex de l'épisode ; bouton de saut visible ;
   // carte de compte à rebours (cardCancelled : annulée par Retour pour cet épisode, jusqu'à la sortie du générique).
   var chain: Chain = chainArg || { auto: 0 };
-  var nextItem: Item | null = null, nextReq: Abortable | null = null;
+  var nextItem: Item | null = null, nextReq: Abortable | null = null, nextKnown = false;   // nextKnown : réponse de findNextEpisode reçue
   var markers: Markers = { intro: null, credits: null }, skipKind: 'intro' | 'credits' | null = null;
   var cardOn = false, cardLeft = 0, cardTimer: any = null, cardCancelled = false;
   // cardTail : carte des dernières secondes sans marqueur de générique ; son décompte suit la position et seule la fin du flux enchaîne.
@@ -433,7 +433,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number, ch
       http: http, id: identityOf(arg), session: c.session, timers: timers, ratingKey: full.ratingKey, durationMs: durationMs,
       getPosition: function () { return suspendPos >= 0 ? suspendPos : p.getPosition(); },
       getTranscodeSession: function () { return plan && plan.mode === 'transcode' ? tSession : null; },
-      onFinish: function (ms, watched) { c.data.progressed(full, ms, watched); }
+      onFinish: function (ms, watched) { c.data.progressed(full, ms, watched, nextKnown ? nextItem : undefined); }
     });
     launch(startMs);
   }
@@ -554,6 +554,7 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number, ch
       if (closed) return;
       if (n && !n.grandparentRatingKey) n.grandparentRatingKey = v.grandparentRatingKey;
       nextItem = n;
+      nextKnown = true;
       if (n && barOpen) paintCtl();
     });
     begin();
@@ -672,8 +673,9 @@ export function createPlayerPanel(arg: PlexArg, item: Item, startMs?: number, ch
     if (!n || closed) return;
     if (progress) progress.stop(watched);
     cleanup();
-    c.nav.pop();
-    c.nav.push(createPlayerPanel(arg, n, 0, chain));
+    // Remplacement direct : la fiche sous le lecteur n'est ni réveillée ni rechargée entre deux épisodes.
+    var np = createPlayerPanel(arg, n, 0, chain);
+    if (c.nav.replace) c.nav.replace(np); else { c.nav.pop(); c.nav.push(np); }
   }
 
   // Choix d'une piste dans le menu : nouvelle décision avec les deux pistes explicites. Lecture directe → directe sans fichier externe :

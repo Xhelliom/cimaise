@@ -12,7 +12,8 @@ import { SearchIndex } from './search-index';
 import { el } from './dom';
 
 // Pile d'écrans : celle du routeur de l'app (Retour dépile).
-export interface Nav { push(p: Panel): void; pop(): void; }
+// `replace` (facultatif) : remplace le sommet sans réveiller l'écran du dessous ; à défaut, pop puis push.
+export interface Nav { push(p: Panel): void; pop(): void; replace?(p: Panel): void; }
 
 // Tout est injectable pour les tests ; les valeurs par défaut sont celles de la TV.
 export interface PlexArg {

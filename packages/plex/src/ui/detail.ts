@@ -1,4 +1,4 @@
-import { Item } from '../api/types';
+import { Abortable, Item } from '../api/types';
 import { Panel } from '../../../tv-core/src/router/router';
 import { Key } from '../../../tv-core/src/keys';
 import { createRow, VirtualList } from '../../../tv-core/src/virtual/list';
@@ -7,6 +7,8 @@ import { createPlayerPanel } from './player';
 import { recordMeasure } from '../../../tv-core/src/diag';
 import { backdropUrl, detailPosterUrl, EPISODE, episodeThumbUrl } from './images';
 import { scrobble, unscrobble } from '../api/media';
+import { findNextEpisode } from '../playback/next';
+import { LastPlayed } from './data';
 import { techBadges } from '../playback/badges';
 import { langPrefsFor } from '../../../tv-core/src/langprefs';
 import { noteEvent } from '../../../tv-core/src/diag';
@@ -36,6 +38,18 @@ function markedCopy(it: Item, watched: boolean): Item {
   var o: any = {};
   for (var k in it) if (it.hasOwnProperty(k) && k !== 'viewOffset' && k !== 'viewCount') o[k] = (it as any)[k];
   if (watched) o.viewCount = it.viewCount || 1;
+  return o;
+}
+
+// Épisode que vise la fiche d'une série au retour du lecteur, d'après le dernier épisode quitté (l'enchaînement a pu aller
+// au-delà de l'épisode lancé) : entamé ou à peine commencé → lui, à sa position ; fini → le suivant connu du lecteur.
+// null : rien à imposer (aucune lecture notée, suivant inconnu, ou fin de série) → l'« à suivre » du serveur.
+export function targetAfterPlay(last: LastPlayed | null): Item | null {
+  if (!last) return null;
+  if (last.watched) return last.next || null;
+  var o: any = {};
+  for (var k in last.item) if (last.item.hasOwnProperty(k) && k !== 'viewOffset') o[k] = (last.item as any)[k];
+  if (last.offset > 0) o.viewOffset = last.offset;
   return o;
 }
 
@@ -198,7 +212,7 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
   if (stub.type === 'show') {
     seasonList = createRow({
       container: seasonsBox, doc: doc, count: 0, itemW: 240, itemH: 84, gap: 24, viewportW: 1400, viewportH: 84, edge: seasonsMore,
-      render: function (i) { return seasons[i] ? { title: seasons[i].title, image: null, selected: seasons[i] === curSeason, done: seasonSeen(seasons[i]), badge: seasonCount(seasons[i]) } : null; },
+      render: function (i) { return seasons[i] ? { title: seasons[i].title, image: null, selected: !!curSeason && seasons[i].ratingKey === curSeason.ratingKey, done: seasonSeen(seasons[i]), badge: seasonCount(seasons[i]) } : null; },
       onSelect: function (i) { settle(); loadEpisodes(seasons[i]); }
     });
     episodeList = createRow({
@@ -216,7 +230,31 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
   // Lire : l'écran lecteur, sauf si l'appelant fournit son propre `onPlay`.
   // `startMs` : 0 ou RESUME (le lecteur relit la position sur le serveur) ; le lecteur ne pose plus la question.
   function startPlay(it: Item, startMs: number): void {
+    if (stub.type === 'show') { c.data.forgetPlayed(stub.ratingKey); played = true; }
     if (arg.onPlay) c.play(it, startMs); else c.nav.push(createPlayerPanel(arg, it, startMs));
+  }
+
+  // Retour de lecture d'une série : Lire, la saison affichée et l'épisode présélectionné suivent le dernier épisode lu,
+  // pas celui lancé depuis la fiche. Le serveur peut ne pas encore connaître la position : on part de ce qu'a noté le lecteur.
+  var played = false, nextCancel: Abortable | null = null;
+  function retarget(): void {
+    if (!played) return;
+    played = false;
+    var last = c.data.lastPlayed(stub.ratingKey);
+    if (!last) return;
+    if (last.watched && last.next === undefined) {   // fini avant que le lecteur ait trouvé le suivant : on le cherche
+      if (nextCancel) nextCancel.abort();
+      nextCancel = findNextEpisode(c.http, c.id, c.session, last.item, function (n) { nextCancel = null; if (!dead) aim(n); });
+      return;
+    }
+    aim(targetAfterPlay(last));
+  }
+  function aim(t: Item | null): void {
+    auto = true;   // saison et épisode se replacent seuls jusqu'à la prochaine touche
+    if (t) { target = t; wanted = t; pinned = true; }
+    else { pinned = false; wanted = null; target = null; }
+    paint();
+    openSeason();
   }
 
   var curSeason: Item | null = null;
@@ -361,6 +399,7 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
     },
     resume: function () {
       held = false;
+      retarget();
       paint();
       loadMeta();   // retour de lecture : progression et « Reprendre » à jour
       if (seasonList) loadSeasons();   // coches de saison à jour
@@ -373,6 +412,7 @@ export function createDetailPanel(arg: PlexArg, stub: Item, focus?: Item): Panel
       if (metaCancel) metaCancel();
       if (epCancel) epCancel();
       if (seasonsCancel) seasonsCancel();
+      if (nextCancel) nextCancel.abort();
       dead = true;   // un marquage parti va au bout : le cache partagé reste juste pour « En cours »
       if (seasonList) { seasonList.release(); episodeList!.release(); }
     }

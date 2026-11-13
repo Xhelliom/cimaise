@@ -78,7 +78,7 @@ var home = createHome({
     if (!moduleEnabled('plex', loadStored().prefs)) { home.notify('Plex intégré est masqué (Réglages > Apps intégrées)'); return; }
     router.pushLazy(plex, function (m) {
       return m.createPanel({
-        nav: { push: function (p: Panel) { router.push(p); }, pop: function () { router.pop(); } },
+        nav: { push: function (p: Panel) { router.push(p); }, pop: function () { router.pop(); }, replace: function (p: Panel) { router.replace(p); } },
         // Secours des fichiers qui échouent : l'app Plex officielle est cherchée par nom dans le catalogue, jamais par ID en dur.
         officialApp: function () {
           for (var i = 0; i < catalog.length; i++) {
