@@ -72,9 +72,9 @@ Petits défauts vus sur la Frame à l'usage
   - [x] Test unitaire du recalcul de la cible au retour de lecture
   - [x] Installé sur la Frame et vérifié par Stéphane
 
-### Lot — Corrections Plex 2 — boutons et progression (planned, one at a time)
+### Lot — Corrections Plex 2 — boutons et progression (launched, one at a time)
 
-- **Fiche Plex : boutons « A + progression » et progression de l épisode à reprendre** — backlog
+- **Fiche Plex : boutons « A + progression » et progression de l épisode à reprendre** — review
   - after: Fiche série : « Reprendre » doit suivre l épisode réellement atteint après un enchaînement
 
   Deux demandes de Stéphane (13/11), même fichier, une seule carte.
