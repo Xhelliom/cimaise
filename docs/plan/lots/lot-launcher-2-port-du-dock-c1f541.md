@@ -6,6 +6,8 @@
 
 Terminé le 2026-10-29 · 4/4 carte(s) faites.
 
+Consommé : tokens inconnus ; jauge de la semaine inconnu → inconnu (tout le compte, d'autres sessions comprises, pendant le lot)
+
 ## Écrire l'écran Réglages minimal du launcher (chargé à la demande)
 
 done

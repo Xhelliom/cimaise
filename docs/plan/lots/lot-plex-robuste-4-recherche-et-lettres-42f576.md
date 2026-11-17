@@ -6,6 +6,8 @@
 
 Terminé le 2026-10-30 · 3/3 carte(s) faites.
 
+Consommé : tokens inconnus ; jauge de la semaine inconnu → inconnu (tout le compte, d'autres sessions comprises, pendant le lot)
+
 ## Écrire un clavier à l’écran léger pour la télécommande (tv-core)
 
 done

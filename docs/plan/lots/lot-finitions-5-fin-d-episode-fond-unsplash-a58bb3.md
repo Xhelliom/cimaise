@@ -6,6 +6,8 @@
 
 Terminé le 2026-11-08 · 3/3 carte(s) faites.
 
+Consommé : tokens inconnus ; jauge de la semaine inconnu → inconnu (tout le compte, d'autres sessions comprises, pendant le lot)
+
 ## Smart Hub : icône de cimaise au format tuile paysage comme les autres apps
 
 done · partiel

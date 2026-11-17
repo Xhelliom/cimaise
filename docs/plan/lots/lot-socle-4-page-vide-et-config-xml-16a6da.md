@@ -6,6 +6,8 @@
 
 Terminé le 2026-10-28 · 1/1 carte(s) faites.
 
+Consommé : tokens inconnus ; jauge de la semaine inconnu → inconnu (tout le compte, d'autres sessions comprises, pendant le lot)
+
 ## Construire la page vide de référence et le config.xml Tizen 5
 
 done

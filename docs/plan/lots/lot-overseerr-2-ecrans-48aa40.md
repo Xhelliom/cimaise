@@ -6,6 +6,8 @@
 
 Terminé le 2026-10-30 · 5/5 carte(s) faites.
 
+Consommé : tokens inconnus ; jauge de la semaine inconnu → inconnu (tout le compte, d'autres sessions comprises, pendant le lot)
+
 ## Maquette Overseerr légère, à valider à l’œil
 
 done

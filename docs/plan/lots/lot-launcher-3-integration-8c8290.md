@@ -6,6 +6,8 @@
 
 Terminé le 2026-10-29 · 1/1 carte(s) faites.
 
+Consommé : tokens inconnus ; jauge de la semaine inconnu → inconnu (tout le compte, d'autres sessions comprises, pendant le lot)
+
 ## Brancher le vrai Dock, le catalogue et les Réglages dans l’app TV
 
 done

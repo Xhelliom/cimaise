@@ -6,6 +6,8 @@
 
 Terminé le 2026-10-30 · 1/1 carte(s) faites.
 
+Consommé : tokens inconnus ; jauge de la semaine inconnu → inconnu (tout le compte, d'autres sessions comprises, pendant le lot)
+
 ## Actualiser la fiche Plex en sortant du lecteur (Reprendre à la bonne position)
 
 done

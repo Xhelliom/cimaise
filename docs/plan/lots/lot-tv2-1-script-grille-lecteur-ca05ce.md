@@ -6,6 +6,8 @@
 
 Terminé le 2026-11-08 · 3/3 carte(s) faites.
 
+Consommé : tokens inconnus ; jauge de la semaine inconnu → inconnu (tout le compte, d'autres sessions comprises, pendant le lot)
+
 ## TV2 : installer cimaise par script (profil Tizen dédié, cible choisie par variable)
 
 done · codé

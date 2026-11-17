@@ -6,6 +6,8 @@
 
 Terminé le 2026-10-29 · 1/1 carte(s) faites.
 
+Consommé : tokens inconnus ; jauge de la semaine inconnu → inconnu (tout le compte, d'autres sessions comprises, pendant le lot)
+
 ## Changer les épisodes affichés quand on choisit une autre saison
 
 done

@@ -6,6 +6,8 @@
 
 Terminé le 2026-11-08 · 2/2 carte(s) faites.
 
+Consommé : tokens inconnus ; jauge de la semaine inconnu → inconnu (tout le compte, d'autres sessions comprises, pendant le lot)
+
 ## Launcher : plus de nom d’app affiché avant le logo au démarrage (couleur, puis logo en fondu)
 
 done · codé

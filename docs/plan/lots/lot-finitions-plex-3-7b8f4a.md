@@ -6,6 +6,8 @@
 
 Terminé le 2026-10-31 · 3/3 carte(s) faites.
 
+Consommé : tokens inconnus ; jauge de la semaine inconnu → inconnu (tout le compte, d'autres sessions comprises, pendant le lot)
+
 ## Accueil Plex : rangée « Pas encore vus »
 
 done

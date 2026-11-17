@@ -6,6 +6,8 @@
 
 Terminé le 2026-10-30 · 3/3 carte(s) faites.
 
+Consommé : tokens inconnus ; jauge de la semaine inconnu → inconnu (tout le compte, d'autres sessions comprises, pendant le lot)
+
 ## Faire du logo verre-2 l’icône de l’app sur la Frame
 
 done

@@ -6,6 +6,8 @@
 
 Terminé le 2026-11-08 · 1/1 carte(s) faites.
 
+Consommé : tokens inconnus ; jauge de la semaine inconnu → inconnu (tout le compte, d'autres sessions comprises, pendant le lot)
+
 ## TV2 : retester l’installation et relever le texte complet du refus 118012
 
 done · codé

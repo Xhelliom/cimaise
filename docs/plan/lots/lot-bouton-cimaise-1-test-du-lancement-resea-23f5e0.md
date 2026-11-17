@@ -6,6 +6,8 @@
 
 Terminé le 2026-11-07 · 1/1 carte(s) faites.
 
+Consommé : tokens inconnus ; jauge de la semaine inconnu → inconnu (tout le compte, d'autres sessions comprises, pendant le lot)
+
 ## Tester le lancement réseau de cimaise avec Netflix ou le Smart Hub au premier plan
 
 done · codé

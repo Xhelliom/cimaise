@@ -6,6 +6,8 @@
 
 Terminé le 2026-10-29 · 3/3 carte(s) faites.
 
+Consommé : tokens inconnus ; jauge de la semaine inconnu → inconnu (tout le compte, d'autres sessions comprises, pendant le lot)
+
 ## Sonder sur la TV les formats que la Frame lit vraiment
 
 done

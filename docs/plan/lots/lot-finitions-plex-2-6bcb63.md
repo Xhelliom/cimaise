@@ -6,6 +6,8 @@
 
 Terminé le 2026-10-31 · 4/4 carte(s) faites.
 
+Consommé : tokens inconnus ; jauge de la semaine inconnu → inconnu (tout le compte, d'autres sessions comprises, pendant le lot)
+
 ## Lecteur Plex : « Passer l’intro » et « Passer le générique »
 
 done

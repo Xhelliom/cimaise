@@ -6,6 +6,8 @@
 
 Terminé le 2026-10-29 · 2/2 carte(s) faites.
 
+Consommé : tokens inconnus ; jauge de la semaine inconnu → inconnu (tout le compte, d'autres sessions comprises, pendant le lot)
+
 ## Écrire l'accueil Plex, la grille de bibliothèque et la fiche
 
 done

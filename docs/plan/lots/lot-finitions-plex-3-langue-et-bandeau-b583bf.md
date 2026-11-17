@@ -6,6 +6,8 @@
 
 Terminé le 2026-11-07 · 2/2 carte(s) faites.
 
+Consommé : tokens inconnus ; jauge de la semaine inconnu → inconnu (tout le compte, d'autres sessions comprises, pendant le lot)
+
 ## Plex : réglage « Ma langue » et réglages de langue expliqués
 
 done · codé

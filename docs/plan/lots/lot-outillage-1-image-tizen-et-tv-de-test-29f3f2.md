@@ -6,6 +6,8 @@
 
 Terminé le 2026-10-31 · 4/4 carte(s) faites.
 
+Consommé : tokens inconnus ; jauge de la semaine inconnu → inconnu (tout le compte, d'autres sessions comprises, pendant le lot)
+
 ## Faire passer Home Assistant dans l’aperçu navigateur (relais local)
 
 done

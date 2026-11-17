@@ -6,6 +6,8 @@
 
 Terminé le 2026-10-29 · 6/6 carte(s) faites.
 
+Consommé : tokens inconnus ; jauge de la semaine inconnu → inconnu (tout le compte, d'autres sessions comprises, pendant le lot)
+
 ## Choisir intelligemment audio et sous-titres (VO sous-titrée) dans les réglages de Plex
 
 done

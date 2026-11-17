@@ -6,6 +6,8 @@
 
 Terminé le 2026-10-28 · 3/3 carte(s) faites.
 
+Consommé : tokens inconnus ; jauge de la semaine inconnu → inconnu (tout le compte, d'autres sessions comprises, pendant le lot)
+
 ## Préparer CleanFrame tel quel pour Tizen 5 (mesure de référence)
 
 done

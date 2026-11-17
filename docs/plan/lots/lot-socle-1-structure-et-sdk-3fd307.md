@@ -6,6 +6,8 @@
 
 Terminé le 2026-10-28 · 2/2 carte(s) faites.
 
+Consommé : tokens inconnus ; jauge de la semaine inconnu → inconnu (tout le compte, d'autres sessions comprises, pendant le lot)
+
 ## Rendre le SDK Tizen utilisable sous NixOS et écrire les scripts TV
 
 done

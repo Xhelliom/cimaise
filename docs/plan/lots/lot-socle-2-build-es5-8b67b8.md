@@ -6,6 +6,8 @@
 
 Terminé le 2026-10-28 · 1/1 carte(s) faites.
 
+Consommé : tokens inconnus ; jauge de la semaine inconnu → inconnu (tout le compte, d'autres sessions comprises, pendant le lot)
+
 ## Mettre en place le build TypeScript vers un vrai ES5
 
 done
